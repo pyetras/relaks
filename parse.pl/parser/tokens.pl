@@ -5,10 +5,9 @@ latinkws(["foreach", "filter", "limit", "join", "distinct", "order", "by", "samp
   "asc", "as", "desc", "load", "store", "and", "or", "search", "generate", "null", "not"]).
 cmps(["==", "!=", "<=", ">=", "<", ">"]).
 maths(["^", "/", "*", "%", "+", "-"]).
-%% bools(["||", "&&"]).
 
 eol --> whites, [C], { [C] = "\n", !; [C] = ";" }, !, whites, rest_eol.
-%% eol --> whites, eos.
+
 rest_eol --> [C], { [C] = "\n", !; [C] = ";" }, !, whites, rest_eol.
 rest_eol --> [].
 
@@ -63,8 +62,6 @@ eq_op --> "=".
 star --> "*".
 
 colon --> ":".
-
-%% semicolon --> ";".
 
 lpar --> "(".
 rpar --> ")".
