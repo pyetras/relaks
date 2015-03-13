@@ -5,7 +5,7 @@
 :- use_module(grammar).
 :- portray_text(true).
 
-%%                  LATIN
+%------------ LATIN ------------
 
 test(generate1) :-
   Result = latin(generate, [expression(atomic, (var, "name1"))]),
@@ -46,7 +46,7 @@ test(filter) :-
   Test = "filter rel by x2 > x3 and x4 == 5",
   grammar:latin_expr(latin(filter, _), Test, []).
 
-%%                      TOKENS
+%------------ TOKENS ------------
 
 test(timespans) :-
   Result = 70000,
@@ -64,7 +64,7 @@ test(timespans_unit_nlf, [fail]) :-
   grammar:num(_, "1min\n10s", []).
 
 
-%%                      EXPRESSIONS
+%------------ EXPRESSIONS ------------
 test(slice, [fail]) :-
   Tests = ["..:..", "..:5", "hay:5", "12:1m10s", "1:.."],
   member(Case, Tests),
@@ -138,7 +138,7 @@ test(latin_chain) :-
   grammar:expr(expression(latin, L), Test, []),
   L = [(limit, _, _), (filter, _, _), (limit, _, _), (foreach, _, _), (order, _, _)].
 
-%                STATEMENTS
+%------------ STATEMENTS ------------
 test(block_arg_list, [fail]) :-
   Tests = [("in: oee, out, three, one", 4, 0), ("in: oee, out: three, one", 1, 2), ("out: three, one", 0, 2)],
   member((Case, LL1, LL2), Tests),
