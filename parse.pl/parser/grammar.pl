@@ -5,7 +5,8 @@
 */
 :- ensure_loaded(expressions/expr).
 :- ensure_loaded(tokens).
-:- portray_text(true).
+
+:- ensure_loaded(pretty).
 
 stmt(nil) -->
   eol, !.
@@ -40,6 +41,12 @@ stmt_body(List) --> stmt_doend(List).
 ex_call(external(Namespace, Addr)) -->
   blanks, varname(Namespace), !,
   dblcolon, expr(Expr), { dots_to_str(Expr, Addr) }.
+
+dots_to_str(expression(dotaccess, (ExprL, expression(atomic, (var, Varname)))), Str) :- !,
+  VarDot = [0'.| Varname],
+  dots_to_str(ExprL, Left),
+  append(Left, VarDot, Str).
+dots_to_str(expression(atomic, (var, Varname)), Varname).
 
 block_arg_list(InArgs, OutArgs) -->
   def_ins(InArgs), { InArgs \= [] -> Comma = true, !; Comma = false },
@@ -85,4 +92,3 @@ assertion_rest2(Args, Args) --> [].
 program([H|T]) --> top_stmt(H), program_rest(T).
 program_rest([H|T]) --> top_stmt(H), !, program_rest(T).
 program_rest([]) --> [].
-

@@ -146,7 +146,7 @@ test(block_arg_list, [fail]) :-
 
 test(block) :-
   Test = "def proc(in: in1, out: out1) where is_integer(out1), length(in1) = 5 do end",
-  grammar:top_stmt(statement(block, _), Test, []).
+  grammar:top_stmt(statement(block, (_Name, (_Ins, _Outs), _Contracts, _Stmts)), Test, []).
 
 test(block_ext) :-
   Test = "def proc(in:in1,out:out1) where is_integer(out1), length(in1) = 5 as python::default.sort",

@@ -139,28 +139,3 @@ anon_block_arg_rest(IO, IO, IO) --> [].
 const(true) --> tru, !.
 const(false) --> fals, !.
 const(null) --> null.
-
-dots_to_str(expression(dotaccess, (ExprL, expression(atomic, (var, Varname)))), Str) :- !,
-  VarDot = [0'.| Varname],
-  dots_to_str(ExprL, Left),
-  append(Left, VarDot, Str).
-dots_to_str(expression(atomic, (var, Varname)), Varname).
-
-user:portray(expression(atomic, (var, Name))) :- !,
-  string_codes(Str, Name),
-  format("Σ(~p ~w)", [var, Str]).
-
-user:portray(expression(atomic, (string_lit, Name))) :- !,
-  string_codes(Str, Name),
-  format("Σ(~p ~q)", [string_lit, Str]).
-
-user:portray(expression(atomic, (X, Y))) :-
-format("Σ(~p ~p)", [X, Y]).
-
-
-user:portray(expression(Name, Args)) :-
-  format("Σ~p(~p)", [Name, Args]).
-
-print_codes(Codes) :-
-  string_codes(Str, Codes),
-  format("~q", [Str]), nl.
