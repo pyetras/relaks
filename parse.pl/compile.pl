@@ -1,4 +1,4 @@
-#!/usr/bin/env swipl -q
+#!/usr/bin/env swipl -q --traditional
 :- initialization main.
 
 :- use_module(parser/parser).
