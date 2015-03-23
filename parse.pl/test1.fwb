@@ -1,0 +1,4 @@
+x = choose([1, 2])
+y = x * 2
+;
+out = search x generate x
