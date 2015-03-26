@@ -4,6 +4,7 @@ import fwb.parser.ast.Constants.Constant
 
 import scala.util.parsing.input.Positional
 import scala.reflect.runtime.universe.Type
+import scalaz.NonEmptyList
 
 /**
  * Created by Pietras on 26/03/15.
@@ -18,14 +19,15 @@ object AST {
 //    type Identifier = Identifier
 //  }
 
-  abstract sealed class Tree extends Positional
-  implicit class Program(val children: Traversable[Tree]) extends Tree
+  sealed trait Tree extends Positional
+  implicit final class Program(val children: Traversable[Tree]) extends Tree
   object Program {
     def unapply(program: Program) = Some(program.children)
   }
 
-  abstract sealed class Statement extends Tree
+  sealed trait Statement extends Tree
   case class Assignment(left: Expression, right: Expression) extends Statement
+  case class Generate(rels: NonEmptyList[Expression])        extends Statement
   object NoOp                                                extends Statement
 
   sealed trait Expression extends Tree {
@@ -44,13 +46,13 @@ object AST {
 
   final case class Operator(name: String)                      extends Expression
 
-  abstract class Latin                                         extends Expression
+  sealed trait Latin                                           extends Expression
   sealed trait InferredRelation
   object Inferred extends InferredRelation
 
   type Relation = Either[InferredRelation, Expression]
 
-  case class Foreach(rel: Relation, statements: Program)                        extends Latin
+  case class Foreach(rels: NonEmptyList[Expression], statements: NonEmptyList[Statement])       extends Latin
   case class Limit(rel: Relation, limiter: Expression)                          extends Latin
 
   sealed trait OrderDirection
@@ -63,7 +65,4 @@ object AST {
   case class Optimization(method: String = "spearmint") extends SearchType
   object Grid extends SearchType
   case class Search(rels: List[Relation], typ: SearchType, statements: Program) extends Latin
-
-
-
 }

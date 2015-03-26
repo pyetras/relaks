@@ -2,6 +2,7 @@ package fwb.parser.printers
 
 import fwb.parser.ast.{Constants, AST}
 
+import scala.annotation.tailrec
 import scalaz.{Reader, Scalaz}
 
 /**
@@ -13,14 +14,46 @@ class PrettyPrinter{
 
   def apply(tree: Tree) : String = {
     val buf = new StringBuilder
-    traverse(tree)(buf)
+    traverse(tree)((buf, 0))
     buf.toString()
   }
 
-  def print(str: String) : Reader[StringBuilder, Unit] = Reader((builder :StringBuilder) =>
-    builder ++= str)
+  type Env = (StringBuilder, Int)
+  type Rdr = Reader[Env, Unit]
 
-  def traverse(tree: Tree) : Reader[StringBuilder, Unit] = tree match {
+  private def print(str: String) : Rdr = Reader((pair: Env) => pair match
+    { case (builder, _) => builder ++= str })
+
+  private def nothing = print("")
+
+  // TODO: not tailrec
+  private def printList(lst: Traversable[Tree], sep: String) : Rdr = lst match {
+    case h1 :: h2 :: tail => val pp = for {
+      _ <- traverse(h1)
+      _ <- print(sep)
+      _ <- traverse(h2)
+      } yield ()
+      for {
+        _ <- pp
+        _ <- printList(tail, sep)
+      } yield ()
+    case h::Nil => for {
+      _ <- traverse(h)
+    } yield ()
+    case Nil => nothing
+  }
+
+  private def indent(block: => Rdr): Rdr =
+    Reader((pair: Env) => pair match { case (sb, i) => block((sb, i+1)) })
+
+  private def printIndent: Rdr = Reader((pair: Env) => pair match {
+    case (sb, i) => {
+      0 until i foreach (_ => print("\t")((pair)))
+      ()
+    }
+  })
+
+  def traverse(tree: Tree) : Rdr = tree match {
     case Program(statements) => Reader((state) => {
       statements.foreach(stmt => traverse(stmt)(state))
     })
@@ -30,12 +63,17 @@ class PrettyPrinter{
           _ <- traverse(left)
           _ <- print(" = ")
           _ <- traverse(right)
-        } yield ()
-        case NoOp => Reader((s:StringBuilder) => ())
+        } yield false
+        case NoOp => Reader((s: Env) => false)
+        case Generate(rels) => for {
+          _ <- print("GENERATE ")
+          _ <- printList(rels.list, ", ") // TODO: optimize .list
+        } yield true
       }
       for {
-        _ <- printStmt
-        _ <- print(";\n")
+        _ <- printIndent
+        isGenerate <- printStmt
+        _ <- if (!isGenerate) print(";\n") else nothing
       } yield ()
     case Identifier(name) => for {
       _ <- print(name)
@@ -53,5 +91,14 @@ class PrettyPrinter{
       _ <- print(s" $op ")
       _ <- traverse(right)
     } yield ()
+    case expr: Latin => expr match {
+      case Foreach(rels, stmts) => for {
+        _ <- print("FOREACH ")
+        _ <- printList(rels.list, ", ") // TODO: optimize .list
+        _ <- print("\n")
+        _ <- indent({ printList(stmts.list, "") }) // TODO: optimize .list
+      } yield ()
+    }
+
   }
 }

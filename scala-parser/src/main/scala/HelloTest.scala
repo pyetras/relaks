@@ -18,7 +18,7 @@ object HelloTest {
 //    val program:Program = new PrologParser().parse(result)
 //    println(new PrettyPrinter(program).shows)
 
-    val p2 = new PcParser().parse("hello = hello;;")
+    val p2 = new PcParser().parse("x = foreach z a = b\n generate y;")
     println((new PrettyPrinter())(p2))
   }
 

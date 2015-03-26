@@ -57,3 +57,4 @@ ru.reify(2 + 2)
 def print(str: String) = Reader((builder :StringBuilder) =>
   (builder ++= str, ()))
 """a\b"""
+((x:(Int, String)) => {case (i, sb) => (i, sb)})

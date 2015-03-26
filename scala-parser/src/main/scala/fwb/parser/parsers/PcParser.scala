@@ -3,15 +3,13 @@ package fwb.parser.parsers
 import fwb.parser.ast.AST
 import scala.language.{postfixOps, existentials}
 import scala.util.parsing.combinator._
-import scala.util.matching.Regex
 
 /**
  * Created by Pietras on 25/03/15.
  */
-class PcParser extends FWBParser[String] {
+class PcParser extends FWBParser[String]{
   import AST._
   import scalaz._
-  import Scalaz._
 
   override def parse(str: String) = {
     theParser(str).getOrElse(List())
@@ -19,9 +17,10 @@ class PcParser extends FWBParser[String] {
 
   private object theParser extends JavaTokenParsers with PackratParsers {
     def apply(str: String) : scalaz.Validation[String, Program] = {
-      parseAll(program, str) match {
+      val in = new PackratReader(new scala.util.parsing.input.CharArrayReader(str.toCharArray))
+      parseAll(program, in) match {
         case Success(tree, _) => scalaz.Success(tree)
-        case NoSuccess(msg, _) => scalaz.Failure(msg)
+        case NoSuccess(msg, _) => {println(msg); scalaz.Failure(msg)}
       }
     }
 
@@ -30,10 +29,12 @@ class PcParser extends FWBParser[String] {
                               "asc", "as", "desc", "load", "store", "and", "or", "search", "generate",
                               "null", "not", "grid", "in", "exists", "is")
 
-    def keyword(str: String): Parser[String] = s"""$str\b""".r
-    def latinKeyword(str: String): Parser[String] = s"""(?i)$str\b""".r
+    def keyword(str: String): Parser[String] = s"""$str\\b""".r
+    def latinKeyword(str: String): Parser[String] = s"""(?i)$str\\b""".r
 
     def keywords2parsers[T](kws: NonEmptyList[T])(f: T => Parser[T]): Parser[T] = {
+      import Scalaz._
+
       val parsers = kws map f
       parsers.foldl1(acc => parser => acc | parser)
     }
@@ -43,8 +44,11 @@ class PcParser extends FWBParser[String] {
 
     implicit class KeywordOps(s: String) {
       def k = keyword(s)
-      def ik = latinKeyword(s)
+      def ki = latinKeyword(s)
     }
+
+    def rep1sep[T,U](p: Parser[T], sep: Parser[U]): Parser[NonEmptyList[T]] = p ~ rep(sep ~> p) ^^
+      { case h ~ lst => NonEmptyList(h, lst:_*) }
 
     def eol : Parser[Unit] = {
       val parser = new Parser[Unit] {
@@ -91,12 +95,21 @@ class PcParser extends FWBParser[String] {
     }
 
 //    EXPRESSIONS
-    lazy val expression: PackratParser[Expression] = identifier
+    lazy val expression: PackratParser[Expression] = latinExpr | identifier
     lazy val identifier: Parser[Expression] = identValue ^^ ( name => Identifier(name) )
 
+    lazy val colList: PackratParser[NonEmptyList[Expression]] = rep1sep(expression, ",")
+
+    lazy val latinExpr: PackratParser[Expression] = foreach //| limit | filter | order | search | load | store
+    lazy val foreach: Parser[Foreach] = "foreach".ki ~> colList ~ stmtsWithGenerate ^^
+      { case exprs~stmts => Foreach(exprs, stmts)}
+    lazy val stmtsWithGenerate: PackratParser[NonEmptyList[Statement]] = (statement *) ~ generate ^^
+      { case Nil~gen => NonEmptyList(gen)
+        case (h::t)~gen => NonEmptyList(h, (t ::: List(gen)):_*)
+      }
+    lazy val generate: Parser[Statement] = "generate".ki ~> colList ^^ (cols => Generate(cols))
+
     lazy val identValue: Parser[String] = not(reserved) ~> ident
-
-
   }
 
 }
