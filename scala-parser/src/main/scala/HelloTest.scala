@@ -2,7 +2,6 @@
  * Created by Pietras on 20/03/15.
  */
 
-import fwb.parser.ast.Programs.Program
 import fwb.parser.parsers.{PcParser, PrologParser}
 import fwb.parser.printers.PrettyPrinter
 import jpl._
@@ -20,7 +19,7 @@ object HelloTest {
 //    println(new PrettyPrinter(program).shows)
 
     val p2 = new PcParser().parse("hello = hello;;")
-    println(new PrettyPrinter(p2).shows)
+    println((new PrettyPrinter())(p2))
   }
 
 }

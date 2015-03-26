@@ -3,6 +3,8 @@ package fwb.parser.ast
 /**
  * Created by Pietras on 24/03/15.
  */
+import AST._
+
 sealed trait Value {
   type ValueT
   val v: ValueT

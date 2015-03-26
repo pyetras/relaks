@@ -1,17 +1,14 @@
 package fwb.parser.parsers
 
-import fwb.parser.ast.Expression.Identifier
-import fwb.parser.ast.Programs._
-import fwb.parser.ast.{Expression, Statement}
-import fwb.parser.ast.Statement._
+import fwb.parser.ast.AST
 import scala.language.postfixOps
-
 import scala.util.parsing.combinator._
 
 /**
  * Created by Pietras on 25/03/15.
  */
 class PcParser extends FWBParser[String] {
+  import AST._
 
   override def parse(str: String) = {
     theParser(str).getOrElse(List())
@@ -20,7 +17,7 @@ class PcParser extends FWBParser[String] {
   private object theParser extends JavaTokenParsers with PackratParsers {
     def apply(str: String) : scalaz.Validation[String, Program] = {
       parseAll(program, str) match {
-        case Success(program, _) => scalaz.Success(program)
+        case Success(tree, _) => scalaz.Success(tree)
         case NoSuccess(msg, _) => scalaz.Failure(msg)
       }
     }
@@ -38,7 +35,7 @@ class PcParser extends FWBParser[String] {
 
           val whites = """[ \t]+""".r
 
-          val in1 = (whites findPrefixMatchOf SubSeq(in.offset, in.source.length() - in.offset)) match {
+          val in1 = whites findPrefixMatchOf SubSeq(in.offset, in.source.length() - in.offset) match {
             case Some(matched) => in.drop(matched.end)
             case None => in
           }
@@ -60,7 +57,7 @@ class PcParser extends FWBParser[String] {
       parser <~ """\s*""".r
     }
 
-    lazy val program : Parser[List[Statement]] = (topStatement +)
+    lazy val program : Parser[List[Statement]] = topStatement +
 
 //    STATEMENTS
     lazy val topStatement: Parser[Statement] = statement

@@ -1,20 +1,17 @@
 package fwb.parser.printers
 
-import fwb.parser.ast.Expression._
-import fwb.parser.ast.Programs.Program
-import fwb.parser.ast._
-import fwb.parser.ast.Statement._
+import fwb.parser.ast.{Constants, AST}
 
 import scalaz.{Reader, Scalaz}
 
 /**
  * Created by Pietras on 24/03/15.
  */
-class PrettyPrinter(tree: Tree) {
+class PrettyPrinter{
   import Scalaz._
+  import AST._
 
-  def apply : String = shows
-  def shows : String = {
+  def apply(tree: Tree) : String = {
     val buf = new StringBuilder
     traverse(tree)(buf)
     buf.toString()
@@ -27,7 +24,7 @@ class PrettyPrinter(tree: Tree) {
     case Program(statements) => Reader((state) => {
       statements.foreach(stmt => traverse(stmt)(state))
     })
-    case stmt: Statement => {
+    case stmt: Statement =>
       val printStmt = stmt match {
         case Assignment(left, right) => for {
           _ <- traverse(left)
@@ -40,7 +37,6 @@ class PrettyPrinter(tree: Tree) {
         _ <- printStmt
         _ <- print(";\n")
       } yield ()
-    }
     case Identifier(name) => for {
       _ <- print(name)
     } yield ()
@@ -50,7 +46,7 @@ class PrettyPrinter(tree: Tree) {
       _ <- print("\"")
     } yield ()
     case Literal(c) => for {
-      _ <- print(c.v.toString())
+      _ <- print(c.v.toString)
     } yield ()
     case Apply(Operator(op), List(left, right)) => for {
       _ <- traverse(left)
