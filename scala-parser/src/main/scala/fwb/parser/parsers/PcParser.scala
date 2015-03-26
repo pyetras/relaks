@@ -1,14 +1,17 @@
 package fwb.parser.parsers
 
 import fwb.parser.ast.AST
-import scala.language.postfixOps
+import scala.language.{postfixOps, existentials}
 import scala.util.parsing.combinator._
+import scala.util.matching.Regex
 
 /**
  * Created by Pietras on 25/03/15.
  */
 class PcParser extends FWBParser[String] {
   import AST._
+  import scalaz._
+  import Scalaz._
 
   override def parse(str: String) = {
     theParser(str).getOrElse(List())
@@ -22,7 +25,26 @@ class PcParser extends FWBParser[String] {
       }
     }
 
-    val keywords = List("def", "true", "false", "do", "end", "and", "or", "null")
+    val keywords = NonEmptyList("def", "true", "false", "do", "end", "and", "or", "null")
+    val latinKeywords = NonEmptyList("foreach", "filter", "limit", "join", "distinct", "order", "by", "sample",
+                              "asc", "as", "desc", "load", "store", "and", "or", "search", "generate",
+                              "null", "not", "grid", "in", "exists", "is")
+
+    def keyword(str: String): Parser[String] = s"""$str\b""".r
+    def latinKeyword(str: String): Parser[String] = s"""(?i)$str\b""".r
+
+    def keywords2parsers[T](kws: NonEmptyList[T])(f: T => Parser[T]): Parser[T] = {
+      val parsers = kws map f
+      parsers.foldl1(acc => parser => acc | parser)
+    }
+
+    lazy val reserved = keywords2parsers(keywords)(keyword)
+    lazy val reserved_latin = keywords2parsers(latinKeywords)(latinKeyword)
+
+    implicit class KeywordOps(s: String) {
+      def k = keyword(s)
+      def ik = latinKeyword(s)
+    }
 
     def eol : Parser[Unit] = {
       val parser = new Parser[Unit] {
@@ -70,7 +92,9 @@ class PcParser extends FWBParser[String] {
 
 //    EXPRESSIONS
     lazy val expression: PackratParser[Expression] = identifier
-    lazy val identifier: Parser[Expression] = ident ^^ { case name => Identifier(name) }
+    lazy val identifier: Parser[Expression] = identValue ^^ ( name => Identifier(name) )
+
+    lazy val identValue: Parser[String] = not(reserved) ~> ident
 
 
   }

@@ -1,8 +1,6 @@
-import fwb.parser.ast.Expression.Identifier
-import fwb.parser.ast.Statement.Assignment
-import fwb.parser.ast.Tree
 
 import scalaz._
+import Scalaz._
 import scala.reflect.runtime.{universe => ru}
 import scala.language.implicitConversions
 
@@ -32,7 +30,6 @@ object Value {
 case class Constant(val value: Any) extends Value {
   type ValueT = Any
 }
-
 def x(a:Value) = a match {
   case Constant(x: Int) => x
   case _ => null
@@ -59,3 +56,4 @@ ru.reify(2 + 2)
 'sym
 def print(str: String) = Reader((builder :StringBuilder) =>
   (builder ++= str, ()))
+"""a\b"""
