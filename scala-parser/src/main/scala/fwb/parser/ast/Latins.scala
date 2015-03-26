@@ -1,11 +1,11 @@
 package fwb.parser.ast
 
-import fwb.parser.ast.Program.Program
+import fwb.parser.ast.Programs.Program
 
 /**
  * Created by Pietras on 22/03/15.
  */
-object latin {
+object Latins {
   abstract class Latin extends Expression
   sealed trait InferredRelation
   object InferredRelation extends InferredRelation
