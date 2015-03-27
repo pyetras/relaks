@@ -27,7 +27,7 @@ object AST {
 
   sealed trait Statement extends Tree
   case class Assignment(left: Expression, right: Expression) extends Statement
-  case class Generate(rels: NonEmptyList[Expression])        extends Statement
+  case class Generate(exprs: NonEmptyList[Expression])        extends Statement
   object NoOp                                                extends Statement
 
   sealed trait Expression extends Tree {
@@ -37,13 +37,17 @@ object AST {
 
   case class Identifier(name: String)                          extends Expression
 
-  case class Literal(c: Constant)                              extends Expression
+  case class Literal(v: Value)                              extends Expression
   final val True = Literal(Constant(true))
   final val False = Literal(Constant(false))
   final val Null = Literal(Constant(null))
 
   case class Apply(fun: Expression, argList: List[Expression]) extends Expression
+  trait NamedArgs { this: Apply =>
+    val names: List[Option[String]]
+  }
 
+  case class Select(lhs: Expression, rhs: Expression)          extends Expression
   final case class Operator(name: String)                      extends Expression
 
   sealed trait Latin                                           extends Expression

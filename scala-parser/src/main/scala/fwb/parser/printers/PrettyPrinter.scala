@@ -1,6 +1,7 @@
 package fwb.parser.printers
 
-import fwb.parser.ast.{Constants, AST}
+import fwb.parser.ast.Constants.Constant
+import fwb.parser.ast.{Lst, Constants, AST}
 
 import scala.annotation.tailrec
 import scalaz.{Reader, Scalaz}
@@ -31,11 +32,10 @@ class PrettyPrinter{
     case h1 :: h2 :: tail => val pp = for {
       _ <- printer(h1)
       _ <- print(sep)
-      _ <- printer(h2)
       } yield ()
       for {
         _ <- pp
-        _ <- printList(tail, sep, printer)
+        _ <- printList(h2::tail, sep, printer)
       } yield ()
     case h::Nil => for {
       _ <- printer(h)
@@ -78,24 +78,38 @@ class PrettyPrinter{
     case Identifier(name) => for {
       _ <- print(name)
     } yield ()
-    case Literal(c) if c.tag === Constants.StringTag => for {
+    case Literal(c : Constant) if c.tag === Constants.StringTag => for {
       _ <- print("\"")
       _ <- print(c.v.toString)
       _ <- print("\"")
+    } yield ()
+    case Literal(Lst(lst : List[Expression])) => for {
+      _ <- print("[")
+      _ <- printList(lst, ", ")
+      _ <- print("]")
     } yield ()
     case Literal(c) => for {
       _ <- print(c.v.toString)
     } yield ()
     case expr: Expression => expr match {
       case Apply(Operator(op), List(left, right)) => for {
+        _ <- print("(")
         _ <- traverse(left)
         _ <- print(s" $op ")
         _ <- traverse(right)
+        _ <- print(")")
       } yield ()
       case Apply(Identifier(name), lst) => for {
         _ <- print(name)
         _ <- print("(")
         _ <- printList(lst, ", ")
+        _ <- print(")")
+      } yield ()
+      case Select(lhs, rhs) => for {
+        _ <- print("(")
+        _ <- traverse(lhs)
+        _ <- print(".")
+        _ <- traverse(rhs)
         _ <- print(")")
       } yield ()
       case latin: Latin => latin match {

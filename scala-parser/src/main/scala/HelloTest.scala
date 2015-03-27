@@ -20,12 +20,8 @@ object HelloTest {
 
     val p2 = new PcParser().parse(
       """
-        x = foreach z, v
-        a = b
-        generate y; x = limit y z;
-        x = filter a by x
-        z = order x by y desc, v asc;
-        m = grid search x generate z;""".stripMargin)
+        x = [1,2,3,4,5,6+7]
+      """.stripMargin)
     println((new PrettyPrinter())(p2))
   }
 

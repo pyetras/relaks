@@ -1,22 +1,24 @@
 package fwb.parser.parsers
 
-import fwb.parser.ast.AST
+import fwb.parser.ast.{Lst, AST}
 import fwb.parser.ast.Constants.Constant
 import scala.language.{postfixOps, existentials}
 import scala.util.parsing.combinator._
+import scalaz._
+
 
 /**
  * Created by Pietras on 25/03/15.
+ * TODO: pipes, functions (def), tests
  */
 class PcParser extends FWBParser[String]{
   import AST._
-  import scalaz._
 
   override def parse(str: String) = {
     theParser(str).getOrElse(List())
   }
 
-  private object theParser extends JavaTokenParsers with PackratParsers {
+  private object theParser extends JavaTokenParsers with PackratParsers with EolParser with OperatorPrecedenceParsers {
     def apply(str: String) : scalaz.Validation[String, Program] = {
       val in = new PackratReader(new scala.util.parsing.input.CharArrayReader(str.toCharArray))
       parseAll(program, in) match {
@@ -41,7 +43,7 @@ class PcParser extends FWBParser[String]{
     }
 
     lazy val reserved = keywords2parsers(keywords)(keyword)
-    lazy val reserved_latin = keywords2parsers(latinKeywords)(latinKeyword)
+    lazy val reservedLatin = keywords2parsers(latinKeywords)(latinKeyword)
 
     implicit class KeywordOps(s: String) {
       def k = keyword(s)
@@ -50,39 +52,6 @@ class PcParser extends FWBParser[String]{
 
     def rep1sep[T,U](p: Parser[T], sep: Parser[U]): Parser[NonEmptyList[T]] = p ~ rep(sep ~> p) ^^
       { case h ~ lst => NonEmptyList(h, lst:_*) }
-
-    def eol : Parser[Unit] = {
-      val parser = new Parser[Unit] {
-        def apply(in: Input): ParseResult[Unit] = {
-          case class SubSeq(offset: Int, len: Int) extends CharSequence {
-            override def charAt(index: Int): Elem = in.source.charAt(index + offset)
-            override def length(): Int = len
-            override def subSequence(start: Int, end: Int): CharSequence = copy(offset = start + offset, len = end - start)
-          }
-
-          val whites = """[ \t]+""".r
-
-          val in1 = whites findPrefixMatchOf SubSeq(in.offset, in.source.length() - in.offset) match {
-            case Some(matched) => in.drop(matched.end)
-            case None => in
-          }
-
-          def matchNewline(in: Input): ParseResult[Unit] = {
-            val source = in.source
-            val start = in.offset
-            if (start < source.length() && (source.charAt(start) == '\n' || source.charAt(start) == ';'))
-              Success((), in.drop(1))
-            else {
-              val found = if (start == source.length()) "end of source" else "`" + source.charAt(start) + "'"
-              Failure(s"newline or ; expected but $found found", in)
-            }
-          }
-
-          matchNewline(in1)
-        }
-      }
-      parser <~ """\s*""".r
-    }
 
     lazy val program : Parser[List[Statement]] = topStatement +
 
@@ -96,14 +65,79 @@ class PcParser extends FWBParser[String]{
     }
 
 //    EXPRESSIONS
-    lazy val expression: PackratParser[Expression] = latinExpr | identifier
-    lazy val identifier: Parser[Expression] = identValue ^^ ( name => Identifier(name) )
+    lazy val expression: PackratParser[Expression] = latinExpr | arith
+    lazy val identifier: Parser[Expression] = not(reserved) ~> identValue
+
+    def infixOp(name: String, priority: Double, matcher: Option[Parser[String]] = None)(implicit ev: String => Parser[String]): Op[String, Expression] =
+      Infix(priority, priority-1)(matcher.getOrElse(ev(name))) { (_, lhs, rhs) => Apply(Operator(name), List(lhs, rhs))}
+
+    lazy val cmpOps = List(
+      infixOp("<", 600),
+      infixOp(">", 600),
+      infixOp("<=", 600),
+      infixOp(">=", 600)
+    )
+
+    lazy val mathOps = List(
+      infixOp("+", 500),
+      infixOp("-", 500),
+      infixOp("*", 400),
+      infixOp("/", 400),
+      infixOp("^", 300),
+      infixOp("mod", 400, Some("%" | "mod"))
+    )
+
+    lazy val boolOps = List(
+      infixOp("and", 800, Some("and" | "&&")),
+      infixOp("or", 800, Some("or" | "||"))
+    )
+
+    lazy val arith: PackratParser[Expression] = operators[String, Expression](
+      List(infixOp("==", 700), infixOp("!=", 700)) ::: cmpOps ::: mathOps ::: boolOps:_*
+    )(simpleExpr)
+
+    lazy val parens: Parser[Expression] = "(" ~> expression <~ ")"
+
+    lazy val simpleExpr: PackratParser[Expression] = special | select | atomicExpr
+
+    lazy val select: PackratParser[Expression] = operators[String, Expression](
+      Infix(100 - 1, 100)(".") { (_, lhs, rhs) => Select(lhs, rhs) }
+    )(simpleExpr)
+
+    lazy val special = "$" ~> (select | atomicExpr) ^^ (rhs => Select(Identifier("$"), rhs))
+
+    lazy val atomicExpr: PackratParser[Expression] = parens | listLit | numLit | stringLit | identifier
+
+    lazy val stringLit = stringLiteral ^^ (str => Literal(Constant(str)))
+
+    lazy val numLit: Parser[Literal] = (
+        wholeNumber ^^ ((num:String) => Literal(Constant(num.toInt)))
+      | floatingPointNumber ^^ ((num:String) => Literal(Constant(num.toDouble)))
+    )
+
+    lazy val listLit: Parser[Literal] = "[" ~> repsep(expression, ",") <~ "]" ^^ (x => Literal(Lst(x)))
+
+    lazy val call: PackratParser[Apply] = (expression <~ "(") ~ repsep(callArg, ",") <~ ")" ^^
+      { case fun~args => {
+        val namez = args.map(_._1)
+        val vals = args.map(_._2)
+        new Apply(fun, vals) with NamedArgs {
+          val names = namez
+        }
+      }}
+    lazy val callArg: PackratParser[(Option[String], Expression)] = ((ident <~ "=")?) ~ expression ^^
+      {case l~r => (l, r)}
+
+    //    LATIN
+    lazy val latinExpr: PackratParser[Expression] = foreach | limit | filter | order | search | load | store
+
+    lazy val latinIdent: PackratParser[Expression] = quotedIdent | (not(reservedLatin) ~> identValue)
+    // `identifier.1`
+    lazy val quotedIdent: Parser[Expression] =
+      ("`"+"""([^`\p{Cntrl}\\]|\\[\\'"bfnrt]|\\u[a-fA-F0-9]{4})*+"""+"`").r ^^ ( Identifier(_) )
 
     lazy val colList: PackratParser[NonEmptyList[Expression]] = rep1sep(column, ",")
     lazy val column = expression
-
-//    LATIN
-    lazy val latinExpr: PackratParser[Expression] = foreach | limit | filter | order | search | load | store
 
     lazy val foreach: Parser[Foreach] = "foreach".ki ~> colList ~ stmtsWithGenerate ^^
       { case exprs~stmts => Foreach(exprs.map(x => Right(x)), stmts)}
@@ -111,14 +145,15 @@ class PcParser extends FWBParser[String]{
       { case Nil~gen => NonEmptyList(gen)
         case (h::t)~gen => NonEmptyList(h, (t ::: List(gen)):_*)
       }
-    lazy val generate: Parser[Statement] = "generate".ki ~> colList ^^ (cols => Generate(cols))
+    lazy val generate: Parser[Statement] = "generate".ki ~> exprList ^^ (cols => Generate(cols))
+    lazy val exprList: Parser[NonEmptyList[Expression]] = rep1sep(expression, ",")
 
     lazy val limit: Parser[Limit] = "limit".ki ~> column ~ expression ^^ { case col~expr => Limit(Right(col), expr)}
 
-    lazy val filter: Parser[Filter] = "filter".ki ~> column ~ ("by" ~> expression) ^^
+    lazy val filter: Parser[Filter] = "filter".ki ~> column ~ ("by".ki ~> expression) ^^
       { case col~expr => Filter(Right(col), expr)}
 
-    lazy val order: Parser[AST.Order] = "order".ki ~> column ~ ("by" ~> directions) ^^
+    lazy val order: Parser[AST.Order] = "order".ki ~> column ~ ("by".ki ~> directions) ^^
       { case col ~ dirs => AST.Order(Right(col), dirs) }
     lazy val directions: Parser[NonEmptyList[(Expression, OrderDirection)]] = rep1sep(column ~ ((asc | desc)?), ",") ^^
       ((nel) => nel.map ((x:Expression ~ Option[OrderDirection]) => x match {
@@ -139,7 +174,7 @@ class PcParser extends FWBParser[String]{
       ( path => AST.Apply(Identifier("store"), List(Literal(Constant(path)))) )
     lazy val io = stringLiteral
 
-    lazy val identValue: Parser[String] = not(reserved) ~> ident
+    lazy val identValue: Parser[Identifier] = ident ^^ ( name => Identifier(name) )
   }
 
 }
