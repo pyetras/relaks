@@ -52,17 +52,18 @@ object AST {
 
   type Relation = Either[InferredRelation, Expression]
 
-  case class Foreach(rels: NonEmptyList[Expression], statements: NonEmptyList[Statement])       extends Latin
+  case class Foreach(rels: NonEmptyList[Relation], statements: NonEmptyList[Statement])       extends Latin
   case class Limit(rel: Relation, limiter: Expression)                          extends Latin
+  case class Filter(rel: Relation, condition: Expression)                       extends Latin
 
   sealed trait OrderDirection
   object Asc extends OrderDirection
   object Desc extends OrderDirection
 
-  case class Order(rel: Relation, directions: List[(Relation, OrderDirection)]) extends Latin
+  case class Order(rel: Relation, directions: NonEmptyList[(Expression, OrderDirection)]) extends Latin
 
   sealed trait SearchType
   case class Optimization(method: String = "spearmint") extends SearchType
   object Grid extends SearchType
-  case class Search(rels: List[Relation], typ: SearchType, statements: Program) extends Latin
+  case class Search(rels: NonEmptyList[Expression], typ: SearchType, statements: NonEmptyList[Statement]) extends Latin
 }

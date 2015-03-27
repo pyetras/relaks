@@ -27,18 +27,18 @@ class PrettyPrinter{
   private def nothing = print("")
 
   // TODO: not tailrec
-  private def printList(lst: Traversable[Tree], sep: String) : Rdr = lst match {
+  private def printList[T](lst: Traversable[T], sep: String, printer: T => Rdr = traverse _) : Rdr = lst match {
     case h1 :: h2 :: tail => val pp = for {
-      _ <- traverse(h1)
+      _ <- printer(h1)
       _ <- print(sep)
-      _ <- traverse(h2)
+      _ <- printer(h2)
       } yield ()
       for {
         _ <- pp
-        _ <- printList(tail, sep)
+        _ <- printList(tail, sep, printer)
       } yield ()
     case h::Nil => for {
-      _ <- traverse(h)
+      _ <- printer(h)
     } yield ()
     case Nil => nothing
   }
@@ -86,19 +86,59 @@ class PrettyPrinter{
     case Literal(c) => for {
       _ <- print(c.v.toString)
     } yield ()
-    case Apply(Operator(op), List(left, right)) => for {
-      _ <- traverse(left)
-      _ <- print(s" $op ")
-      _ <- traverse(right)
-    } yield ()
-    case expr: Latin => expr match {
-      case Foreach(rels, stmts) => for {
-        _ <- print("FOREACH ")
-        _ <- printList(rels.list, ", ") // TODO: optimize .list
-        _ <- print("\n")
-        _ <- indent({ printList(stmts.list, "") }) // TODO: optimize .list
+    case expr: Expression => expr match {
+      case Apply(Operator(op), List(left, right)) => for {
+        _ <- traverse(left)
+        _ <- print(s" $op ")
+        _ <- traverse(right)
       } yield ()
+      case Apply(Identifier(name), lst) => for {
+        _ <- print(name)
+        _ <- print("(")
+        _ <- printList(lst, ", ")
+        _ <- print(")")
+      } yield ()
+      case latin: Latin => latin match {
+        case Foreach(rels, stmts) => for {
+          _ <- print("FOREACH ")
+          _ <- printList(rels.sequenceU.right.get.list, ", ") // TODO: optimize .list
+          _ <- print("\n")
+          _ <- indent({
+            printList(stmts.list, "")
+          }) // TODO: optimize .list
+        } yield ()
+        case Limit(Right(rel), lim) => for {
+          _ <- print("LIMIT ")
+          _ <- traverse(rel)
+          _ <- print(" ")
+          _ <- traverse(lim)
+        } yield ()
+        case Filter(Right(rel), cond) => for {
+          _ <- print("FILTER ")
+          _ <- traverse(rel)
+          _ <- print(" BY ")
+          _ <- traverse(cond)
+        } yield ()
+        case Order(Right(rel), dirs) => for {
+          _ <- print("ORDER ")
+          _ <- traverse(rel)
+          _ <- print(" BY ")
+          _ <- printList(dirs.list, ", ", (x: (Expression, OrderDirection)) => for {// TODO: optimize .list
+            _ <- traverse(x._1)
+            _ <- print(" ")
+            _ <- print(if (x._2 == Asc) "ASC" else "DESC")
+          } yield ())
+        } yield ()
+        case Search(rels, typ, stmts) => for {
+          _ <- print(if (typ == Grid) "GRID " else "")
+          _ <- print("SEARCH ")
+          _ <- printList(rels.list, ", ") // TODO: optimize .list
+          _ <- print("\n")
+          _ <- indent({
+            printList(stmts.list, "")
+          }) // TODO: optimize .list
+        } yield ()
+      }
     }
-
   }
 }

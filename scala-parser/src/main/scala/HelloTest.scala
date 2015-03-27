@@ -18,7 +18,14 @@ object HelloTest {
 //    val program:Program = new PrologParser().parse(result)
 //    println(new PrettyPrinter(program).shows)
 
-    val p2 = new PcParser().parse("x = foreach z a = b\n generate y;")
+    val p2 = new PcParser().parse(
+      """
+        x = foreach z, v
+        a = b
+        generate y; x = limit y z;
+        x = filter a by x
+        z = order x by y desc, v asc;
+        m = grid search x generate z;""".stripMargin)
     println((new PrettyPrinter())(p2))
   }
 

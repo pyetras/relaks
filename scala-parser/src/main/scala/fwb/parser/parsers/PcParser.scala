@@ -1,6 +1,7 @@
 package fwb.parser.parsers
 
 import fwb.parser.ast.AST
+import fwb.parser.ast.Constants.Constant
 import scala.language.{postfixOps, existentials}
 import scala.util.parsing.combinator._
 
@@ -98,16 +99,45 @@ class PcParser extends FWBParser[String]{
     lazy val expression: PackratParser[Expression] = latinExpr | identifier
     lazy val identifier: Parser[Expression] = identValue ^^ ( name => Identifier(name) )
 
-    lazy val colList: PackratParser[NonEmptyList[Expression]] = rep1sep(expression, ",")
+    lazy val colList: PackratParser[NonEmptyList[Expression]] = rep1sep(column, ",")
+    lazy val column = expression
 
-    lazy val latinExpr: PackratParser[Expression] = foreach //| limit | filter | order | search | load | store
+//    LATIN
+    lazy val latinExpr: PackratParser[Expression] = foreach | limit | filter | order | search | load | store
+
     lazy val foreach: Parser[Foreach] = "foreach".ki ~> colList ~ stmtsWithGenerate ^^
-      { case exprs~stmts => Foreach(exprs, stmts)}
+      { case exprs~stmts => Foreach(exprs.map(x => Right(x)), stmts)}
     lazy val stmtsWithGenerate: PackratParser[NonEmptyList[Statement]] = (statement *) ~ generate ^^
       { case Nil~gen => NonEmptyList(gen)
         case (h::t)~gen => NonEmptyList(h, (t ::: List(gen)):_*)
       }
     lazy val generate: Parser[Statement] = "generate".ki ~> colList ^^ (cols => Generate(cols))
+
+    lazy val limit: Parser[Limit] = "limit".ki ~> column ~ expression ^^ { case col~expr => Limit(Right(col), expr)}
+
+    lazy val filter: Parser[Filter] = "filter".ki ~> column ~ ("by" ~> expression) ^^
+      { case col~expr => Filter(Right(col), expr)}
+
+    lazy val order: Parser[AST.Order] = "order".ki ~> column ~ ("by" ~> directions) ^^
+      { case col ~ dirs => AST.Order(Right(col), dirs) }
+    lazy val directions: Parser[NonEmptyList[(Expression, OrderDirection)]] = rep1sep(column ~ ((asc | desc)?), ",") ^^
+      ((nel) => nel.map ((x:Expression ~ Option[OrderDirection]) => x match {
+        case col ~ Some(ord) => (col, ord)
+        case col ~ None => (col, Asc)
+      }))
+    lazy val asc: Parser[OrderDirection] = "asc".ki ^^^ Asc
+    lazy val desc: Parser[OrderDirection] = "desc".ki ^^^ Desc
+
+    lazy val search: PackratParser[Search] = "grid".ki.? ~ ("search".ki ~> colList) ~ stmtsWithGenerate ^^
+      { case Some("grid") ~ cols ~ stmts => Search(cols, Grid, stmts)
+        case None ~ cols ~ stmts => Search(cols, Grid, stmts)
+      }
+
+    lazy val load: Parser[AST.Apply] = "load".ki ~> io ^^
+      ( path => AST.Apply(Identifier("load"), List(Literal(Constant(path)))) )
+    lazy val store: Parser[AST.Apply] = "store".ki ~> io ^^
+      ( path => AST.Apply(Identifier("store"), List(Literal(Constant(path)))) )
+    lazy val io = stringLiteral
 
     lazy val identValue: Parser[String] = not(reserved) ~> ident
   }
