@@ -127,7 +127,18 @@ class PcParserTest extends FunSpec with Matchers with Inside {
       }
     }
     describe("latin") {
-      pending
+      it("should parse foreach statement") {
+        implicit val p = parser.grammar.latinExpr
+        parser.parse("foreach x, y, z generate x, y") shouldBe a [Foreach]
+        inside(parser.parse("foreach x, y, z x = y; generate z")) {
+          case Foreach(rels, stmts) => {
+            rels should have size 3
+            stmts should have size 2
+          }
+        }
+        assertFail("foreach x, y, z")
+        assertFail("foreach generate x, y")
+      }
     }
   }
 }
