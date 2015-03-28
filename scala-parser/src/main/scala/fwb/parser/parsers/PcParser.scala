@@ -9,7 +9,7 @@ import scalaz._
 
 /**
  * Created by Pietras on 25/03/15.
- * TODO: pipes, functions (def), not, x[1]
+ * TODO: pipes, functions (def), not, x[1], column as name
  */
 class PcParser extends FWBParser[String]{
   import AST._
