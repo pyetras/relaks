@@ -15,4 +15,6 @@ libraryDependencies ++= Seq(
   "org.scalaz" %% "scalaz-scalacheck-binding" % scalazVersion % "test"
 )
 
-scalacOptions += "-feature"
+libraryDependencies += "org.scalatest" % "scalatest_2.11" % "2.2.4" % "test"
+
+scalacOptions ++= Seq("-feature", "-deprecation")

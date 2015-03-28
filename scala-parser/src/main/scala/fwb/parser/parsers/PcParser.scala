@@ -9,7 +9,7 @@ import scalaz._
 
 /**
  * Created by Pietras on 25/03/15.
- * TODO: pipes, functions (def), tests
+ * TODO: pipes, functions (def), not, x[1]
  */
 class PcParser extends FWBParser[String]{
   import AST._
@@ -18,7 +18,7 @@ class PcParser extends FWBParser[String]{
     theParser(str).getOrElse(List())
   }
 
-  private object theParser extends JavaTokenParsers with PackratParsers with EolParser with OperatorPrecedenceParsers {
+  protected object theParser extends JavaTokenParsers with PackratParsers with EolParser with OperatorPrecedenceParsers {
     def apply(str: String) : scalaz.Validation[String, Program] = {
       val in = new PackratReader(new scala.util.parsing.input.CharArrayReader(str.toCharArray))
       parseAll(program, in) match {
@@ -53,7 +53,7 @@ class PcParser extends FWBParser[String]{
     def rep1sep[T,U](p: Parser[T], sep: Parser[U]): Parser[NonEmptyList[T]] = p ~ rep(sep ~> p) ^^
       { case h ~ lst => NonEmptyList(h, lst:_*) }
 
-    lazy val program : Parser[List[Statement]] = topStatement +
+    lazy val program : Parser[List[Statement]] = positioned(topStatement) +
 
 //    STATEMENTS
     lazy val topStatement: Parser[Statement] = statement
@@ -72,10 +72,10 @@ class PcParser extends FWBParser[String]{
       Infix(priority, priority-1)(matcher.getOrElse(ev(name))) { (_, lhs, rhs) => Apply(Operator(name), List(lhs, rhs))}
 
     lazy val cmpOps = List(
-      infixOp("<", 600),
-      infixOp(">", 600),
       infixOp("<=", 600),
-      infixOp(">=", 600)
+      infixOp(">=", 600),
+      infixOp("<", 600),
+      infixOp(">", 600)
     )
 
     lazy val mathOps = List(
@@ -98,7 +98,7 @@ class PcParser extends FWBParser[String]{
 
     lazy val parens: Parser[Expression] = "(" ~> expression <~ ")"
 
-    lazy val simpleExpr: PackratParser[Expression] = special | select | atomicExpr
+    lazy val simpleExpr: PackratParser[Expression] = call | special | select | atomicExpr
 
     lazy val select: PackratParser[Expression] = operators[String, Expression](
       Infix(100 - 1, 100)(".") { (_, lhs, rhs) => Select(lhs, rhs) }
@@ -106,16 +106,19 @@ class PcParser extends FWBParser[String]{
 
     lazy val special = "$" ~> (select | atomicExpr) ^^ (rhs => Select(Identifier("$"), rhs))
 
-    lazy val atomicExpr: PackratParser[Expression] = parens | listLit | numLit | stringLit | identifier
+    lazy val atomicExpr: PackratParser[Expression] = parens | listLit | numLit | stringLit | boolLit | nullLit | identifier
 
-    lazy val stringLit = stringLiteral ^^ (str => Literal(Constant(str)))
+    lazy val stringLit = stringLiteral ^^ (str => Literal(Constant(str.stripPrefix("\"").stripSuffix("\""))))
 
-    lazy val numLit: Parser[Literal] = (
-        wholeNumber ^^ ((num:String) => Literal(Constant(num.toInt)))
-      | floatingPointNumber ^^ ((num:String) => Literal(Constant(num.toDouble)))
-    )
+    lazy val numLit: Parser[Literal] = double | integer
+    lazy val integer = wholeNumber ^^ ((num:String) => Literal(Constant(num.toInt)))
+    lazy val double = floatingPointNumber ^^ ((num:String) => Literal(Constant(num.toDouble)))
 
     lazy val listLit: Parser[Literal] = "[" ~> repsep(expression, ",") <~ "]" ^^ (x => Literal(Lst(x)))
+
+    lazy val boolLit: Parser[Literal] = ("true".k ^^^ True) | ("false".k ^^^ False)
+
+    lazy val nullLit: Parser[Literal] = "null".k ^^^ Null
 
     lazy val call: PackratParser[Apply] = (expression <~ "(") ~ repsep(callArg, ",") <~ ")" ^^
       { case fun~args => {
@@ -134,7 +137,7 @@ class PcParser extends FWBParser[String]{
     lazy val latinIdent: PackratParser[Expression] = quotedIdent | (not(reservedLatin) ~> identValue)
     // `identifier.1`
     lazy val quotedIdent: Parser[Expression] =
-      ("`"+"""([^`\p{Cntrl}\\]|\\[\\'"bfnrt]|\\u[a-fA-F0-9]{4})*+"""+"`").r ^^ ( Identifier(_) )
+      ("`"+"""([^`\p{Cntrl}\\]|\\[\\'"bfnrt]|\\u[a-fA-F0-9]{4})*+"""+"`").r ^^ Identifier
 
     lazy val colList: PackratParser[NonEmptyList[Expression]] = rep1sep(column, ",")
     lazy val column = expression

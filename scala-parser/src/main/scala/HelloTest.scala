@@ -20,8 +20,8 @@ object HelloTest {
 
     val p2 = new PcParser().parse(
       """
-        x = [1,2,3,4,5,6+7]
-      """.stripMargin)
+        x = 3.14
+      """)
     println((new PrettyPrinter())(p2))
   }
 

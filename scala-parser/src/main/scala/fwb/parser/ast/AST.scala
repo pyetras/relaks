@@ -47,7 +47,12 @@ object AST {
     val names: List[Option[String]]
   }
 
-  case class Select(lhs: Expression, rhs: Expression)          extends Expression
+  case class Select(lhs: Expression, rhs: Expression)          extends Expression {
+    val seq: NonEmptyList[Expression] = rhs match {
+      case s: Select => lhs <:: s.seq
+      case _ => NonEmptyList(lhs, rhs)
+    }
+  }
   final case class Operator(name: String)                      extends Expression
 
   sealed trait Latin                                           extends Expression
