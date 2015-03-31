@@ -15,6 +15,11 @@ libraryDependencies ++= Seq(
   "org.scalaz" %% "scalaz-scalacheck-binding" % scalazVersion % "test"
 )
 
+libraryDependencies ++= Seq(
+  "com.chuusai" %% "shapeless" % "2.1.0"
+)
+
+
 libraryDependencies += "org.scalatest" % "scalatest_2.11" % "2.2.4" % "test"
 
 scalacOptions ++= Seq("-feature", "-deprecation")
