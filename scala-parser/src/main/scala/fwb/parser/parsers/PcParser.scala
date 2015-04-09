@@ -19,6 +19,8 @@ class PcParser extends FWBParser[String]{
   }
 
   protected object theParser extends JavaTokenParsers with PackratParsers with EolParser with OperatorPrecedenceParsers {
+    import Scalaz._
+
     def apply(str: String) : scalaz.Validation[String, Program] = {
       val in = new PackratReader(new scala.util.parsing.input.CharArrayReader(str.toCharArray))
       parseAll(program, in) match {
@@ -36,8 +38,6 @@ class PcParser extends FWBParser[String]{
     def latinKeyword(str: String): Parser[String] = s"""(?i)$str\\b""".r
 
     def keywords2parsers[T](kws: NonEmptyList[T])(f: T => Parser[T]): Parser[T] = {
-      import Scalaz._
-
       val parsers = kws map f
       parsers.foldl1(acc => parser => acc | parser)
     }
@@ -51,7 +51,7 @@ class PcParser extends FWBParser[String]{
     }
 
     def rep1sep[T,U](p: Parser[T], sep: Parser[U]): Parser[NonEmptyList[T]] = p ~ rep(sep ~> p) ^^
-      { case h ~ lst => NonEmptyList(h, lst:_*) }
+      { case h ~ lst => h.wrapNel :::> lst }
 
     lazy val program : Parser[List[Statement]] = positioned(topStatement) +
 
@@ -145,8 +145,8 @@ class PcParser extends FWBParser[String]{
     lazy val foreach: Parser[Foreach] = "foreach".ki ~> colList ~ stmtsWithGenerate ^^
       { case exprs~stmts => Foreach(exprs.map(x => Right(x)), stmts)}
     lazy val stmtsWithGenerate: PackratParser[NonEmptyList[Statement]] = (statement *) ~ generate ^^
-      { case Nil~gen => NonEmptyList(gen)
-        case (h::t)~gen => NonEmptyList(h, (t ::: List(gen)):_*)
+      { case Nil~gen => gen.wrapNel
+        case (h::t)~gen => h.wrapNel :::> t append gen.wrapNel
       }
     lazy val generate: Parser[Statement] = "generate".ki ~> exprList ^^ (cols => Generate(cols))
     lazy val exprList: Parser[NonEmptyList[Expression]] = rep1sep(expression, ",")
