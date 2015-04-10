@@ -1,11 +1,15 @@
 package fwb.backends.tester
 
+import shapeless._
+import syntax.singleton._
+
+
 /**
  * Created by Pietras on 28/03/15.
  */
 object Algorithms {
   case class train(target: List[Boolean]) {
-    def apply() = new Model(target)
+    def apply() = ('ret ->> new Model(target)) :: HNil
   }
 
   case class Model(labels: List[Boolean]) {

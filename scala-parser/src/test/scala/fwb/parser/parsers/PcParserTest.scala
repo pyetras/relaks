@@ -1,8 +1,8 @@
 package fwb.parser.parsers
 
-import fwb.parser.ast.AST._
-import fwb.parser.ast.Constants.Constant
-import fwb.parser.ast.Lst
+import fwb.ast.AST._
+import fwb.ast.Constants.Constant
+import fwb.ast.Lst
 import org.scalatest._
 import scala.language.{existentials, reflectiveCalls}
 import scalaz.NonEmptyList

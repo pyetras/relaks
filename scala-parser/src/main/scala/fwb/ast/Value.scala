@@ -1,4 +1,4 @@
-package fwb.parser.ast
+package fwb.ast
 
 /**
  * Created by Pietras on 24/03/15.

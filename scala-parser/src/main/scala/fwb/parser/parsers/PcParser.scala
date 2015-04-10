@@ -1,7 +1,7 @@
 package fwb.parser.parsers
 
-import fwb.parser.ast.{Lst, AST}
-import fwb.parser.ast.Constants.Constant
+import fwb.ast.{Lst, AST}
+import fwb.ast.Constants.Constant
 import scala.language.{postfixOps, existentials}
 import scala.util.parsing.combinator._
 import scalaz._

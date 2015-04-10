@@ -1,6 +1,6 @@
-package fwb.parser.ast
+package fwb.ast
 
-import fwb.parser.ast.Constants.Constant
+import fwb.ast.Constants.Constant
 
 import scala.util.parsing.input.Positional
 import scala.reflect.runtime.universe.Type

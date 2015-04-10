@@ -1,7 +1,7 @@
 package fwb.parser.printers
 
-import fwb.parser.ast.Constants.Constant
-import fwb.parser.ast.{Lst, Constants, AST}
+import fwb.ast.Constants.Constant
+import fwb.ast.{Lst, Constants, AST}
 
 import scala.annotation.tailrec
 import scalaz.{Reader, Scalaz}

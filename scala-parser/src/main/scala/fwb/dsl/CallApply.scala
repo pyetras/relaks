@@ -1,4 +1,4 @@
-package fwb.api
+package fwb.dsl
 
 import scala.language.experimental.macros
 
@@ -30,6 +30,6 @@ object CallApplyImpl {
 
     val R = assignM.head.returnType
 
-    q"""new _root_.fwb.api.CallApply[$C] { type Ret = $R; def apply(c: $C) : $R = c.apply() }""" // TODO: make this parameterless
+    q"""new _root_.fwb.dsl.CallApply[$C] { type Ret = $R; def apply(c: $C) : $R = c.apply() }""" // TODO: make this parameterless
   }
 }

@@ -1,7 +1,7 @@
 package fwb.parser.parsers
 
-import fwb.parser.ast.AST
-import fwb.parser.ast.Constants.Constant
+import fwb.ast.AST
+import fwb.ast.Constants.Constant
 import jpl.Term
 
 /**

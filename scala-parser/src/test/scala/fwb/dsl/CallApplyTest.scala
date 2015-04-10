@@ -1,4 +1,4 @@
-package fwb.api
+package fwb.dsl
 
 import org.scalatest._
 import shapeless._

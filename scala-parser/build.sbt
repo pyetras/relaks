@@ -19,6 +19,7 @@ libraryDependencies ++= Seq(
   "com.chuusai" %% "shapeless" % "2.1.0"
 )
 
+libraryDependencies += "com.assembla.scala-incubator" %% "graph-core" % "1.9.1"
 
 libraryDependencies += "org.scalatest" % "scalatest_2.11" % "2.2.4" % "test"
 
