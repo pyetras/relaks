@@ -7,6 +7,6 @@ import fwb.ast._
  */
 object AST extends ASTNodes {
   type TTree = Expression
-  private[dsl] trait ASTSyntax extends ConstantOps with ScalaTypeImplis
+  private[dsl] trait ASTSyntax extends ScalaTypeImplis
   object syntax extends ASTSyntax {}
 }

@@ -1,7 +1,5 @@
 package fwb.parser.parsers
 
-import fwb.ast.Lst
-import fwb.ast.Constants.Constant
 import fwb.parser.AST
 import scala.language.{postfixOps, existentials}
 import scala.util.parsing.combinator._
@@ -19,7 +17,7 @@ class PcParser extends FWBParser[String]{
     theParser(str).getOrElse(List())
   }
 
-  protected object theParser extends JavaTokenParsers with PackratParsers with EolParser with OperatorPrecedenceParsers {
+  protected object theParser extends JavaTokenParsers with PackratParsers with EolParser with OperatorPrecedenceParsers with ScalaTypeImplis {
     import Scalaz._
 
     def apply(str: String) : scalaz.Validation[String, Program] = {
@@ -109,13 +107,13 @@ class PcParser extends FWBParser[String]{
 
     lazy val atomicExpr: PackratParser[Expression] = parens | listLit | numLit | stringLit | boolLit | nullLit | identifier
 
-    lazy val stringLit = stringLiteral ^^ (str => Literal(Constant(str.stripPrefix("\"").stripSuffix("\""))))
+    lazy val stringLit = stringLiteral ^^ (str => Literal(str.stripPrefix("\"").stripSuffix("\"")))
 
     lazy val numLit: Parser[Literal] = double | integer
-    lazy val integer = wholeNumber ^^ ((num:String) => Literal(Constant(num.toInt)))
-    lazy val double = floatingPointNumber ^^ ((num:String) => Literal(Constant(num.toDouble)))
+    lazy val integer = wholeNumber ^^ ((num:String) => Literal(num.toInt))
+    lazy val double = floatingPointNumber ^^ ((num:String) => Literal(num.toDouble))
 
-    lazy val listLit: Parser[Literal] = "[" ~> repsep(expression, ",") <~ "]" ^^ (x => Literal(Lst(x)))
+    lazy val listLit: Parser[Literal] = "[" ~> repsep(expression, ",") <~ "]" ^^ (x => Literal(x))
 
     lazy val boolLit: Parser[Literal] = ("true".k ^^^ True) | ("false".k ^^^ False)
 
@@ -173,9 +171,9 @@ class PcParser extends FWBParser[String]{
       }
 
     lazy val load: Parser[AST.Apply] = "load".ki ~> io ^^
-      ( path => AST.Apply(Identifier("load"), List(Literal(Constant(path)))) )
+      ( path => AST.Apply(Identifier("load"), List(Literal(path))) )
     lazy val store: Parser[AST.Apply] = "store".ki ~> io ^^
-      ( path => AST.Apply(Identifier("store"), List(Literal(Constant(path)))) )
+      ( path => AST.Apply(Identifier("store"), List(Literal(path))) )
     lazy val io = stringLiteral
 
     lazy val identValue: Parser[Identifier] = ident ^^ ( name => Identifier(name) )

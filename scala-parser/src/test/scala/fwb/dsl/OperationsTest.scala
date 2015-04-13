@@ -5,7 +5,6 @@ package fwb.dsl
  */
 
 import fwb.dsl.AST._
-import fwb.ast.Constants.Constant
 import org.scalatest._
 import fwb.dsl.syntax._
 

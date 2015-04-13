@@ -1,39 +1,43 @@
 package fwb.dsl
 
-import fwb.ast._
 import fwb.dsl.AST._
+import AST.syntax._
 
 /**
  * Created by Pietras on 13/04/15.
  */
-
-case class SuperPosRange[T](from: T, to: T)(implicit tpe: ScalaType[T]) extends SuperPosScalaType[T] {
-  val insideType = tpe
+sealed abstract class SuperPosed[T](implicit ev: ScalaType[T]) {
+  def toTree: Nondet
+  def tpe = new SuperPosScalaType[T] { val insideType = ev }
 }
 
-case class SuperPosChoice[T](choice: Traversable[T])(implicit tpe: ScalaType[T]) extends SuperPosScalaType[T] {
-  val insideType = tpe
+case class SuperPosRange[T](from: T, to: T)(implicit typ: ScalaType[T]) extends SuperPosed[T] {
+  def toTree = Nondet(ChoiceRange(Literal(from), Literal(to))) // TODO: źle - to musi zostac nazwane. var?
+}
+
+case class SuperPosChoice[T](choice: List[T])(implicit typ: ScalaType[T]) extends SuperPosed[T] {
+  def toTree = Nondet(ChoiceList(Literal(choice)))
 }
 
 trait SuperPosOps {
   object choose extends ToTypedTreeOps {
     trait Between[T] {
       val from: T
-      def and(t: T)(implicit ev: T => Value, typ: ScalaType[T]) = SuperPosRange(from, t)
+      def and(t: T)(implicit typ: ScalaType[T]) = SuperPosRange(from, t)
     }
     def between[T](frm: T) = new Between[T] { val from = frm }
-    def from[T](from: Seq[T])(implicit typ: ScalaType[T]) = SuperPosChoice(from)
+    def from[T](from: Seq[T])(implicit typ: ScalaType[T]) = SuperPosChoice(from.toList)
   }
 }
 
 trait SuperPosMapper[B1, B2, BR, P1, P2, PR] extends ToTypedTreeOps {
   val lift = true
   def toComputation(name: String, args: Expression*)(implicit tpe: ArgType[BR]): Rep[PR] = new Rep[PR] {
-    override def tree: TTree = Apply(name, args:_*)(liftedType(tpe, this.tree))
+    override def tree: TTree = Apply(name, args:_*)(liftedType(tpe))
   }
 
-  def liftedType(tpe: ArgType[BR], tree: => TTree): ArgType[PR] =
-    (if (lift) { tpe.supPosType(tree) } else { tpe }).asInstanceOf[ArgType[PR]]
+  def liftedType(tpe: ArgType[BR]): ArgType[PR] =
+    (if (lift) { tpe.supPosType } else { tpe }).asInstanceOf[ArgType[PR]]
 }
 
 trait SuperPosMapperImplis {

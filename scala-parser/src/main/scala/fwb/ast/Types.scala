@@ -1,5 +1,7 @@
 package fwb.ast
 
+import fwb.dsl.SuperPosed
+
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scalaz.syntax.Ops
@@ -7,14 +9,15 @@ import scalaz.syntax.Ops
  * Created by Pietras on 10/04/15.
  */
 trait Types { this: ASTNodes =>
-  sealed trait TType
+  sealed trait TType {
+    override def equals(other: Any) = ClassTag(other.getClass) == ClassTag(this.getClass)
+  }
   trait NumType
   trait SuperPosType
 
   sealed trait ArgType[T] extends TType { self =>
-    def supPosType(tree: => Tree) : SuperPosResult[T] = new SuperPosResult[T] {
+    def supPosType : SuperPosResult[T] = new SuperPosResult[T] {
       override val insideType: ArgType[T] = self
-      def parent = tree
     }
   }
 
@@ -27,11 +30,9 @@ trait Types { this: ASTNodes =>
     override def toString = s"SuperPosArgType[?]"
   }
 
-  sealed trait SuperPosResult[T] extends SuperPosArgType[T] {
-    def parent: Tree
-  }
+  sealed trait SuperPosResult[T] extends SuperPosArgType[T]
 
-  trait SuperPosScalaType[T] extends SuperPosArgType[T]
+  trait SuperPosScalaType[T] extends SuperPosArgType[T] //?
 
   class ScalaType[T](implicit val classTag: ClassTag[T]) extends SimpleArgType[T] {
     override def toString = s"ScalaType[${classTag.runtimeClass.getSimpleName}]"
@@ -46,6 +47,10 @@ trait Types { this: ASTNodes =>
     implicit val stringType = new ScalaType[String]
     implicit val intType = new ScalaNumType[Int]
     implicit val doubleType = new ScalaNumType[Double]
+    implicit val nullType = new ScalaType[Null]
+    implicit val longType = new ScalaType[Long]
+
+    implicit def listType[T] = new ScalaType[List[T]] //TODO
   }
 
   trait Typed { this: Tree =>
@@ -69,10 +74,6 @@ trait Types { this: ASTNodes =>
     }
   }
 
-  trait ConstantOps {
-    import Constants.Constant
-    implicit def fromScalaType[T](i: T)(implicit ev: ScalaType[T]): Constant = new Constant(i)
-    implicit def fromScalaSeq[T](s: Seq[T])(implicit ev: ScalaType[T]): Lst = Lst(s.toList)
-  }
+
 
 }

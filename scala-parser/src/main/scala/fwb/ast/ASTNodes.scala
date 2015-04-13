@@ -1,14 +1,14 @@
 package fwb.ast
 
-import fwb.ast.Constants.Constant
-
-import scala.reflect.ClassTag
 import scalaz.NonEmptyList
 
 /**
  * Created by Pietras on 26/03/15.
  */
 trait ASTNodes extends Types {
+  private[this] object syntax extends ToTypedTreeOps with ScalaTypeImplis
+  import syntax._
+
   sealed trait Tree extends Typed {
     def mainToString: String = this.getClass.getSimpleName
     override def toString = mainToString
@@ -27,14 +27,33 @@ trait ASTNodes extends Types {
 
   case class Identifier(name: String) extends Expression
 
-  case class Literal(v: Value) extends Expression
-  final val True = Literal(Constant(true))
-  final val False = Literal(Constant(false))
-  final val Null = Literal(Constant(null))
+  trait Literal extends Expression {
+    type ValueT
+    val value: Any
+
+    override def equals(other: Any) = {
+      other match {
+        case lit@Literal(v) => v == value && lit.tpe == tpe
+        case _ => false
+      }
+    }
+  }
+  object Literal {
+    def apply[T](v: T)(implicit tpe: SimpleArgType[T]): Literal = (new Literal {
+      override type ValueT = T
+      override val value = v
+    })(tpe)
+
+    def unapply(literal: Literal) = Some(literal.value)
+  }
+
+  final val True = Literal(true)
+  final val False = Literal(false)
+  final val Null = Literal(null)
 
   sealed trait NondetChoice
-  final case class ChoiceRange(from: Value, to: Value) extends NondetChoice
-  final case class ChoiceList(s: Lst) extends NondetChoice
+  final case class ChoiceRange(from: Literal, to: Literal) extends NondetChoice
+  final case class ChoiceList(s: Literal) extends NondetChoice
 
   case class Nondet(choice: NondetChoice) extends Expression
 

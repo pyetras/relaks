@@ -23,4 +23,4 @@ libraryDependencies += "com.assembla.scala-incubator" %% "graph-core" % "1.9.1"
 
 libraryDependencies += "org.scalatest" % "scalatest_2.11" % "2.2.4" % "test"
 
-scalacOptions ++= Seq("-feature", "-deprecation")
+scalacOptions ++= Seq("-feature", "-deprecation", "-unchecked")

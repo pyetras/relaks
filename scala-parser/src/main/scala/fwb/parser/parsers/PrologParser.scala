@@ -1,13 +1,12 @@
 package fwb.parser.parsers
 
-import fwb.ast.Constants.Constant
 import jpl.Term
+import fwb.parser.AST._
 
 /**
  * Created by Pietras on 24/03/15.
  */
-class PrologParser extends FWBParser[Traversable[Term]] {
-  import fwb.parser.AST._
+class PrologParser extends FWBParser[Traversable[Term]] with ScalaTypeImplis {
   import fwb.utils.prolog.PrologList._
   import scala.language.implicitConversions
 
@@ -43,13 +42,13 @@ class PrologParser extends FWBParser[Traversable[Term]] {
             Identifier(name.map(t => t.longValue().toChar).mkString)
           case "num_lit" =>
             val value = rest.tail.head.longValue()
-            Literal(Constant(value))
+            Literal(value)
           case "list_lit" =>
             val value = rest.tail.head.map(buildExpression(_)).toList
-            Literal(Constant(value))
+            Literal(value)
           case "string_lit" =>
             val value = rest.tail.head.map(_.longValue().toChar).mkString
-            Literal(Constant(value))
+            Literal(value)
           case "const" =>
             val value = rest.tail.head.name()
             value match {

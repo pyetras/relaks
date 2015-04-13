@@ -1,8 +1,6 @@
 package fwb.parser.parsers
 
 import fwb.parser.AST._
-import fwb.ast.Constants.Constant
-import fwb.ast.Lst
 import org.scalatest._
 import scala.language.{existentials, reflectiveCalls}
 import scalaz.NonEmptyList
@@ -10,7 +8,7 @@ import scalaz.NonEmptyList
 /**
  * Created by Pietras on 27/03/15.
  */
-class PcParserTest extends FunSpec with Matchers with Inside {
+class PcParserTest extends FunSpec with Matchers with Inside with ScalaTypeImplis {
   val parser = {
     val pcparser = new PcParser with Tester
     trait Tester {
@@ -42,14 +40,14 @@ class PcParserTest extends FunSpec with Matchers with Inside {
     describe("expression") {
       it("should parse numeric literals") {
         implicit val p = parser.grammar.expression
-        parser.parse("123") should equal(Literal(Constant(123)))
-        parser.parse("3.14") should equal(Literal(Constant(3.14d)))
+        parser.parse("123") should equal(Literal(123))
+        parser.parse("3.14") should equal(Literal(3.14d))
         assertFail("+123")
       }
       it("should parse string literals") {
         implicit val p = parser.grammar.expression
-        parser.parse("\"hello\"") should equal(Literal(Constant("hello")))
-        parser.parse("\"\"") should equal(Literal(Constant("")))
+        parser.parse("\"hello\"") should equal(Literal("hello"))
+        parser.parse("\"\"") should equal(Literal(""))
       }
       it("should parse bool literals") {
         implicit val p = parser.grammar.expression
@@ -62,10 +60,11 @@ class PcParserTest extends FunSpec with Matchers with Inside {
       }
       it("should parse list literal") {
         implicit val p = parser.grammar.expression
-        inside(parser.parse("[1, 1+2, 3, 4]")) { case Literal(Lst(lst)) =>
-          lst should have length 4
+        inside(parser.parse("[1, 1+2, 3, 4]")) { case Literal(lst) =>
+          lst shouldBe a[List[_]]
+          lst.asInstanceOf[List[Expression]] should have length 4
         }
-        parser.parse("[]") should matchPattern { case Literal(Lst(List())) => }
+        parser.parse("[]") should matchPattern { case Literal(List()) => }
       }
       it("should parse variable names") {
         implicit val p = parser.grammar.expression

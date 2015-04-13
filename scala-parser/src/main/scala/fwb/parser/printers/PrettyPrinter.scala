@@ -1,7 +1,5 @@
 package fwb.parser.printers
 
-import fwb.ast.Constants.Constant
-import fwb.ast.{Lst, Constants}
 import fwb.parser.AST
 
 import scala.annotation.tailrec
@@ -79,19 +77,22 @@ class PrettyPrinter{
     case Identifier(name) => for {
       _ <- print(name)
     } yield ()
-    case Literal(c : Constant) if c.tag === Constants.StringTag => for {
-      _ <- print("\"")
-      _ <- print(c.v.toString)
-      _ <- print("\"")
-    } yield ()
-    case Literal(Lst(lst : List[Expression])) => for {
-      _ <- print("[")
-      _ <- printList(lst, ", ")
-      _ <- print("]")
-    } yield ()
-    case Literal(c) => for {
-      _ <- print(c.v.toString)
-    } yield ()
+    case Literal(v) =>
+      v match {
+        case _: String => for {
+          _ <- print("\"")
+          _ <- print(v.toString)
+          _ <- print("\"")
+        } yield ()
+        case _: List[_] => for {
+          _ <- print("[")
+          _ <- printList(v.asInstanceOf[List[Expression]], ", ")
+          _ <- print("]")
+        } yield ()
+        case _ => for {
+          _ <- print(v.toString)
+        } yield ()
+      }
     case expr: Expression => expr match {
       case Apply(Operator(op), List(left, right)) => for {
         _ <- print("(")

@@ -2,7 +2,6 @@ package fwb.dsl
 
 import fwb.dsl.AST._
 import AST.syntax._
-import fwb.ast.Constants.Constant
 import scala.language.implicitConversions
 
 /**
@@ -25,9 +24,16 @@ class NumericOperations[B1, P1](val operand: Rep[P1]) extends Operations[B1, P1]
 
 
 trait OperationsSyntax extends ToTypedTreeOps {
-  implicit def anyToComputation[B1](x: B1)(implicit tpe: SimpleArgType[B1]): Rep[B1] = new Rep[B1] {
-    override def tree: TTree = Literal(Constant(x))(tpe)
+  implicit def anyToRep[B1](x: B1)(implicit tpe: SimpleArgType[B1]): Rep[B1] = new Rep[B1] {
+    override def tree: TTree = Literal(x)
   }
+  implicit def superPosedToRep[B1](sp: SuperPosed[B1])(implicit tpe: SimpleArgType[B1]): Rep[SuperPos[B1]] = {
+    val t = sp.toTree(sp.tpe)
+    new Rep[SuperPos[B1]] {
+      override def tree: TTree = t
+    }
+  }
+
 //  implicit def supPosToComputation[B1](x: SuperPos[B1]) : Rep[SuperPos[B1]] = x.toComputation
   implicit def addSupPosNumericOps[B1, T](operand: T)(implicit ev1: T => Rep[SuperPos[B1]], ev2: SimpleArgType[B1] with NumType) =
     new NumericOperations[B1, SuperPos[B1]](ev1(operand))
