@@ -1,6 +1,6 @@
 package fwb.parser.parsers
 
-import fwb.ast.AST._
+import fwb.parser.AST._
 import fwb.ast.Constants.Constant
 import fwb.ast.Lst
 import org.scalatest._

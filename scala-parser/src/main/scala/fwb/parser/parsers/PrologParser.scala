@@ -1,6 +1,5 @@
 package fwb.parser.parsers
 
-import fwb.ast.AST
 import fwb.ast.Constants.Constant
 import jpl.Term
 
@@ -8,7 +7,7 @@ import jpl.Term
  * Created by Pietras on 24/03/15.
  */
 class PrologParser extends FWBParser[Traversable[Term]] {
-  import AST._
+  import fwb.parser.AST._
   import fwb.utils.prolog.PrologList._
   import scala.language.implicitConversions
 

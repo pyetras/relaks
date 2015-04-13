@@ -1,9 +1,6 @@
-package fwb.dsl
+package fwb.dsl.flow
 
 import org.scalatest._
-import shapeless._
-import syntax.singleton._
-
 
 /**
  * Created by Pietras on 31/03/15.

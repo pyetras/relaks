@@ -1,6 +1,4 @@
-package fwb.dsl
-
-import fwb.dsl.Flow.EdgeLabel
+package fwb.dsl.flow
 
 import scala.language.experimental.macros
 import scala.language.implicitConversions
@@ -10,12 +8,10 @@ import scala.language.implicitConversions
  */
 object Flow {
   import shapeless._
-  import syntax.std.function._
-  import ops.record._
   import ops.function._
-  import syntax.singleton._
-  import record._
-  import scalax.collection.edge.LDiEdge
+  import ops.record._
+  import syntax.std.function._
+
   import scalax.collection.edge.Implicits._
 
   case class EdgeIO[L, R, W](node: Node[L, R], name: W)

@@ -3,7 +3,9 @@ package fwb.ast
 /**
  * Created by Pietras on 24/03/15.
  */
-import AST._
+
+
+import scala.language.implicitConversions
 
 sealed trait Value {
   type ValueT
@@ -24,7 +26,7 @@ object Constants {
   final val StringTag = 10
   final val NullTag = 11
 
-  final case class Constant(v: Any) extends Value {
+  final case class Constant(val v: Any) extends Value {
     type ValueT = Any
 
     val tag: Int = v match {
@@ -39,9 +41,4 @@ object Constants {
     }
 
   }
-
-}
-
-trait Values { this: Expression =>
-  def value : Value
 }

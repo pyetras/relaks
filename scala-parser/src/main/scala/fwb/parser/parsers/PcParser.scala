@@ -1,7 +1,8 @@
 package fwb.parser.parsers
 
-import fwb.ast.{Lst, AST}
+import fwb.ast.Lst
 import fwb.ast.Constants.Constant
+import fwb.parser.AST
 import scala.language.{postfixOps, existentials}
 import scala.util.parsing.combinator._
 import scalaz._
@@ -53,7 +54,7 @@ class PcParser extends FWBParser[String]{
     def rep1sep[T,U](p: Parser[T], sep: Parser[U]): Parser[NonEmptyList[T]] = p ~ rep(sep ~> p) ^^
       { case h ~ lst => h.wrapNel :::> lst }
 
-    lazy val program : Parser[List[Statement]] = positioned(topStatement) +
+    lazy val program : Parser[List[Statement]] = topStatement +
 
 //    STATEMENTS
     lazy val topStatement: Parser[Statement] = statement

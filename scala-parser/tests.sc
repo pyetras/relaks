@@ -1,4 +1,5 @@
-import fwb.dsl.Flow._
+import fwb.dsl.flow.Flow
+import Flow._
 import fwb.backends.tester.Algorithms.{train, Model}
 import shapeless._
 import shapeless.ops.function.FnToProduct

@@ -1,6 +1,6 @@
 package fwb.parser.parsers
 
-import fwb.ast.AST
+import fwb.parser.AST
 
 /**
  * Created by Pietras on 24/03/15.

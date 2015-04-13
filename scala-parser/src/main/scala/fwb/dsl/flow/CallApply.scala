@@ -1,19 +1,19 @@
-package fwb.dsl
+package fwb.dsl.flow
 
 import scala.language.experimental.macros
 
 /**
- * Created by Pietras on 31/03/15.
+ * Created by Pietras on 13/04/15.
  */
-trait CallApply[C] {
-  type Ret
-  def apply(c: C): Ret
-}
-
 object CallApply {
   type Aux[C, R] = CallApply[C] { type Ret = R }
 
   implicit def materialize[C, R]: Aux[C, R] = macro CallApplyImpl.materialize[C]
+}
+
+trait CallApply[C] {
+  type Ret
+  def apply(c: C): Ret
 }
 
 object CallApplyImpl {
@@ -30,6 +30,6 @@ object CallApplyImpl {
 
     val R = assignM.head.returnType
 
-    q"""new _root_.fwb.dsl.CallApply[$C] { type Ret = $R; def apply(c: $C) : $R = c.apply() }""" // TODO: make this parameterless
+    q"""new _root_.fwb.dsl.flow.CallApply[$C] { type Ret = $R; def apply(c: $C) : $R = c.apply() }""" // TODO: make this parameterless
   }
 }
