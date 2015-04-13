@@ -8,7 +8,7 @@ import scalaz.NonEmptyList
 /**
  * Created by Pietras on 26/03/15.
  */
-trait ASTNodes extends Types{
+trait ASTNodes extends Types {
   sealed trait Tree extends Typed {
     def mainToString: String = this.getClass.getSimpleName
     override def toString = mainToString

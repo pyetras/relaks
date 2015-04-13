@@ -9,24 +9,31 @@ import scalaz.syntax.Ops
 trait Types { this: ASTNodes =>
   sealed trait TType
   trait NumType
-  trait SupPosType
+  trait SuperPosType
 
-  sealed trait RootArgType[T] extends TType { self =>
-    def supPosType : SupPosArgType[T] = new SupPosArgType[T] {
-      override val insideType: RootArgType[T] = self
+  sealed trait ArgType[T] extends TType { self =>
+    def supPosType(tree: => Tree) : SuperPosResult[T] = new SuperPosResult[T] {
+      override val insideType: ArgType[T] = self
+      def parent = tree
     }
   }
 
-  sealed trait ArgType[T] extends RootArgType[T]
+  sealed trait SimpleArgType[T] extends ArgType[T]
 
-  class SupPos[T] extends Serializable
+  final class SuperPos[T] 
 
-  sealed trait SupPosArgType[T] extends RootArgType[SupPos[T]] with SupPosType {
-    val insideType: RootArgType[T]
-    override def toString = s"SupPosArgType[?]"
+  sealed trait SuperPosArgType[T] extends ArgType[SuperPos[T]] with SuperPosType {
+    val insideType: ArgType[T]
+    override def toString = s"SuperPosArgType[?]"
   }
 
-  class ScalaType[T](implicit val classTag: ClassTag[T]) extends ArgType[T] {
+  sealed trait SuperPosResult[T] extends SuperPosArgType[T] {
+    def parent: Tree
+  }
+
+  trait SuperPosScalaType[T] extends SuperPosArgType[T]
+
+  class ScalaType[T](implicit val classTag: ClassTag[T]) extends SimpleArgType[T] {
     override def toString = s"ScalaType[${classTag.runtimeClass.getSimpleName}]"
   }
 
@@ -69,4 +76,3 @@ trait Types { this: ASTNodes =>
   }
 
 }
-
