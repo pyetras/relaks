@@ -1,6 +1,6 @@
 package fwb.ast
 
-import fwb.dsl.SuperPosed
+import fwb.dsl.ops.SuperPosed
 
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
@@ -32,7 +32,7 @@ trait Types { this: ASTNodes =>
 
   sealed trait SuperPosResult[T] extends SuperPosArgType[T]
 
-  trait SuperPosScalaType[T] extends SuperPosArgType[T] //?
+  trait SuperPosGenType[T] extends SuperPosArgType[T] //?
 
   class ScalaType[T](implicit val classTag: ClassTag[T]) extends SimpleArgType[T] {
     override def toString = s"ScalaType[${classTag.runtimeClass.getSimpleName}]"

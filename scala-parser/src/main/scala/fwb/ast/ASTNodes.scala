@@ -25,9 +25,11 @@ trait ASTNodes extends Types {
 
   sealed trait Expression extends Tree
 
-  case class Identifier(name: String) extends Expression
+  trait Atom extends Expression
 
-  trait Literal extends Expression {
+  case class Identifier(name: String) extends Atom
+
+  trait Literal extends Atom {
     type ValueT
     val value: Any
 
@@ -51,11 +53,9 @@ trait ASTNodes extends Types {
   final val False = Literal(false)
   final val Null = Literal(null)
 
-  sealed trait NondetChoice
-  final case class ChoiceRange(from: Literal, to: Literal) extends NondetChoice
-  final case class ChoiceList(s: Literal) extends NondetChoice
-
-  case class Nondet(choice: NondetChoice) extends Expression
+  sealed trait NondetChoice extends Expression
+  case class NondetChoiceRange(from: Literal, to: Literal) extends NondetChoice
+  case class NondetChoiceList(s: Literal) extends NondetChoice
 
   case class Apply(fun: Expression, argList: List[Expression]) extends Expression
   object Apply {
@@ -71,7 +71,7 @@ trait ASTNodes extends Types {
       case _ => NonEmptyList(lhs, rhs)
     }
   }
-  final case class Operator(name: String) extends Expression
+  sealed case class Operator(name: String) extends Expression
 
   sealed trait Latin extends Expression
   sealed trait InferredRelation

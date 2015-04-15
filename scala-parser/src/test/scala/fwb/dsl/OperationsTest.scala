@@ -6,7 +6,6 @@ package fwb.dsl
 
 import fwb.dsl.AST._
 import org.scalatest._
-import fwb.dsl.syntax._
 
 class OperationsTest extends FunSpec with Matchers with Inside {
   describe("Rep extensions") { pending
