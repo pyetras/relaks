@@ -1,7 +1,8 @@
 package fwb.dsl.ops
 
-import fwb.dsl.AST._
-import fwb.dsl.Rep
+import fwb.dsl._
+import AST._
+import AST.syntax._
 
 import scala.language.implicitConversions
 
@@ -20,24 +21,14 @@ class AnyOperations[B1, P1](val operand: Rep[P1]) extends Operations[B1, P1] {
 
 class NumericOperations[B1, P1](val operand: Rep[P1]) extends Operations[B1, P1] {
   def < [P2, PR](arg: Rep[P2])(implicit o: or#arg2[B1, P2]#to[Boolean, PR]) =
-   o.toComputation("<", operand.tree, arg.tree)
+   o.toComputation(Stdlib.<, operand.tree, arg.tree)
 }
 
 
-trait OperationsSyntax extends ToTypedTreeOps { this: DSL =>
-  implicit def anyToRep[B1](x: B1)(implicit tpe: SimpleArgType[B1]): Rep[B1] = new Rep[B1] {
-    override def tree: TTree = Literal(x)
-  }
-  implicit def superPosedToRep[B1](sp: SuperPosed[B1])(implicit tpe: SimpleArgType[B1]): Rep[SuperPosGenType[B1]] = {
-    val t: Atom = sp.toTree(sp.tpe)
-    new Rep[SuperPosGenType[B1]] {
-      override def tree: TTree = t
-    }
-  }
-
-  implicit def addSupPosNumericOps[B1, T](operand: T)(implicit ev1: T => Rep[SuperPos[B1]], ev2: SimpleArgType[B1] with NumType) =
+trait OperationsSyntax extends ToTypedTreeOps with Symbols {
+  implicit def addSupPosNumericOps[B1, T](operand: T)(implicit ev1: T => Rep[SuperPos[B1]], ev2: LiftedArgType[B1] with NumType) =
     new NumericOperations[B1, SuperPos[B1]](ev1(operand))
-  implicit def addNumericOps[B1, T](operand: T)(implicit ev1: T => Rep[B1], ev2: SimpleArgType[B1] with NumType) =
+  implicit def addNumericOps[B1, T](operand: T)(implicit ev1: T => Rep[B1], ev2: LiftedArgType[B1] with NumType) =
     new NumericOperations[B1, B1](operand)
 }
 

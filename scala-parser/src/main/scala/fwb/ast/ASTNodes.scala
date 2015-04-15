@@ -1,5 +1,6 @@
 package fwb.ast
 
+import scala.reflect.ClassTag
 import scalaz.NonEmptyList
 
 /**
@@ -11,7 +12,6 @@ trait ASTNodes extends Types {
 
   sealed trait Tree extends Typed {
     def mainToString: String = this.getClass.getSimpleName
-    override def toString = mainToString
   }
   implicit final class Program(val children: Traversable[Tree]) extends Tree
   object Program {
@@ -33,6 +33,8 @@ trait ASTNodes extends Types {
     type ValueT
     val value: Any
 
+    override def mainToString = s"`${value.toString}`"
+
     override def equals(other: Any) = {
       other match {
         case lit@Literal(v) => v == value && lit.tpe == tpe
@@ -41,7 +43,7 @@ trait ASTNodes extends Types {
     }
   }
   object Literal {
-    def apply[T](v: T)(implicit tpe: SimpleArgType[T]): Literal = (new Literal {
+    def apply[T](v: T)(implicit tpe: ArgType[T]): Literal = (new Literal {
       override type ValueT = T
       override val value = v
     })(tpe)
@@ -53,14 +55,21 @@ trait ASTNodes extends Types {
   final val False = Literal(false)
   final val Null = Literal(null)
 
-  sealed trait NondetChoice extends Expression
-  case class NondetChoiceRange(from: Literal, to: Literal) extends NondetChoice
-  case class NondetChoiceList(s: Literal) extends NondetChoice
+  sealed case class ListConstructor(lst: Seq[Any]) extends Expression
 
-  case class Apply(fun: Expression, argList: List[Expression]) extends Expression
+  sealed trait NondetChoice extends Expression
+  sealed case class NondetChoiceRange(from: Literal, to: Literal) extends NondetChoice
+  sealed case class NondetChoiceList(s: Expression) extends NondetChoice
+
+  sealed case class Apply(fun: Expression, argList: List[Expression]) extends Expression
   object Apply {
     def apply(s: String, args: Expression*): Apply = Apply(Operator(s), args.toList)
   }
+
+  sealed class ApplyNamed(fn: Expression, val names: List[Option[String]], args: Expression*)
+    extends Apply(fn, args.toList) with NamedArgs {
+  }
+
   trait NamedArgs { this: Apply =>
     val names: List[Option[String]]
   }

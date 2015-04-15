@@ -60,11 +60,10 @@ class PcParserTest extends FunSpec with Matchers with Inside with ScalaTypeImpli
       }
       it("should parse list literal") {
         implicit val p = parser.grammar.expression
-        inside(parser.parse("[1, 1+2, 3, 4]")) { case Literal(lst) =>
-          lst shouldBe a[List[_]]
+        inside(parser.parse("[1, 1+2, 3, 4]")) { case ListConstructor(lst) =>
           lst.asInstanceOf[List[Expression]] should have length 4
         }
-        parser.parse("[]") should matchPattern { case Literal(List()) => }
+        parser.parse("[]") should matchPattern { case ListConstructor(Nil) => }
       }
       it("should parse variable names") {
         implicit val p = parser.grammar.expression

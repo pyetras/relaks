@@ -113,7 +113,7 @@ class PcParser extends FWBParser[String]{
     lazy val integer = wholeNumber ^^ ((num:String) => Literal(num.toInt))
     lazy val double = floatingPointNumber ^^ ((num:String) => Literal(num.toDouble))
 
-    lazy val listLit: Parser[Literal] = "[" ~> repsep(expression, ",") <~ "]" ^^ (x => Literal(x))
+    lazy val listLit: Parser[ListConstructor] = "[" ~> repsep(expression, ",") <~ "]" ^^ (x => ListConstructor(x))
 
     lazy val boolLit: Parser[Literal] = ("true".k ^^^ True) | ("false".k ^^^ False)
 
@@ -121,11 +121,8 @@ class PcParser extends FWBParser[String]{
 
     lazy val call: PackratParser[Apply] = (expression <~ "(") ~ repsep(callArg, ",") <~ ")" ^^
       { case fun~args => {
-        val namez = args.map(_._1)
-        val vals = args.map(_._2)
-        new Apply(fun, vals) with NamedArgs {
-          val names = namez
-        }
+        val (namez, vals) = args.unzip
+        new ApplyNamed(fun, namez, vals:_*)
       }}
     lazy val callArg: PackratParser[(Option[String], Expression)] = ((ident <~ "=")?) ~ expression ^^
       {case l~r => (l, r)}

@@ -1,6 +1,6 @@
 package fwb.ast
 
-import fwb.dsl.ops.SuperPosed
+import shapeless.HList
 
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
@@ -21,9 +21,7 @@ trait Types { this: ASTNodes =>
     }
   }
 
-  sealed trait SimpleArgType[T] extends ArgType[T]
-
-  final class SuperPos[T] 
+  final class SuperPos[+T]
 
   sealed trait SuperPosArgType[T] extends ArgType[SuperPos[T]] with SuperPosType {
     val insideType: ArgType[T]
@@ -32,9 +30,17 @@ trait Types { this: ASTNodes =>
 
   sealed trait SuperPosResult[T] extends SuperPosArgType[T]
 
-  trait SuperPosGenType[T] extends SuperPosArgType[T] //?
+  trait SuperPosGenType[T] extends SuperPosArgType[T]
 
-  class ScalaType[T](implicit val classTag: ClassTag[T]) extends SimpleArgType[T] {
+  sealed trait LiftedArgType[T] extends ArgType[T]
+
+  sealed trait CompoundType
+
+  sealed class ListType[T] extends LiftedArgType[List[T]] with CompoundType
+
+  sealed trait SimpleArgType[T] extends LiftedArgType[T]
+
+  sealed class ScalaType[T](implicit val classTag: ClassTag[T]) extends SimpleArgType[T] {
     override def toString = s"ScalaType[${classTag.runtimeClass.getSimpleName}]"
   }
 
@@ -50,7 +56,8 @@ trait Types { this: ASTNodes =>
     implicit val nullType = new ScalaType[Null]
     implicit val longType = new ScalaType[Long]
 
-    implicit def listType[T] = new ScalaType[List[T]] //TODO
+    implicit def listType[T](implicit typ: ArgType[T]): ListType[T] = new ListType[T]
+    implicit def superPosedType[T](implicit typ: LiftedArgType[T]): SuperPosArgType[T] = typ.supPosType
   }
 
   trait Typed { this: Tree =>
@@ -73,7 +80,4 @@ trait Types { this: ASTNodes =>
       def self = tree
     }
   }
-
-
-
 }

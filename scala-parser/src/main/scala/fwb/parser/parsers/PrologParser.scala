@@ -44,8 +44,8 @@ class PrologParser extends FWBParser[Traversable[Term]] with ScalaTypeImplis {
             val value = rest.tail.head.longValue()
             Literal(value)
           case "list_lit" =>
-            val value = rest.tail.head.map(buildExpression(_)).toList
-            Literal(value)
+            val value = rest.tail.head.map(buildExpression).toList
+            ListConstructor(value)
           case "string_lit" =>
             val value = rest.tail.head.map(_.longValue().toChar).mkString
             Literal(value)
