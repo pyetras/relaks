@@ -62,6 +62,7 @@ trait Types { this: ASTNodes =>
 
     implicit def listType[T](implicit typ: ArgType[T]): ListType[T] = new ListType[T]
     implicit def superPosedType[T](implicit typ: LiftedArgType[T]): SuperPosArgType[T] = typ.supPosType
+    implicit def productType[H <: HList] = new ProdType[H] // TODO: check if types belong to dsl
   }
 
   trait Typed { this: Tree =>

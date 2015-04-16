@@ -3,6 +3,9 @@ package fwb.dsl.ops
 import fwb.dsl._
 import AST._
 import shapeless._
+import shapeless.syntax.std.tuple._
+import fwb.dsl.AST.syntax._
+
 
 import scala.language.implicitConversions
 import scala.language.existentials
@@ -37,7 +40,9 @@ object UnliftRep {
     new UnliftRep[Rep[ArgType[H]] :: HNil] { type Out = H :: HNil }
 }
 
-
 trait ProductOps {
-
+  implicit def tupleToRep[P <: Product, H <: HList, R <: HList](p: P)(implicit ev: Generic.Aux[P, H], ul: UnliftRep.Aux[H, R], typ: ProdType[R], tev: IsTuple[P]) : Rep[ProdType[R]] =
+    new Rep[ProdType[R]] {
+      override def tree: TTree = Literal(true)
+    }
 }

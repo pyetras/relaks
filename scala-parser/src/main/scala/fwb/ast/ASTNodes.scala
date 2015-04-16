@@ -50,6 +50,12 @@ trait ASTNodes extends Types {
 
     def unapply(literal: Literal) = Some(literal.value)
   }
+  object Const {
+    def apply[T](v: T) : Literal = new Literal {
+      override type ValueT = T
+      override val value: Any = v
+    }
+  }
 
   final val True = Literal(true)
   final val False = Literal(false)
