@@ -11,13 +11,13 @@ import Scalaz._
 /**
  * Created by Pietras on 14/04/15.
  */
-trait DSL extends OperationsSyntax with ASTSyntax with SuperPosOps with Symbols with ListOps with AnyOps with ProductOps {
+trait DSL extends NumericOps with ASTSyntax with SuperPosOps with Symbols with ListOps with AnyOps with ProductOps {
   import AST._
   private var stored = new mutable.MutableList[Rep[Any]]
 
   def store(rep: Rep[Any]) = stored += rep
 
-  def showSpace[T](superPos: Rep[SuperPosArgType[T]]): Option[String] = superPos.tree.tpe match {
+  def showSpace[T](superPos: Rep[SuperPos[T]]): Option[String] = superPos.tree.tpe match {
     case _:SuperPosGenType[_] => superPos.tree match {
       case Expr(NondetChoiceList(Expr(ListConstructor(lst)))) => lst.toString().some
       case Expr(NondetChoiceList(Expr(Literal(x)))) => x.toString().some

@@ -50,12 +50,12 @@ trait ASTNodes extends Types {
 
     def unapply(literal: Literal) = Some(literal.value)
   }
-  object Const {
-    def apply[T](v: T) : Literal = new Literal {
-      override type ValueT = T
-      override val value: Any = v
-    }
-  }
+//  object Const {
+//    def apply[T](v: T) : Literal = new Literal {
+//      override type ValueT = T
+//      override val value: Any = v
+//    }
+//  }
 
   final val True = Literal(true)
   final val False = Literal(false)
@@ -102,7 +102,7 @@ trait ASTNodes extends Types {
   object Asc extends OrderDirection
   object Desc extends OrderDirection
 
-  case class Order(rel: Relation, directions: NonEmptyList[(Expression, OrderDirection)]) extends Latin
+  case class ColumnOrder(rel: Relation, directions: NonEmptyList[(Expression, OrderDirection)]) extends Latin
 
   sealed trait SearchType
   case class Optimization(method: String = "spearmint") extends SearchType

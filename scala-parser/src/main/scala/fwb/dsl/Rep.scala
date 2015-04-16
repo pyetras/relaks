@@ -5,8 +5,9 @@ import fwb.dsl.AST._
 /**
  * Created by Pietras on 10/04/15.
  */
-trait Rep[+T] {
+abstract class Rep[+T] {
   def tree: TTree
+  def getTpe = tree.tpe
   override def toString = s"Rep($tree)"
 }
 

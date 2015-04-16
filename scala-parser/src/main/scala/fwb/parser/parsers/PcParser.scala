@@ -152,8 +152,8 @@ class PcParser extends FWBParser[String]{
     lazy val filter: Parser[Filter] = "filter".ki ~> column ~ ("by".ki ~> expression) ^^
       { case col~expr => Filter(Right(col), expr)}
 
-    lazy val order: Parser[AST.Order] = "order".ki ~> column ~ ("by".ki ~> directions) ^^
-      { case col ~ dirs => AST.Order(Right(col), dirs) }
+    lazy val order: Parser[AST.ColumnOrder] = "order".ki ~> column ~ ("by".ki ~> directions) ^^
+      { case col ~ dirs => AST.ColumnOrder(Right(col), dirs) }
     lazy val directions: Parser[NonEmptyList[(Expression, OrderDirection)]] = rep1sep(column ~ ((asc | desc)?), ",") ^^
       ((nel) => nel.map ((x:Expression ~ Option[OrderDirection]) => x match {
         case col ~ Some(ord) => (col, ord)

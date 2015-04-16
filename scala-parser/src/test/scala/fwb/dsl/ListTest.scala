@@ -28,11 +28,11 @@ class ListTest extends FunSpec with Matchers with Inside {
       List(List(1, 2)).tree.tpe should equal (listType[List[Int]])
     }
     it("should implicitly convert scala lists") {
-      """implicitly[List[Boolean] => Rep[ListType[Boolean]]]""" should compile
-      """implicitly[List[Int] => Rep[ListType[Int]]]""" should compile
-      """implicitly[List[Double] => Rep[ListType[Double]]]""" should compile
-      """implicitly[List[String] => Rep[ListType[String]]]""" should compile
-      """implicitly[List[Long] => Rep[ListType[Long]]]""" should compile
+      """implicitly[List[Boolean] => Rep[List[Boolean]]]""" should compile
+      """implicitly[List[Int] => Rep[List[Int]]]""" should compile
+      """implicitly[List[Double] => Rep[List[Double]]]""" should compile
+      """implicitly[List[String] => Rep[List[String]]]""" should compile
+      """implicitly[List[Long] => Rep[List[Long]]]""" should compile
     }
     it("should allow only homogenous elements") {
       """List(true, 1)""" shouldNot compile

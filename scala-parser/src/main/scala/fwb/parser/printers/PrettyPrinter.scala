@@ -135,7 +135,7 @@ class PrettyPrinter{
           _ <- print(" BY ")
           _ <- traverse(cond)
         } yield ()
-        case Order(Right(rel), dirs) => for {
+        case ColumnOrder(Right(rel), dirs) => for {
           _ <- print("ORDER ")
           _ <- traverse(rel)
           _ <- print(" BY ")

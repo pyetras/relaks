@@ -22,16 +22,16 @@ trait SuperPosOps extends AnyOps with ToTypedTreeOps with ListOps with Symbols {
     def toTree = NondetChoiceList(choice.tree)
   }
   object SuperPosChoice {
-    def apply[T](choice: List[T])(implicit typ: LiftedArgType[T], m: T => Rep[ArgType[T]], ev: ListType[T]) {
+    def apply[T](choice: Rep[List[T]])(implicit ev: ArgType[T]) {
       new SuperPosed[T] {
-        override def toTree = NondetChoiceList(List(choice.map(m):_*).tree.asInstanceOf[ListConstructor])
+        override def toTree = NondetChoiceList(choice.tree)
       }
     }
   }
 
-  implicit def superPosedToRep[B1](sp: SuperPosed[B1])(implicit tpe: LiftedArgType[B1]): Rep[SuperPosGenType[B1]] = {
+  implicit def superPosedToRep[B1](sp: SuperPosed[B1])(implicit tpe: LiftedArgType[B1]): Rep[SuperPos[B1]] = {
     val t: Atom = sp.toTree(sp.tpe)
-    new Rep[SuperPosGenType[B1]] {
+    new Rep[SuperPos[B1]] {
       override def tree: TTree = t
     }
   }
@@ -42,13 +42,13 @@ trait SuperPosOps extends AnyOps with ToTypedTreeOps with ListOps with Symbols {
       def and(t: T)(implicit typ: ScalaType[T]) = SuperPosRange(from, t)
     }
     def between[T](frm: T) = new Between[T] { val from = frm }
-    def from[T](from: Rep[ListType[T]])(implicit typ: ArgType[T]) = SuperPosChoice(from)
+    def from[T](from: Rep[List[T]])(implicit typ: ArgType[T]) = SuperPosChoice(from)
   }
 }
 
 trait SuperPosMapper[B1, B2, BR, P1, P2, PR] extends ToTypedTreeOps {
   val lift = true
-  def toComputation(name: Expression, args: Expression*)(implicit tpe: ArgType[BR]): Rep[PR] = new Rep[PR] {
+  def toRep(name: Expression, args: Expression*)(implicit tpe: ArgType[BR]): Rep[PR] = new Rep[PR] {
     override def tree: TTree = Apply(name, args.toList)(liftedType(tpe))
   }
 
