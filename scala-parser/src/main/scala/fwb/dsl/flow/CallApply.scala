@@ -30,6 +30,8 @@ object CallApplyImpl {
 
     val R = assignM.head.returnType
 
+//    val callapply = symbolOf[CallApply.type].asClass.module
+
     q"""new _root_.fwb.dsl.flow.CallApply[$C] { type Ret = $R; def apply(c: $C) : $R = c.apply() }""" // TODO: make this parameterless
   }
 }
