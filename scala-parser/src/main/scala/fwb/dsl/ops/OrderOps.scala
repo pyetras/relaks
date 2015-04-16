@@ -16,9 +16,9 @@ trait OrderOps extends ASTSyntax {
 
   }
 
-  implicit def addSupPosOrderOps[B1](operand: Rep[B1])(implicit ev1: Rep[B1] => Rep[SuperPos[B1]], ev2: LiftedArgType[B1], o: Order[B1]) =
+  implicit def addSupPosOrderOps[B1](operand: Rep[B1])(implicit ev1: Rep[B1] => Rep[SuperPos[B1]], ev2: UnliftedArgType[B1], o: Order[B1]) =
     new OrderOperations[B1, SuperPos[B1]](ev1(operand))
-  implicit def addOrderOps[B1](operand: Rep[B1])(implicit ev2: LiftedArgType[B1], o: Order[B1]) =
+  implicit def addOrderOps[B1](operand: Rep[B1])(implicit ev2: UnliftedArgType[B1], o: Order[B1]) =
     new OrderOperations[B1, B1](operand)
 
 }

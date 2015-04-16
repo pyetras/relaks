@@ -29,7 +29,7 @@ trait SuperPosOps extends AnyOps with ToTypedTreeOps with ListOps with Symbols {
     }
   }
 
-  implicit def superPosedToRep[B1](sp: SuperPosed[B1])(implicit tpe: LiftedArgType[B1]): Rep[SuperPos[B1]] = {
+  implicit def superPosedToRep[B1](sp: SuperPosed[B1])(implicit tpe: UnliftedArgType[B1]): Rep[SuperPos[B1]] = {
     val t: Atom = sp.toTree(sp.tpe)
     new Rep[SuperPos[B1]] {
       override def tree: TTree = t
@@ -57,10 +57,10 @@ trait SuperPosMapper[B1, B2, BR, P1, P2, PR] extends ToTypedTreeOps {
 }
 
 trait SuperPosMapperImplis {
-  implicit def getSupPosMapperTT[B1, B2 : LiftedArgType, BR] = new SuperPosMapper[B1, B2, BR, B1, B2, BR] { override val lift = false }
-  implicit def getSupPosMapperTS[B1, B2 : LiftedArgType, BR] = new SuperPosMapper[B1, B2, BR, B1, SuperPos[B2], SuperPos[B2]] {}
-  implicit def getSupPosMapperST[B1, B2 : LiftedArgType, BR] = new SuperPosMapper[B1, B2, BR, SuperPos[B1], B2, SuperPos[BR]] {}
-  implicit def getSupPosMapperSS[B1, B2 : LiftedArgType, BR] = new SuperPosMapper[B1, B2, BR, SuperPos[B1], SuperPos[B2], SuperPos[BR]] {}
+  implicit def getSupPosMapperTT[B1, B2 : UnliftedArgType, BR] = new SuperPosMapper[B1, B2, BR, B1, B2, BR] { override val lift = false }
+  implicit def getSupPosMapperTS[B1, B2 : UnliftedArgType, BR] = new SuperPosMapper[B1, B2, BR, B1, SuperPos[B2], SuperPos[B2]] {}
+  implicit def getSupPosMapperST[B1, B2 : UnliftedArgType, BR] = new SuperPosMapper[B1, B2, BR, SuperPos[B1], B2, SuperPos[BR]] {}
+  implicit def getSupPosMapperSS[B1, B2 : UnliftedArgType, BR] = new SuperPosMapper[B1, B2, BR, SuperPos[B1], SuperPos[B2], SuperPos[BR]] {}
 }
 
 object OpResolverDSL {

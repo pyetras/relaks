@@ -32,17 +32,17 @@ trait Types { this: ASTNodes =>
 
   trait SuperPosGenType[T] extends SuperPosArgType[T]
 
-  sealed trait LiftedArgType[T] extends ArgType[T]
+  sealed trait UnliftedArgType[T] extends ArgType[T]
 
   sealed trait CompoundType
 
-  sealed class ListType[T] extends LiftedArgType[List[T]] with CompoundType
+  sealed class ListType[T] extends UnliftedArgType[List[T]] with CompoundType
 
   final class Prod[+T <: HList]
 
-  sealed class ProdType[T <: HList] extends LiftedArgType[Prod[T]] with CompoundType
+  sealed class ProdType[T <: HList] extends UnliftedArgType[Prod[T]] with CompoundType
 
-  sealed trait SimpleArgType[T] extends LiftedArgType[T]
+  sealed trait SimpleArgType[T] extends UnliftedArgType[T]
 
   sealed class ScalaType[T](implicit val classTag: ClassTag[T]) extends SimpleArgType[T] {
     override def toString = s"ScalaType[${classTag.runtimeClass.getSimpleName}]"
@@ -61,7 +61,7 @@ trait Types { this: ASTNodes =>
     implicit val longType = new ScalaType[Long]
 
     implicit def listType[T](implicit typ: ArgType[T]): ListType[T] = new ListType[T]
-    implicit def superPosedType[T](implicit typ: LiftedArgType[T]): SuperPosArgType[T] = typ.supPosType
+    implicit def superPosedType[T](implicit typ: UnliftedArgType[T]): SuperPosArgType[T] = typ.supPosType
     implicit def productType[H <: HList] = new ProdType[H] // TODO: check if types belong to dsl
   }
 

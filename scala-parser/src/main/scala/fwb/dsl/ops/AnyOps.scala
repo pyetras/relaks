@@ -18,9 +18,9 @@ trait AnyOps extends ASTSyntax {
     override def tree: TTree = Literal(x)
   }
 
-  implicit def addSupPosAnyOps[B1](operand: Rep[B1])(implicit ev1: Rep[B1] => Rep[SuperPos[B1]], ev2: LiftedArgType[B1]) =
+  implicit def addSupPosAnyOps[B1](operand: Rep[B1])(implicit ev1: Rep[B1] => Rep[SuperPos[B1]], ev2: UnliftedArgType[B1]) =
     new AnyOperations[B1, SuperPos[B1]](ev1(operand))
-  implicit def addAnyOps[B1, T](operand: Rep[B1])(implicit ev2: LiftedArgType[B1]) =
+  implicit def addAnyOps[B1, T](operand: Rep[B1])(implicit ev2: UnliftedArgType[B1]) =
     new AnyOperations[B1, B1](operand)
 
 }
