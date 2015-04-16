@@ -11,7 +11,7 @@ import Scalaz._
 /**
  * Created by Pietras on 14/04/15.
  */
-trait DSL extends OperationsSyntax with ASTSyntax with SuperPosOps with Symbols with ListOps with AnyOps {
+trait DSL extends OperationsSyntax with ASTSyntax with SuperPosOps with Symbols with ListOps with AnyOps with ProductOps {
   import AST._
   private var stored = new mutable.MutableList[Rep[Any]]
 

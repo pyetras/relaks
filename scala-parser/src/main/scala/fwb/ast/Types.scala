@@ -38,6 +38,10 @@ trait Types { this: ASTNodes =>
 
   sealed class ListType[T] extends LiftedArgType[List[T]] with CompoundType
 
+  final class Prod[+T <: HList]
+
+  sealed class ProdType[T <: HList] extends LiftedArgType[Prod[T]] with CompoundType
+
   sealed trait SimpleArgType[T] extends LiftedArgType[T]
 
   sealed class ScalaType[T](implicit val classTag: ClassTag[T]) extends SimpleArgType[T] {
