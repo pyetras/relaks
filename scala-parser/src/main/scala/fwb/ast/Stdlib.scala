@@ -8,8 +8,15 @@ trait Stdlib { this: ASTNodes =>
   object Stdlib {
     val + = Operator("+")
     val - = Operator("-")
+    val * = Operator("*")
+    val / = Operator("/")
     val < = Operator("<")
+    val <= = Operator("<=")
+    val > = Operator(">")
     val == = Operator("==")
+    val ! = Operator("!")
+    val || = Operator("||")
+    val && = Operator("&&")
   }
 
 }

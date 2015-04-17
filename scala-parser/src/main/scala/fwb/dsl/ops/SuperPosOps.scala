@@ -8,7 +8,7 @@ import scala.language.implicitConversions
 /**
  * Created by Pietras on 13/04/15.
  */
-trait SuperPosOps extends AnyOps with ToTypedTreeOps with ListOps with Symbols {
+trait SuperPosOps extends AnyOps with ToTypedTreeOps with ListOps with Symbols with SuperPosMapperImplis {
   sealed abstract class SuperPosed[T](implicit ev: ArgType[T]) {
     def toTree: NondetChoice
     def tpe = new SuperPosGenType[T] { val insideType = ev }
@@ -22,7 +22,7 @@ trait SuperPosOps extends AnyOps with ToTypedTreeOps with ListOps with Symbols {
     def toTree = NondetChoiceList(choice.tree)
   }
   object SuperPosChoice {
-    def apply[T](choice: Rep[List[T]])(implicit ev: ArgType[T]) {
+    def apply[T](choice: Rep[List[T]])(implicit ev: ArgType[T]) : SuperPosed[T] = {
       new SuperPosed[T] {
         override def toTree = NondetChoiceList(choice.tree)
       }
