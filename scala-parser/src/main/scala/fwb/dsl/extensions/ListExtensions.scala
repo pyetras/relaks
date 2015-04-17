@@ -1,4 +1,4 @@
-package fwb.dsl.ops
+package fwb.dsl.extensions
 
 import fwb.dsl._
 import AST._
@@ -8,7 +8,7 @@ import scala.language.implicitConversions
 /**
  * Created by Pietras on 15/04/15.
  */
-trait ListOps extends AnyOps with ASTSyntax with Symbols {
+trait ListExtensions extends AnyExtensions with ASTSyntax with Symbols {
 
   object List {
     def apply[T](xs: Rep[T]*)(implicit typ: ListType[T]) : Rep[List[T]] = {

@@ -1,4 +1,4 @@
-package fwb.dsl.ops
+package fwb.dsl.extensions
 
 import fwb.dsl._
 import AST._
@@ -8,7 +8,7 @@ import scala.language.implicitConversions
 /**
  * Created by Pietras on 16/04/15.
  */
-trait BoolOps extends ASTSyntax with UnaryStdlibSyntax {
+trait BoolExtensions extends ASTSyntax with UnaryStdlibSyntax {
   class BoolOperations[B1 : UnliftedArgType, P1 : ArgType](val arg1: Rep[P1]) extends Operations[B1, P1] {
     def unary_! = Stdlib.!.toRep[P1](arg1.tree)
 

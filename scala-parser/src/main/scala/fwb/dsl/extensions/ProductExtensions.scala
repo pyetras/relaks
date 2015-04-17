@@ -1,4 +1,4 @@
-package fwb.dsl.ops
+package fwb.dsl.extensions
 
 import fwb.dsl._
 import AST._
@@ -41,7 +41,7 @@ object UnliftType {
     new UnliftType[M[H] :: HNil, M] { type Out = H :: HNil }
 }
 
-trait ProductOps {
+trait ProductExtensions {
   implicit def tupleToRep[P <: Product, H <: HList, R <: HList](p: P)
                                                                (implicit ev: Generic.Aux[P, H],
                                                                 ul: UnliftType.Aux[H, Rep, R],

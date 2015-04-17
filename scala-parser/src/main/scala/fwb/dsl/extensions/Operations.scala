@@ -1,4 +1,4 @@
-package fwb.dsl.ops
+package fwb.dsl.extensions
 
 import fwb.dsl._
 import AST._

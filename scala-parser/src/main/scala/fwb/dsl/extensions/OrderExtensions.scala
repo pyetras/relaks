@@ -1,4 +1,4 @@
-package fwb.dsl.ops
+package fwb.dsl.extensions
 
 import fwb.dsl._
 import AST._
@@ -9,7 +9,7 @@ import scalaz.Order
 /**
  * Created by Pietras on 16/04/15.
  */
-trait OrderOps extends ASTSyntax with BoolOps with SuperPosMapperImplis {
+trait OrderExtensions extends ASTSyntax with BoolExtensions with SuperPosMapperImplis {
   class OrderOperations[B1, P1](val arg1: Rep[P1]) extends Operations[B1, P1] {
     def <[P2, PR](arg: Rep[P2])(implicit o: or#arg2[B1, P2]#to[Boolean, PR]): Rep[PR] =
       o.toRep(Stdlib.<, arg1.tree, arg.tree)
