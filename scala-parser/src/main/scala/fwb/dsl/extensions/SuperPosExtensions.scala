@@ -46,7 +46,7 @@ trait SuperPosExtensions extends AnyExtensions with ToTypedTreeOps with ListExte
   }
 }
 
-trait SuperPosMapper[B1, B2, BR, P1, P2, PR] extends ToTypedTreeOps {
+private[extensions] trait SuperPosMapper[B1, B2, BR, P1, P2, PR] extends ToTypedTreeOps {
   val lift = true
   def toRep(name: Expression, args: Expression*)(implicit tpe: ArgType[BR]): Rep[PR] = new Rep[PR] {
     override def tree: TTree = Apply(name, args.toList)(liftedType(tpe))
@@ -63,7 +63,7 @@ trait SuperPosMapperImplis {
   implicit def getSupPosMapperSS[B1, B2 : UnliftedArgType, BR] = new SuperPosMapper[B1, B2, BR, SuperPos[B1], SuperPos[B2], SuperPos[BR]] {}
 }
 
-object OpResolverDSL {
+private[extensions] object OpResolverDSL {
   type arg1[B1, P1] = {
     type to[BR, PR] = SuperPosMapper[B1, B1, BR, P1, P1, PR]
     type arg2[B2, P2] = {
