@@ -13,7 +13,7 @@ import Scalaz._
  */
 trait Symbols {
 
-  private var definitions = new mutable.HashMap[Sym, Assignment]
+  private val definitions = new mutable.HashMap[Sym, Assignment]
   private var symCounter = 0
 
   sealed case class Sym(name: Int) extends Atom {

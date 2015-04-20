@@ -3,6 +3,7 @@ package fwb.dsl.extensions
 import fwb.dsl._
 import AST._
 import shapeless._
+import shapeless.ops.hlist._
 import shapeless.syntax.std.tuple._
 import fwb.dsl.AST.syntax._
 
@@ -27,12 +28,12 @@ object UnliftType {
     new UnliftType[M[H] :: L, M] { type Out = H :: R }
 
   implicit def unliftNoType[H, L <: HList, R <: HList, M[_]]
-  (implicit ev: Aux[L, M, R], e: H =:!= Rep[T] forSome { type T }) :
+  (implicit ev: Aux[L, M, R], e: H =:!= M[T] forSome { type T }) :
   Aux[H :: L, M, H :: R] =
     new UnliftType[H :: L, M] { type Out = H :: R }
 
   implicit def unliftNil[H, M[_]]
-  (implicit e: H =:!= Rep[T] forSome { type T }) :
+  (implicit e: H =:!= M[T] forSome { type T }) :
   Aux[H :: HNil, M, H :: HNil] =
     new UnliftType[H :: HNil, M] { type Out = H :: HNil }
 
@@ -42,12 +43,13 @@ object UnliftType {
 }
 
 trait ProductExtensions {
-  implicit def tupleToRep[P <: Product, H <: HList, R <: HList](p: P)
+  implicit def productToRep[P <: Product, H <: HList, R <: HList, LU](p: P)
                                                                (implicit ev: Generic.Aux[P, H],
                                                                 ul: UnliftType.Aux[H, Rep, R],
                                                                 typ: ProdType[R],
-                                                                tev: IsTuple[P]) : Rep[ProdType[R]] =
-    new Rep[ProdType[R]] {
-      override def tree: TTree = Literal(true) //FIXME
+                                                                tev: IsTuple[P],
+                                                                traversable: ToTraversable.Aux[H, List, LU]) : Rep[Prod[R]] =
+    new Rep[Prod[R]] {
+      override def tree: TTree = Const(ev.to(p).toList[LU])(typ)
     }
 }

@@ -1,6 +1,11 @@
 package fwb.ast
 
-import shapeless.HList
+import shapeless.ops.hlist.Length
+import shapeless.ops.nat.ToInt
+import scala.reflect.runtime.universe._
+import shapeless.syntax.NatOps
+import shapeless.{Nat, HList}
+import shapeless.nat._
 
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
@@ -40,15 +45,22 @@ trait Types { this: ASTNodes =>
 
   final class Prod[+T <: HList]
 
-  sealed class ProdType[T <: HList] extends UnliftedArgType[Prod[T]] with CompoundType
+  sealed abstract class ProdType[T <: HList : TypeTag] extends UnliftedArgType[Prod[T]] with CompoundType {
+    val length: Int
+
+    override def toString = s"Prod$length[${implicitly[TypeTag[T]].tpe.dealias}]"
+  }
+  sealed abstract class ProdNType[T <: HList : TypeTag, N <: Nat : ToInt] extends ProdType[T] {
+    val length = Nat.toInt[N]
+  }
 
   sealed trait SimpleArgType[T] extends UnliftedArgType[T]
 
-  sealed class ScalaType[T](implicit val classTag: ClassTag[T]) extends SimpleArgType[T] {
-    override def toString = s"ScalaType[${classTag.runtimeClass.getSimpleName}]"
+  sealed class ScalaType[T : ClassTag] extends SimpleArgType[T] {
+    override def toString = s"ScalaType[${implicitly[ClassTag[T]].runtimeClass.getSimpleName}]"
   }
 
-  class ScalaNumType[T](implicit val tag: ClassTag[T]) extends ScalaType[T] with NumType
+  class ScalaNumType[T : ClassTag] extends ScalaType[T] with NumType
 
   object UnknownType extends TType
 
@@ -62,7 +74,7 @@ trait Types { this: ASTNodes =>
 
     implicit def listType[T](implicit typ: ArgType[T]): ListType[T] = new ListType[T]
     implicit def superPosedType[T](implicit typ: UnliftedArgType[T]): SuperPosArgType[T] = typ.supPosType
-    implicit def productType[H <: HList] = new ProdType[H] // TODO: check if types belong to dsl
+    implicit def productType[H <: HList : TypeTag, N <: Nat](implicit len: Length.Aux[H, N], ti: ToInt[N]): ProdNType[H, N] = new ProdNType[H, N] { }// TODO: check if types belong to dsl
   }
 
   trait Typed { this: Tree =>
