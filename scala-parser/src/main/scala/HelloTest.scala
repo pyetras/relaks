@@ -18,11 +18,21 @@ object HelloTest {
 //    val program:Program = new PrologParser().parse(result)
 //    println(new PrettyPrinter(program).shows)
 
-    val p2 = new PcParser().parse(
-      """
-        x = 3.14
-      """)
-    println((new PrettyPrinter())(p2))
+//    val p2 = new PcParser().parse(
+//      """
+//        x = 3.14
+//      """)
+//    println((new PrettyPrinter())(p2))
+    import fwb.dsl.{Rep, DSL}
+
+    object Program extends DSL
+    import Program._
+    val x = choose between 5 and 10
+    val y = choose from List(1, 3, 4)
+    val a = x + 5
+    println(showSpace(a))
+    List(x, y)
+
   }
 
 }

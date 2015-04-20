@@ -18,7 +18,7 @@ trait AnyExtensions extends ASTSyntax with BoolExtensions {
   }
 
   implicit def anyToRep[B1](x: B1)(implicit tpe: ScalaType[B1]): Rep[B1] = new Rep[B1] {
-    override def tree: TTree = Literal(x)
+    override val tree: Expression = Literal(x)
   }
 
   implicit def addSupPosAnyOps[B1](operand: Rep[B1])(implicit ev1: Rep[B1] => Rep[SuperPos[B1]], ev2: UnliftedArgType[B1]) =

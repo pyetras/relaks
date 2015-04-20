@@ -3,12 +3,13 @@ package fwb.dsl.extensions
 import fwb.dsl._
 import AST._
 
+import org.kiama.attribution.Attribution._
 import scala.language.implicitConversions
 
 /**
  * Created by Pietras on 13/04/15.
  */
-trait SuperPosExtensions extends AnyExtensions with ToTypedTreeOps with ListExtensions with Symbols with SuperPosMapperImplis {
+trait SuperPosExtensions extends ListExtensions with Symbols with SuperPosMapperImplis {
   sealed abstract class SuperPosed[T](implicit ev: ArgType[T]) {
     def toTree: NondetChoice
     def tpe = new SuperPosGenType[T] { val insideType = ev }
@@ -32,24 +33,43 @@ trait SuperPosExtensions extends AnyExtensions with ToTypedTreeOps with ListExte
   implicit def superPosedToRep[B1](sp: SuperPosed[B1])(implicit tpe: UnliftedArgType[B1]): Rep[SuperPos[B1]] = {
     val t: Atom = sp.toTree(sp.tpe)
     new Rep[SuperPos[B1]] {
-      override def tree: TTree = t
+      override val tree: Expression = t
     }
   }
 
   object choose extends ToTypedTreeOps {
     trait Between[T] {
       val from: T
-      def and(t: T)(implicit typ: ScalaType[T]) = SuperPosRange(from, t)
+      def and(t: T)(implicit typ: ScalaType[T]): Rep[SuperPos[T]] = SuperPosRange(from, t)
     }
     def between[T](frm: T) = new Between[T] { val from = frm }
-    def from[T](from: Rep[List[T]])(implicit typ: ArgType[T]) = SuperPosChoice(from)
+    def from[T : UnliftedArgType](from: Rep[List[T]]): Rep[SuperPos[T]] = SuperPosChoice(from) //FIXME: should accept superposed types
+  }
+
+  val superPosDeps: Expression => Set[Sym] = attr (node => node.tpe match {
+    case t:SuperPosGenType[_] => Set(node.asInstanceOf[Sym])
+    case _ => node match {
+      case Expr(link) if link.hasChildren => link.children.foldLeft(Set[Sym]())((acc, child) =>
+        acc ++ (child.asInstanceOf[Expression] -> superPosDeps)
+      )
+      case _ => Set()
+    }
+  })
+
+  def showSpace[T](superPos: Rep[SuperPos[T]]) = {
+    initTree(superPos.tree)
+    superPos.tree->superPosDeps collect {
+      case Expr(NondetChoiceList(Expr(ListConstructor(lst)))) => lst.toString()
+      case Expr(NondetChoiceList(Expr(Literal(x)))) => x.toString()
+      case Expr(NondetChoiceRange(l, r)) => s"{${l.value} .. ${r.value}}"
+    }
   }
 }
 
 private[extensions] trait SuperPosMapper[B1, B2, BR, P1, P2, PR] extends ToTypedTreeOps {
   val lift = true
   def toRep(name: Expression, args: Expression*)(implicit tpe: ArgType[BR]): Rep[PR] = new Rep[PR] {
-    override def tree: TTree = Apply(name, args.toList)(liftedType(tpe))
+    override val tree: Expression = Apply(name, args.toList)(liftedType(tpe))
   }
 
   def liftedType(tpe: ArgType[BR]): ArgType[PR] =

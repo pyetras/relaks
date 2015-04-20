@@ -8,7 +8,7 @@ import fwb.dsl.AST._
 
 //for instance Rep[Int], Rep[List[Int]]
 trait Rep[+T] {
-  def tree: TTree
+  val tree: Expression
   def getTpe = tree.tpe
   override def toString = s"Rep($tree)"
 }

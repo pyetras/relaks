@@ -12,7 +12,7 @@ trait UnaryStdlibSyntax {
   final implicit class UnaryStdlibOps(val self: Operator) extends Ops[Operator]{
     def toRep[T](args: Expression*)(implicit typ: ArgType[T]): Rep[T] =
       new Rep[T] {
-        override def tree: TTree = Apply(self, args.toList)(typ)
+        override val tree: Expression = Apply(self, args.toList)(typ)
       }
   }
 }

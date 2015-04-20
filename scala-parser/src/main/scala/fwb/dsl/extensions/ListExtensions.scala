@@ -14,13 +14,13 @@ trait ListExtensions extends AnyExtensions with ASTSyntax with Symbols {
     def apply[T](xs: Rep[T]*)(implicit typ: ListType[T]) : Rep[List[T]] = {
       val t: Atom = ListConstructor(xs)(typ)
       new Rep[List[T]] {
-        override def tree: TTree = t
+        override val tree: Expression = t
       }
     }
   }
 
   implicit def listToRep[T](list: List[T])(implicit tpe: ListType[T]): Rep[List[T]] = new Rep[List[T]] {
-    override def tree: Atom = Literal(list) //Literal is atom
+    override val tree: Atom = Literal(list) //Literal is atom
   }
 
 }

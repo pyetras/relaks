@@ -50,6 +50,6 @@ trait ProductExtensions {
                                                                 tev: IsTuple[P],
                                                                 traversable: ToTraversable.Aux[H, List, LU]) : Rep[Prod[R]] =
     new Rep[Prod[R]] {
-      override def tree: TTree = Const(ev.to(p).toList[LU])(typ)
+      override val tree: Expression = Const(ev.to(p).toList[LU])(typ)
     }
 }
