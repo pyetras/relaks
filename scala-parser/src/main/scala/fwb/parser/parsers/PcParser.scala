@@ -14,7 +14,7 @@ class PcParser extends FWBParser[String]{
   import AST._
 
   override def parse(str: String) = {
-    theParser(str).getOrElse(List())
+    theParser(str).getOrElse(Program(Seq[Statement]()))
   }
 
   protected object theParser extends JavaTokenParsers with PackratParsers with EolParser with OperatorPrecedenceParsers with ScalaTypeImplis {
@@ -23,7 +23,7 @@ class PcParser extends FWBParser[String]{
     def apply(str: String) : scalaz.Validation[String, Program] = {
       val in = new PackratReader(new scala.util.parsing.input.CharArrayReader(str.toCharArray))
       parseAll(program, in) match {
-        case Success(tree, _) => scalaz.Success(tree)
+        case Success(tree, _) => scalaz.Success(Program(tree))
         case NoSuccess(msg, _) => {println(msg); scalaz.Failure(msg)}
       }
     }

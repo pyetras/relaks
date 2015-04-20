@@ -21,6 +21,8 @@ libraryDependencies ++= Seq(
 
 libraryDependencies += "com.assembla.scala-incubator" %% "graph-core" % "1.9.1"
 
+libraryDependencies += "com.googlecode.kiama" % "kiama_2.11" % "1.8.0"
+
 libraryDependencies += "org.scalatest" % "scalatest_2.11" % "2.2.4" % "test"
 
 scalacOptions ++= Seq("-feature", "-deprecation", "-unchecked")

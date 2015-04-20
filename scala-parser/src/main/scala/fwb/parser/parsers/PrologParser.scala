@@ -6,12 +6,12 @@ import fwb.parser.AST._
 /**
  * Created by Pietras on 24/03/15.
  */
-class PrologParser extends FWBParser[Traversable[Term]] with ScalaTypeImplis {
+class PrologParser extends FWBParser[Seq[Term]] with ScalaTypeImplis {
   import fwb.utils.prolog.PrologList._
   import scala.language.implicitConversions
 
-  def parse(terms: Traversable[Term]): Program = {
-    terms map buildStatement
+  def parse(terms: Seq[Term]): Program = {
+    Program(terms map buildStatement)
   }
 
   def buildStatement(term: Term) : Statement = {

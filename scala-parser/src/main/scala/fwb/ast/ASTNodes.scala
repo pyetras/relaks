@@ -1,5 +1,7 @@
 package fwb.ast
 
+import org.kiama.attribution.Attributable
+
 import scala.reflect.ClassTag
 import scalaz.NonEmptyList
 
@@ -10,18 +12,22 @@ trait ASTNodes extends Types {
   private[this] object syntax extends ToTypedTreeOps with ScalaTypeImplis
   import syntax._
 
-  sealed trait Tree extends Typed {
+  sealed trait Tree extends Typed with Attributable {
     def mainToString: String = this.getClass.getSimpleName
   }
-  implicit final class Program(val children: Traversable[Tree]) extends Tree
-  object Program {
-    def unapply(program: Program) = Some(program.children)
+
+  sealed trait Leaf extends Product{
+    override def productElement(n: Int): Any = throw new IndexOutOfBoundsException(n.toString)
+    override def productArity: Int = 0
+    override def canEqual(that: Any): Boolean = this.getClass == that.getClass
   }
+
+  sealed case class Program(stmts: Seq[Tree]) extends Tree
 
   sealed trait Statement extends Tree
   case class Assignment(left: Expression, right: Expression) extends Statement
   case class Generate(exprs: NonEmptyList[Expression]) extends Statement
-  object NoOp extends Statement
+  object NoOp extends Statement with Leaf
 
   sealed trait Expression extends Tree
 
@@ -29,7 +35,7 @@ trait ASTNodes extends Types {
 
   case class Identifier(name: String) extends Atom
 
-  trait Literal extends Atom {
+  trait Literal extends Atom with Leaf {
     type ValueT
     val value: Any
 
