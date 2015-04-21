@@ -66,7 +66,9 @@ trait Types { this: ASTNodes =>
 
   class ScalaNumType[T : ClassTag] extends ScalaType[T] with NumType
 
-  object UnknownType extends TType
+  object UnknownType extends TType {
+    override val isSuperPosed: Boolean = false
+  }
 
   trait ScalaTypeImplis {
     implicit val boolType = new ScalaType[Boolean]
