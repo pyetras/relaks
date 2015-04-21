@@ -12,37 +12,55 @@ import fwb.dsl.AST.syntax._
 import scala.language.implicitConversions
 import scala.language.higherKinds
 import scala.language.existentials
+import scala.language.reflectiveCalls
+
 
 /**
  * Created by Pietras on 16/04/15.
  */
 
 trait ProductExtensions extends Symbols {
-  class ProductOperations[B1 <: HList](val arg1: Rep[Prod[B1]]) extends Operations[Prod[B1]] {
-    def apply[BR: ArgType, N <: Nat](n: N)(implicit at: At.Aux[B1, n.N, BR], ti: ToInt[N]): Rep[at.Out] = arg1.tree match {
+  trait AtMagnet[B1 <: HList, LU] {
+    def apply(tree: Expression, or: SuperPosMapper[Prod[B1, LU], Prod[B1, LU], LU], typ: ArgType[LU]): Rep[LU]
+  }
+
+  implicit def natAsMagnet[B1 <: HList](i: Nat)(implicit at: At[B1, i.N], ti: ToInt[i.N]) : AtMagnet[B1, at.Out] = new AtMagnet[B1, at.Out] {
+    override def apply(tree: AST.Expression, or: SuperPosMapper[AST.Prod[B1, at.Out], AST.Prod[B1, at.Out], at.Out], typ: ArgType[at.Out]): Rep[at.Out] = tree match {
       case Expr(ProductConstructor(seq)) => new Rep[at.Out] {
         override val tree: AST.Expression = seq(ti.apply())
       }
     }
   }
 
-  implicit def productToProductOps[H <: HList](p: Rep[Prod[H]])(implicit typ: ProdType[H]) = new ProductOperations[H](p)
+  implicit def repiAsMagnet[B1 <: HList, LU](i: Rep[Int]): AtMagnet[B1, LU] = new AtMagnet[B1, LU] {
+    override def apply(tree: AST.Expression, or: SuperPosMapper[Prod[B1, LU], Prod[B1, LU], LU], typ: ArgType[LU]): Rep[LU] = new Rep[LU] {
+      override val tree: Expression = Apply(Stdlib.at, List(tree, i.tree))(typ)
+    }
+  }
+
+  class ProductOperations[B1 <: HList, LU](val arg1: Rep[Prod[B1, LU]]) extends Operations[Prod[B1, LU]] {
+    implicit def luType = arg1.getTpe.asInstanceOf[ProdType[B1, LU]].luType
+
+    def apply[T](t: T)(implicit magnet: T => AtMagnet[B1, LU]) = t(tree, op.to[LU], luType)
+  }
+
+  implicit def productToProductOps[H <: HList, LU](p: Rep[Prod[H, LU]])(implicit typ: ProdType[H, LU]) = new ProductOperations[H, LU](p)
 
   private[this] object asRep extends Poly1 {
     implicit def lifted[T: ArgType] = at[Rep[T]](x => x)
     implicit def unlifted[T: ArgType](implicit c: T => Rep[T]) = at[T](x => c(x))
   }
 
-  implicit def productToRep[P <: Product, H <: HList, R <: HList, LU <: Rep[Any], Mapped <: HList](p: P)
+  implicit def productToRep[P <: Product, H <: HList, R <: HList, LU, Mapped <: HList](p: P)
                                                                (implicit ev: Generic.Aux[P, H],
                                                                 ul: UnliftType.Aux[H, Rep, R],
-                                                                typ: ProdType[R],
+                                                                typ: ProdType[R, LU],
                                                                 tev: IsTuple[P],
                                                                 mapper: Mapper.Aux[asRep.type, H, Mapped],
-                                                                traversable: ToTraversable.Aux[Mapped, List, LU]): Rep[Prod[R]] = {
+                                                                traversable: ToTraversable.Aux[Mapped, List, Rep[LU]]): Rep[Prod[R, LU]] = {
     val hlist = ev.to(p)
-    val replist = hlist.map(asRep).toList[LU] // <: List[Rep[Any]]
-    new Rep[Prod[R]] {
+    val replist = hlist.map(asRep).toList[Rep[LU]] // <: List[Rep[Any]]
+    new Rep[Prod[R, LU]] {
       override val tree: Expression = ProductConstructor(replist.map(_.tree))(typ)
     }
   }

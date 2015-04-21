@@ -17,6 +17,7 @@ trait Stdlib { this: ASTNodes =>
     val ! = Operator("!")
     val || = Operator("||")
     val && = Operator("&&")
+    val at = Operator("[")
   }
 
 }

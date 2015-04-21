@@ -1,6 +1,6 @@
 package fwb.ast
 
-import shapeless.ops.hlist.Length
+import shapeless.ops.hlist.{ToTraversable, Length}
 import shapeless.ops.nat.ToInt
 import scala.reflect.runtime.universe._
 import shapeless.syntax.NatOps
@@ -47,14 +47,15 @@ trait Types { this: ASTNodes =>
 
   sealed class ListType[T] extends UnliftedArgType[List[T]] with CompoundType
 
-  final class Prod[+T <: HList]
+  final class Prod[+T <: HList, +LU]
 
-  sealed abstract class ProdType[T <: HList : TypeTag] extends UnliftedArgType[Prod[T]] with CompoundType {
+  sealed abstract class ProdType[T <: HList : TypeTag, LU] extends UnliftedArgType[Prod[T, LU]] with CompoundType {
     val length: Int
+    val luType: ArgType[LU] = new UnliftedArgType[LU] {} //TODO
 
     override def toString = s"Prod$length[${implicitly[TypeTag[T]].tpe.dealias}]"
   }
-  sealed abstract class ProdNType[T <: HList : TypeTag, N <: Nat : ToInt] extends ProdType[T] {
+  sealed abstract class ProdNType[T <: HList : TypeTag, N <: Nat : ToInt, LU] extends ProdType[T, LU] {
     val length = Nat.toInt[N]
   }
 
@@ -80,7 +81,8 @@ trait Types { this: ASTNodes =>
 
     implicit def listType[T](implicit typ: ArgType[T]): ListType[T] = new ListType[T]
     implicit def superPosedType[T](implicit typ: UnliftedArgType[T]): SuperPosArgType[T] = typ.supPosType
-    implicit def productType[H <: HList : TypeTag, N <: Nat](implicit len: Length.Aux[H, N], ti: ToInt[N]): ProdNType[H, N] = new ProdNType[H, N] { }// TODO: check if types belong to dsl
+    implicit def productType[H <: HList : TypeTag, N <: Nat, LU]
+      (implicit len: Length.Aux[H, N], ti: ToInt[N], tt: ToTraversable.Aux[H, List, LU]): ProdNType[H, N, LU] = new ProdNType[H, N, LU] { }// TODO: check if types belong to dsl
   }
 
   trait Typed { this: Tree =>
