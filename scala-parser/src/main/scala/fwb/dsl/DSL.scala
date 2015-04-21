@@ -24,8 +24,10 @@ trait DSL
   import AST._
   private var stored = new mutable.MutableList[Rep[Any]]
 
-  @implicitNotFound("Cannot store a not determined value")
-  def store[T](rep: Rep[T])(implicit ev: UnliftedArgType[T]) = stored += rep
+  def store[T](rep: Rep[T])(implicit ev: UnliftedArgType[T]) = {
+    assert(!rep.getTpe.isSuperPosed, "cannot store a not determined value")
+    stored += rep
+  }
 
 
 }

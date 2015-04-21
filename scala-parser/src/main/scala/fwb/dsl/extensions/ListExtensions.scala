@@ -12,7 +12,7 @@ trait ListExtensions extends AnyExtensions with ASTSyntax with Symbols {
 
   object List {
     def apply[T](xs: Rep[T]*)(implicit typ: ListType[T]) : Rep[List[T]] = {
-      val t: Atom = ListConstructor(xs)(typ)
+      val t: Atom = ListConstructor(xs.map(_.tree))(typ)
       new Rep[List[T]] {
         override val tree: Expression = t
       }

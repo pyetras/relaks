@@ -15,6 +15,7 @@ import scalaz.syntax.Ops
  */
 trait Types { this: ASTNodes =>
   sealed trait TType {
+    val isSuperPosed: Boolean
     override def equals(other: Any) = ClassTag(other.getClass) == ClassTag(this.getClass)
   }
   trait NumType
@@ -29,6 +30,7 @@ trait Types { this: ASTNodes =>
   final class SuperPos[+T]
 
   sealed trait SuperPosArgType[T] extends ArgType[SuperPos[T]] with SuperPosType {
+    override final val isSuperPosed: Boolean = true
     val insideType: ArgType[T]
     override def toString = s"SuperPosArgType[?]"
   }
@@ -37,7 +39,9 @@ trait Types { this: ASTNodes =>
 
   trait SuperPosGenType[T] extends SuperPosArgType[T]
 
-  sealed trait UnliftedArgType[T] extends ArgType[T]
+  sealed trait UnliftedArgType[T] extends ArgType[T] {
+    override final val isSuperPosed: Boolean = false
+  }
 
   sealed trait CompoundType
 

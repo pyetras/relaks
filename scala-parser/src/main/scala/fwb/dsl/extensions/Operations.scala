@@ -9,19 +9,20 @@ import scala.language.implicitConversions
 /**
  * Created by Pietras on 10/04/15.
  */
-trait Operations[B1, P1] {
-  val arg1: Rep[P1]
-  type or = OpResolverDSL.arg1[B1, P1]
-  def tree = arg1.tree
+trait Operations[B1] {
+  val arg1: Rep[B1]
 
-  protected[this] implicit def p1Type = arg1.getTpe.asInstanceOf[ArgType[P1]] // :(
+  val op = new  {
+    def to[BR] = new SuperPosMapper[B1, B1, BR]
+    def arg2[B2] = new {
+      def to[BR] = new SuperPosMapper[B1, B2, BR]
+    }
+  }
+
+  val tree = arg1.tree
+
   implicit protected[this] def b1Type = (arg1.getTpe match {
     case o: SuperPosArgType[_] => o.insideType
     case b => b
   }).asInstanceOf[ArgType[B1]]
-  implicit protected[this] def optionType = (arg1.getTpe match {
-    case o: SuperPosArgType[_] => o
-    case b => b.asInstanceOf[ArgType[B1]].supPosType
-  }).asInstanceOf[ArgType[SuperPos[B1]]]
-
 }

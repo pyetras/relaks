@@ -9,7 +9,7 @@ import scala.language.implicitConversions
 /**
  * Created by Pietras on 13/04/15.
  */
-trait SuperPosExtensions extends ListExtensions with Symbols with SuperPosMapperImplis {
+trait SuperPosExtensions extends ListExtensions with Symbols {
   sealed abstract class SuperPosed[T](implicit ev: ArgType[T]) {
     def toTree: NondetChoice
     def tpe = new SuperPosGenType[T] { val insideType = ev }
@@ -30,9 +30,9 @@ trait SuperPosExtensions extends ListExtensions with Symbols with SuperPosMapper
     }
   }
 
-  implicit def superPosedToRep[B1](sp: SuperPosed[B1])(implicit tpe: UnliftedArgType[B1]): Rep[SuperPos[B1]] = {
+  private[this] implicit def superPosedToRep[B1](sp: SuperPosed[B1])(implicit tpe: UnliftedArgType[B1]): Rep[B1] = {
     val t: Atom = sp.toTree(sp.tpe)
-    new Rep[SuperPos[B1]] {
+    new Rep[B1] {
       override val tree: Expression = t
     }
   }
@@ -40,10 +40,10 @@ trait SuperPosExtensions extends ListExtensions with Symbols with SuperPosMapper
   object choose extends ToTypedTreeOps {
     trait Between[T] {
       val from: T
-      def and(t: T)(implicit typ: ScalaType[T]): Rep[SuperPos[T]] = SuperPosRange(from, t)
+      def and(t: T)(implicit typ: ScalaType[T]): Rep[T] = SuperPosRange(from, t)
     }
     def between[T](frm: T) = new Between[T] { val from = frm }
-    def from[T : UnliftedArgType](from: Rep[List[T]]): Rep[SuperPos[T]] = SuperPosChoice(from) //FIXME: should accept superposed types
+    def from[T : UnliftedArgType](from: Rep[List[T]]): Rep[T] = SuperPosChoice(from) //FIXME: should accept superposed types
   }
 
   val superPosDeps: Expression => Set[Sym] = attr (node => node.tpe match {
@@ -56,7 +56,8 @@ trait SuperPosExtensions extends ListExtensions with Symbols with SuperPosMapper
     }
   })
 
-  def showSpace[T](superPos: Rep[SuperPos[T]]) = {
+  def showSpace(superPos: Rep[Any]) = {
+    assert(superPos.getTpe.isSuperPosed)
     initTree(superPos.tree)
     superPos.tree->superPosDeps collect {
       case Expr(NondetChoiceList(Expr(ListConstructor(lst)))) => lst.toString()
@@ -66,28 +67,19 @@ trait SuperPosExtensions extends ListExtensions with Symbols with SuperPosMapper
   }
 }
 
-private[extensions] trait SuperPosMapper[B1, B2, BR, P1, P2, PR] extends ToTypedTreeOps {
-  val lift = true
-  def toRep(name: Expression, args: Expression*)(implicit tpe: ArgType[BR]): Rep[PR] = new Rep[PR] {
-    override val tree: Expression = Apply(name, args.toList)(liftedType(tpe))
-  }
-
-  def liftedType(tpe: ArgType[BR]): ArgType[PR] =
-    (if (lift) { tpe.supPosType } else { tpe }).asInstanceOf[ArgType[PR]]
-}
-
-trait SuperPosMapperImplis {
-  implicit def getSupPosMapperTT[B1, B2 : UnliftedArgType, BR] = new SuperPosMapper[B1, B2, BR, B1, B2, BR] { override val lift = false }
-  implicit def getSupPosMapperTS[B1, B2 : UnliftedArgType, BR] = new SuperPosMapper[B1, B2, BR, B1, SuperPos[B2], SuperPos[B2]] {}
-  implicit def getSupPosMapperST[B1, B2 : UnliftedArgType, BR] = new SuperPosMapper[B1, B2, BR, SuperPos[B1], B2, SuperPos[BR]] {}
-  implicit def getSupPosMapperSS[B1, B2 : UnliftedArgType, BR] = new SuperPosMapper[B1, B2, BR, SuperPos[B1], SuperPos[B2], SuperPos[BR]] {}
-}
-
-private[extensions] object OpResolverDSL {
-  type arg1[B1, P1] = {
-    type to[BR, PR] = SuperPosMapper[B1, B1, BR, P1, P1, PR]
-    type arg2[B2, P2] = {
-      type to[BR, PR] = SuperPosMapper[B1, B2, BR, P1, P2, PR]
+private[extensions] class SuperPosMapper[B1, B2, BR] {
+  import AST.syntax._
+  def toRep(name: Expression, args: Expression*)(implicit tpe: ArgType[BR]): Rep[BR] = {
+    // if any of the types is superposed, lift the return type
+    val lift = args.view.map(_.tpe).collect {
+      case t:SuperPosArgType[_] => true
+    }.headOption match {
+      case Some(_) => true
+      case None => false
+    }
+    new Rep[BR] {
+      override val tree: Expression = Apply(name, args.toList)(if (lift) { tpe.supPosType } else { tpe })
     }
   }
+
 }

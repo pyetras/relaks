@@ -56,6 +56,14 @@ trait ASTNodes extends Types {
 
     def unapply(literal: Literal) = Some(literal.value)
   }
+
+//  object ListLiteral {
+//    def unapply(literal: Literal): Option[List[Any]] = literal.tpe match {
+//      case t:ListType[_] => Some(literal.value.asInstanceOf[List[Any]])
+//      case _ => None
+//    }
+//  }
+
   object Const {
     def apply[T](v: T) : Literal = new Literal {
       override type ValueT = T
@@ -67,7 +75,9 @@ trait ASTNodes extends Types {
   final val False = Literal(false)
   final val Null = Literal(null)
 
-  sealed case class ListConstructor(lst: Seq[Any]) extends Expression
+  sealed case class ListConstructor(lst: Seq[Expression]) extends Expression
+
+  sealed case class ProductConstructor(lst: Seq[Expression]) extends Expression
 
   sealed trait NondetChoice extends Expression
   sealed case class NondetChoiceRange(from: Literal, to: Literal) extends NondetChoice
