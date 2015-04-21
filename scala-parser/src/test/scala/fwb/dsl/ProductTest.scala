@@ -12,12 +12,40 @@ class ProductTest  extends FunSpec with Matchers with Inside {
   import scala.collection.immutable.{List => SList}
 
   describe("Staged products") {
-    it("test suite") {
-      import shapeless._ // FIXME: leo why
-      val x = choose between 1 and 3
-      val t = (1, 4: Rep[Int], x)
-      (productToRep(t):Rep[_]).toString
+    import shapeless._ // FIXME: leo why
+    val x = choose between 1 and 3
+    val t = (1, 4: Rep[Int], x, true)
+    type TType = Int::Int::Int::Boolean::HNil
+    val tup: Rep[Prod[TType]] = t
+
+    it("should create correct element types") {
+      val typ = tup.getTpe.unlift.asInstanceOf[ProdType[TType]]
+      typ.productTypes should have length 4
     }
+
+    it("should superpos type if necessary") {
+      tup.getTpe.isSuperPosed should be(true)
+    }
+
+    it("should allow static access") {
+      tup(0).tree should matchPattern { case Literal(1) => }
+      tup(0).getTpe should equal(intType)
+      tup(0).getTpe.isSuperPosed should be(false)
+
+      tup(2).getTpe.isSuperPosed should be(true)
+      inside(tup(2).getTpe) { case t:SuperPosArgType[_] => t.insideType should equal(intType) }
+    }
+
+    it("should allow dynamic access") {
+      tup.at(0).tree should matchPattern { case Apply(Stdlib.at, x) => }
+      val i: Rep[Int] = 0
+      tup.at(i).getTpe.isSuperPosed should be(true)
+    }
+
+    it("should not create a tuple with incorrect type") {
+      """(1, 2, Set[Int]): Rep[_]""" shouldNot compile
+    }
+
   }
 
 }

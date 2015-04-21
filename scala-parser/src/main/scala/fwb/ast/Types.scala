@@ -16,6 +16,7 @@ import scalaz.syntax.Ops
 trait Types { this: ASTNodes =>
   sealed trait TType {
     val isSuperPosed: Boolean
+    def unlift: TType //return unsuperposed version of this type
     override def equals(other: Any) = ClassTag(other.getClass) == ClassTag(this.getClass)
   }
   trait NumType
@@ -27,9 +28,8 @@ trait Types { this: ASTNodes =>
     }
   }
 
-  final class SuperPos[+T]
-
-  sealed trait SuperPosArgType[T] extends ArgType[SuperPos[T]] with SuperPosType {
+  sealed trait SuperPosArgType[T] extends ArgType[T] with SuperPosType {
+    override def unlift: TType = insideType
     override final val isSuperPosed: Boolean = true
     val insideType: ArgType[T]
     override def toString = s"SuperPosArgType[?]"
@@ -40,6 +40,7 @@ trait Types { this: ASTNodes =>
   trait SuperPosGenType[T] extends SuperPosArgType[T]
 
   sealed trait UnliftedArgType[T] extends ArgType[T] {
+    override def unlift: TType = this
     override final val isSuperPosed: Boolean = false
   }
 
@@ -47,17 +48,17 @@ trait Types { this: ASTNodes =>
 
   sealed class ListType[T] extends UnliftedArgType[List[T]] with CompoundType
 
-  final class Prod[+T <: HList, +LU]
+  final class Prod[+T <: HList]
 
-  sealed abstract class ProdType[T <: HList : TypeTag, LU] extends UnliftedArgType[Prod[T, LU]] with CompoundType {
+  sealed abstract class ProdType[T <: HList : TypeTag] extends UnliftedArgType[Prod[T]] with CompoundType {
+    type LUB
     val length: Int
-    val luType: ArgType[LU] = new UnliftedArgType[LU] {} //TODO
-
+    val lowerBound: ArgType[LUB]
+    val productTypes: Seq[TType]
     override def toString = s"Prod$length[${implicitly[TypeTag[T]].tpe.dealias}]"
   }
-  sealed abstract class ProdNType[T <: HList : TypeTag, N <: Nat : ToInt, LU] extends ProdType[T, LU] {
-    val length = Nat.toInt[N]
-  }
+
+  type ProductLU[H <: HList, LU] = ToTraversable.Aux[H, List, LU] //TODO: make it more efficient and preserve classtag
 
   sealed trait SimpleArgType[T] extends UnliftedArgType[T]
 
@@ -68,6 +69,7 @@ trait Types { this: ASTNodes =>
   class ScalaNumType[T : ClassTag] extends ScalaType[T] with NumType
 
   object UnknownType extends TType {
+    override def unlift: TType = this
     override val isSuperPosed: Boolean = false
   }
 
@@ -80,9 +82,25 @@ trait Types { this: ASTNodes =>
     implicit val longType = new ScalaType[Long]
 
     implicit def listType[T](implicit typ: ArgType[T]): ListType[T] = new ListType[T]
-    implicit def superPosedType[T](implicit typ: UnliftedArgType[T]): SuperPosArgType[T] = typ.supPosType
-    implicit def productType[H <: HList : TypeTag, N <: Nat, LU]
-      (implicit len: Length.Aux[H, N], ti: ToInt[N], tt: ToTraversable.Aux[H, List, LU]): ProdNType[H, N, LU] = new ProdNType[H, N, LU] { }// TODO: check if types belong to dsl
+
+    class ProdTypeConstructor[T <: HList : TypeTag, LU](n: Int) {
+      def apply(inner: Seq[TType]): TType = {
+        val lift = inner.exists(_.isSuperPosed)
+        val lut = new UnliftedArgType[LU] {}//FIXME np listy beda kiepskie
+        val typ = new ProdType[T] {
+          override val length: Int = n
+          override type LUB = LU
+          override val lowerBound: ArgType[LU] = if (lift) { lut.supPosType } else { lut }
+          override val productTypes: Seq[TType] = inner
+        }
+        if (lift) { typ.supPosType } else { typ }
+      }
+    }
+    implicit def productTypeConstructor[H <: HList : TypeTag, N <: Nat, LU]
+      (implicit len: Length.Aux[H, N],
+       ti: ToInt[N],
+       tt: ProductLU[H, LU]): ProdTypeConstructor[H, LU] =
+      new ProdTypeConstructor[H, LU](Nat.toInt[N])
   }
 
   trait Typed { this: Tree =>

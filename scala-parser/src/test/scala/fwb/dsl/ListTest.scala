@@ -23,7 +23,7 @@ class ListTest extends FunSpec with Matchers with Inside {
       listToRep(SList(1.0d, 2.0d)).tree.tpe should equal (listType[Double])
 
       val superPosed = choose between 1 and 10
-      List(superPosed).tree.tpe should equal (listType[SuperPos[Int]])
+      List(superPosed).tree.tpe should equal (listType[Int]) //FIXME
 
       List(List(1, 2)).tree.tpe should equal (listType[List[Int]])
     }

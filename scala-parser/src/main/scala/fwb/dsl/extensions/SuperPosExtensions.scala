@@ -71,12 +71,7 @@ private[extensions] class SuperPosMapper[B1, B2, BR] {
   import AST.syntax._
   def toRep(name: Expression, args: Expression*)(implicit tpe: ArgType[BR]): Rep[BR] = {
     // if any of the types is superposed, lift the return type
-    val lift = args.view.map(_.tpe).collect {
-      case t:SuperPosArgType[_] => true
-    }.headOption match {
-      case Some(_) => true
-      case None => false
-    }
+    val lift = args.exists(_.tpe.isSuperPosed) || name.tpe.isSuperPosed
     new Rep[BR] {
       override val tree: Expression = Apply(name, args.toList)(if (lift) { tpe.supPosType } else { tpe })
     }

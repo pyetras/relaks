@@ -21,8 +21,5 @@ trait Operations[B1] {
 
   val tree = arg1.tree
 
-  implicit protected[this] def b1Type = (arg1.getTpe match {
-    case o: SuperPosArgType[_] => o.insideType
-    case b => b
-  }).asInstanceOf[ArgType[B1]]
+  implicit protected[this] def b1Type = tree.tpe.unlift.asInstanceOf[ArgType[B1]]
 }
