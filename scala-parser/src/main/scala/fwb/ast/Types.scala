@@ -46,7 +46,7 @@ trait Types { this: ASTNodes =>
 
   sealed trait CompoundType
 
-  sealed class ListType[T] extends UnliftedArgType[List[T]] with CompoundType
+  sealed class ListType[T: ClassTag] extends UnliftedArgType[List[T]] with CompoundType
 
   final class Prod[+T <: HList]
 
@@ -60,9 +60,9 @@ trait Types { this: ASTNodes =>
 
   type ProductLU[H <: HList, LU] = ToTraversable.Aux[H, List, LU] //TODO: make it more efficient and preserve classtag
 
-  sealed trait SimpleArgType[T] extends UnliftedArgType[T]
+  sealed abstract class SimpleArgType[T: ClassTag] extends UnliftedArgType[T]
 
-  sealed class ScalaType[T : ClassTag] extends SimpleArgType[T] {
+  sealed class ScalaType[T: ClassTag] extends SimpleArgType[T] {
     override def toString = s"ScalaType[${implicitly[ClassTag[T]].runtimeClass.getSimpleName}]"
   }
 
@@ -81,7 +81,7 @@ trait Types { this: ASTNodes =>
     implicit val nullType = new ScalaType[Null]
     implicit val longType = new ScalaType[Long]
 
-    implicit def listType[T](implicit typ: ArgType[T]): ListType[T] = new ListType[T]
+    implicit def listType[T: ClassTag](implicit typ: ArgType[T]): ListType[T] = new ListType[T]
 
     class ProdTypeConstructor[T <: HList : TypeTag, LU](n: Int) {
       def apply(inner: Seq[TType]): TType = {

@@ -4,6 +4,7 @@ import fwb.dsl._
 import AST._
 
 import scala.language.implicitConversions
+import scala.reflect.ClassTag
 
 /**
  * Created by Pietras on 15/04/15.
@@ -19,7 +20,7 @@ trait ListExtensions extends AnyExtensions with ASTSyntax with Symbols {
     }
   }
 
-  implicit def listToRep[T](list: List[T])(implicit tpe: ListType[T]): Rep[List[T]] = new Rep[List[T]] {
+  implicit def listToRep[T: ClassTag](list: List[T])(implicit tpe: ListType[T]): Rep[List[T]] = new Rep[List[T]] {
     override val tree: Atom = Literal(list) //Literal is atom
   }
 
