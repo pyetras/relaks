@@ -5,25 +5,26 @@ import AST._
 
 import org.kiama.attribution.Attribution._
 import scala.language.implicitConversions
+import scala.reflect.ClassTag
 
 /**
  * Created by Pietras on 13/04/15.
  */
 trait SuperPosExtensions extends ListExtensions with Symbols {
-  sealed abstract class SuperPosed[T](implicit ev: ArgType[T]) {
+  sealed abstract class SuperPosed[T: ClassTag](implicit ev: ArgType[T]) {
     def toTree: NondetChoice
     def tpe = new SuperPosGenType[T] { val insideType = ev }
   }
 
-  case class SuperPosRange[T](from: T, to: T)(implicit typ: ScalaType[T]) extends SuperPosed[T] {
+  case class SuperPosRange[T: ClassTag](from: T, to: T)(implicit typ: ScalaType[T]) extends SuperPosed[T] {
     def toTree = NondetChoiceRange(Literal(from), Literal(to)) // TODO: źle - to musi zostac nazwane.
   }
 
-  case class SuperPosChoice[T](choice: Rep[ArgType[List[T]]])(implicit typ: ArgType[T]) extends SuperPosed[T] {
+  case class SuperPosChoice[T: ClassTag](choice: Rep[ArgType[List[T]]])(implicit typ: ArgType[T]) extends SuperPosed[T] {
     def toTree = NondetChoiceList(choice.tree)
   }
   object SuperPosChoice {
-    def apply[T](choice: Rep[List[T]])(implicit ev: ArgType[T]) : SuperPosed[T] = {
+    def apply[T: ClassTag](choice: Rep[List[T]])(implicit ev: ArgType[T]) : SuperPosed[T] = {
       new SuperPosed[T] {
         override def toTree = NondetChoiceList(choice.tree)
       }
@@ -38,12 +39,12 @@ trait SuperPosExtensions extends ListExtensions with Symbols {
   }
 
   object choose extends ToTypedTreeOps {
-    trait Between[T] {
+    abstract class Between[T: ClassTag] {
       val from: T
       def and(t: T)(implicit typ: ScalaType[T]): Rep[T] = SuperPosRange(from, t)
     }
-    def between[T](frm: T) = new Between[T] { val from = frm }
-    def from[T : UnliftedArgType](from: Rep[List[T]]): Rep[T] = SuperPosChoice(from) //FIXME: should accept superposed types
+    def between[T: ClassTag](frm: T) = new Between[T] { val from = frm }
+    def from[T : UnliftedArgType : ClassTag](from: Rep[List[T]]): Rep[T] = SuperPosChoice(from) //FIXME: should accept superposed types
   }
 
   val superPosDeps: Expression => Set[Sym] = attr (node => node.tpe match {

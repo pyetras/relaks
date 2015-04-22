@@ -15,31 +15,43 @@ import scalaz.syntax.Ops
  */
 trait Types { this: ASTNodes =>
   sealed trait TType {
-    val isSuperPosed: Boolean
+    def isSuperPosed: Boolean
     def unlift: TType //return unsuperposed version of this type
     override def equals(other: Any) = ClassTag(other.getClass) == ClassTag(this.getClass)
   }
   trait NumType
   trait SuperPosType
 
-  sealed trait ArgType[T] extends TType { self =>
+  sealed abstract class ArgType[T: ClassTag] extends TType { self =>
     def supPosType : SuperPosResult[T] = new SuperPosResult[T] {
       override val insideType: ArgType[T] = self
     }
+    override def toString = s"$containerName[$typeArgName]"
+    def containerName: String = {
+      def findNonAnon(kls: Class[_]) : String = {
+        val name = kls.getSimpleName
+        if (name.startsWith("$anon")) findNonAnon(kls.getSuperclass)
+        else name
+      }
+      findNonAnon(this.getClass)
+    }
+    def typeArgName: String = implicitly[ClassTag[T]].runtimeClass.getSimpleName
   }
 
-  sealed trait SuperPosArgType[T] extends ArgType[T] with SuperPosType {
+  sealed abstract class SuperPosArgType[T: ClassTag] extends ArgType[T] with SuperPosType {
     override def unlift: TType = insideType
     override final val isSuperPosed: Boolean = true
     val insideType: ArgType[T]
-    override def toString = s"SuperPosArgType[?]"
+
+    override def toString: String = s"$containerName|$insideType⟩"
+    override def containerName = ""
   }
 
-  sealed trait SuperPosResult[T] extends SuperPosArgType[T]
+  sealed abstract class SuperPosResult[T: ClassTag] extends SuperPosArgType[T]
 
-  trait SuperPosGenType[T] extends SuperPosArgType[T]
+  abstract class SuperPosGenType[T: ClassTag] extends SuperPosArgType[T]
 
-  sealed trait UnliftedArgType[T] extends ArgType[T] {
+  sealed abstract class UnliftedArgType[T: ClassTag] extends ArgType[T] {
     override def unlift: TType = this
     override final val isSuperPosed: Boolean = false
   }
@@ -55,22 +67,21 @@ trait Types { this: ASTNodes =>
     val length: Int
     val lowerBound: ArgType[LUB]
     val productTypes: Seq[TType]
-    override def toString = s"Prod$length[${implicitly[TypeTag[T]].tpe.dealias}]"
+    override def containerName = s"Prod$length"
+    override def typeArgName = implicitly[TypeTag[T]].tpe.dealias.toString
   }
 
   type ProductLU[H <: HList, LU] = ToTraversable.Aux[H, List, LU] //TODO: make it more efficient and preserve classtag
 
   sealed abstract class SimpleArgType[T: ClassTag] extends UnliftedArgType[T]
 
-  sealed class ScalaType[T: ClassTag] extends SimpleArgType[T] {
-    override def toString = s"ScalaType[${implicitly[ClassTag[T]].runtimeClass.getSimpleName}]"
-  }
+  sealed class ScalaType[T: ClassTag] extends SimpleArgType[T]
 
   class ScalaNumType[T : ClassTag] extends ScalaType[T] with NumType
 
   object UnknownType extends TType {
-    override def unlift: TType = this
-    override val isSuperPosed: Boolean = false
+    override def unlift: TType = ???
+    override def isSuperPosed: Boolean = ???
   }
 
   trait ScalaTypeImplis {
@@ -83,7 +94,7 @@ trait Types { this: ASTNodes =>
 
     implicit def listType[T: ClassTag](implicit typ: ArgType[T]): ListType[T] = new ListType[T]
 
-    class ProdTypeConstructor[T <: HList : TypeTag, LU](n: Int) {
+    class ProdTypeConstructor[T <: HList : TypeTag, LU: ClassTag](n: Int) {
       def apply(inner: Seq[TType]): TType = {
         val lift = inner.exists(_.isSuperPosed)
         val lut = new UnliftedArgType[LU] {}//FIXME np listy beda kiepskie
@@ -96,7 +107,7 @@ trait Types { this: ASTNodes =>
         if (lift) { typ.supPosType } else { typ }
       }
     }
-    implicit def productTypeConstructor[H <: HList : TypeTag, N <: Nat, LU]
+    implicit def productTypeConstructor[H <: HList : TypeTag, N <: Nat, LU: ClassTag]
       (implicit len: Length.Aux[H, N],
        ti: ToInt[N],
        tt: ProductLU[H, LU]): ProdTypeConstructor[H, LU] =
