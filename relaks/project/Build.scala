@@ -5,7 +5,7 @@ import sbt._
 import Keys._
 
 object BuildProject extends Build {
-  lazy val fwb = Project(id = "relaks", base = file(".")).settings(basicSettings ++ Seq(name := "relaks")).aggregate(parser)
+  lazy val relaks = Project(id = "relaks", base = file(".")).settings(basicSettings ++ Seq(name := "relaks")).aggregate(parser)
 
   val scalazVersion = "7.1.1"
   val _scalaVersion = "2.11.6"
@@ -32,5 +32,6 @@ object BuildProject extends Build {
     )
   )
 
-  lazy val parser = project.in(file("parser")).settings(commonSettings:_*)
+  lazy val parser = project.in(file("parser")).settings(commonSettings:_*).dependsOn(optimizer)
+  lazy val optimizer = project.in(file("optimizer")).settings(commonSettings:_*)
 }
