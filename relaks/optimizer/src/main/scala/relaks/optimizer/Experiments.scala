@@ -17,6 +17,10 @@ trait Experiments extends NondetVars with BaseOptimizer {
   implicit val currentValueStore = new DynamicVariable(Map[String, Any]())
   implicit def extract[T: TypeTag](from: Nondet): T = currentValueStore.value(from.name).asInstanceOf[T]
 
+  implicit class NondetOps(self: Nondet) {
+    def as[T: TypeTag]: T = extract(self)
+  }
+
   class Experiment[R <: HList, O](expr: () => ExperimentResult[R], space: VarSpaceDesc, getObjective: Sel[R, O], strategy: ExperimentStrategy) {
     def run(): List[R] = {
       initializeOptimizer()
