@@ -7,6 +7,7 @@ import scala.collection.mutable
 import scala.language.implicitConversions
 import scalaz._
 import Scalaz._
+import org.kiama.attribution.Attribution._
 
 /**
  * Created by Pietras on 15/04/15.
@@ -32,16 +33,19 @@ trait Symbols {
 
   def saveDefinition(sym: Sym, expression: Expression) : Assignment = {
     val ass = Assignment(sym, expression)(expression.tpe)
+    initTree(ass)
     definitions += ((sym, ass))
     ass
   }
 
   def findDefinition(sym: Sym) : Option[Expression] = definitions.get(sym).map(_.right)
 
-  implicit def toAtom(expression: Expression) : Atom = {
-    val sym = fresh(expression.tpe)
-    saveDefinition(sym, expression)
-    sym
+  implicit def toAtom(expression: Expression) : Atom = expression match {
+    case sym @ Sym(_) => sym
+    case _ =>
+      val sym = fresh(expression.tpe)
+      saveDefinition(sym, expression)
+      sym
   }
 
   object Expr {

@@ -79,9 +79,11 @@ trait ASTNodes extends Types {
 
   sealed case class ProductConstructor(lst: Seq[Expression]) extends Expression
 
-  sealed trait NondetChoice extends Expression
-  sealed case class NondetChoiceRange(from: Literal, to: Literal) extends NondetChoice
-  sealed case class NondetChoiceList(s: Expression) extends NondetChoice
+  sealed trait NondetGenerator extends Expression
+  sealed case class NondetGeneratorRange(from: Literal, to: Literal) extends NondetGenerator
+  sealed case class NondetGeneratorList(s: Expression) extends NondetGenerator
+  
+  sealed case class Once(a: Atom) extends Expression
 
   sealed case class Apply(fun: Expression, argList: List[Expression]) extends Expression
   object Apply {

@@ -27,12 +27,13 @@ object HelloTest {
 
     object Program extends DSL
     import Program._
-    val x = choose between 5 and 10
-    val y = choose from List(1, 3, 4)
-    val a = x + 5
-    println(showSpace(a))
-    List(x, y)
 
+
+//    val i: Rep[Int] = 5
+//    val j: Rep[Int] = 2
+//    val k = choose between 10 and 20
+//    val m = k + i
+//    val l = once(m)
+//    compile(l.tree)
   }
-
 }

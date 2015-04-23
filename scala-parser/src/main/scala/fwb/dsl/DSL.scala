@@ -6,6 +6,7 @@ import fwb.dsl.extensions._
 import scala.annotation.implicitNotFound
 import scala.collection.mutable
 import scala.language.implicitConversions
+import org.kiama.attribution.Attribution._
 
 /**
  * Created by Pietras on 14/04/15.
@@ -19,7 +20,8 @@ trait DSL
   with OrderExtensions
   with NumericExtensions
   with ListExtensions
-  with ProductExtensions {
+  with ProductExtensions
+  with ContCompiler {
 
   import AST._
   private var stored = new mutable.MutableList[Rep[Any]]
@@ -28,6 +30,4 @@ trait DSL
     assert(!rep.getTpe.isSuperPosed, "cannot store a not determined value")
     stored += rep
   }
-
-
 }

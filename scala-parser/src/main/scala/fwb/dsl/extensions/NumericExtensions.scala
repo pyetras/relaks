@@ -28,3 +28,10 @@ trait NumericExtensions extends ASTSyntax with Symbols {
   implicit def addNumericOps[B1](operand: Rep[B1])(implicit ev: UnliftedArgType[B1] with NumType) =
     new NumericOperations[B1](operand)
 }
+
+trait NumericContCompiler extends BaseContCompiler with Symbols {
+  override def eval(expr: AST.Expression, cont: (Any) => Cont): Cont = expr match {
+    case Expr(Apply(Stdlib.+, a :: b :: Nil)) => eval(a, { case i1:Int => eval(b, { case i2:Int => cont(i1+i2)})})
+    case _ => super.eval(expr, cont)
+  }
+}
