@@ -3,6 +3,9 @@ package relaks.optimizer
 /**
  * Created by Pietras on 02/05/15.
  */
+
+import java.util.concurrent.atomic.AtomicInteger
+
 import org.scalatest._
 
 
@@ -12,9 +15,12 @@ class GridOptmizerTest extends FunSpec with Matchers with Inside {
       import shapeless._
       import syntax.singleton._
 
+      val cnt = new AtomicInteger(0)
+
       def advancedMLAlgorithm(x: Int, y: Int) = {
         println(x)
         println(y)
+        cnt.incrementAndGet()
         x*x + y
       }
 
@@ -30,7 +36,8 @@ class GridOptmizerTest extends FunSpec with Matchers with Inside {
         Tuple1(result as "result")
       }
 
-      results should have length 100
+      results.take(100).runLog.run should have length 100
+      cnt.get() should equal(100)
     }
   }
 }

@@ -4,6 +4,10 @@ import relaks.data.LabelledTuples
 
 import shapeless.ops.record.Selector
 import shapeless.{Witness, HList}
+import scalaz._
+import Scalaz._
+import scalaz.concurrent._
+import scalaz.stream._
 
 import scala.annotation.tailrec
 import scala.reflect.runtime.universe.TypeTag
@@ -24,24 +28,23 @@ trait Experiments extends NondetVars with BaseOptimizer with LabelledTuples {
   }
 
   class Experiment[R <: HList, O](expr: () => LabelledTuple[R], space: VarSpaceDesc, getObjective: LabelledTupleSelector[R, O], strategy: ExperimentStrategy) {
-    def run(): List[LabelledTuple[R]] = {
+    def run(): Process[Task, LabelledTuple[R]] = {
       val optimizer = Optimizer(space, strategy)
 
-      @tailrec
-      def loop(counter: Int, acc: List[LabelledTuple[R]]): List[LabelledTuple[R]] =
-        if (counter <= 0) acc
-        else optimizer.next() match {
-          case Some(params) =>
-            val newacc = currentValueStore.withValue(params) {
-              val result = expr() // mozna pozbierac ktore zmienne sa tak faktycznie wywolywane
-              optimizer.update(getObjective(result))
-              result
-            } :: acc
-            loop(counter - 1, newacc)
-          case None => acc
+      val loop: Process1[ValStore, (LabelledTuple[R], OptimizerResult[O])] = process1.lift { params =>
+        val resultTuple = currentValueStore.withValue(params) {
+          expr() // mozna pozbierac ktore zmienne sa tak faktycznie wywolywane...
         }
+        (resultTuple, OptimizerResult(getObjective(resultTuple)))
+      }
 
-      loop(100, List.empty)
+      def fst[L]: Process1[(L, _), L] = process1.lift {_._1}
+//      def snd[R]: Process1[(_, R), R] = process1.lift {_._2}
+
+      optimizer.paramStream
+        .pipe(loop)
+        .observe(optimizer.update.contramap(_._2)) //pipe second element (OptimizerResult) to update sink
+        .pipe(fst)
     }
   }
 
