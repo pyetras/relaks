@@ -27,7 +27,7 @@ class GridOptmizerTest extends FunSpec with Matchers with Inside {
 
       val results = Experiment search varSpace minimize "result" in {
         val result = advancedMLAlgorithm(varSpace.x.as[Int], varSpace.y.as[Int])
-        ExperimentResult("result" ->> result :: HNil)
+        Tuple1(result as "result")
       }
 
       results should have length 100
