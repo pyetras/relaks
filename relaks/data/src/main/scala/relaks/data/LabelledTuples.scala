@@ -18,6 +18,8 @@ trait LabelledTuples {
     def selector[K](implicit sel: Selector[R, K]) = LabelledTuple.selector[R, K]
 
     def toHList = tuple
+
+    override def toString: String = tuple.toString
   }
 
   sealed trait LabelledTupleSelector[R <: HList, O]{
@@ -38,6 +40,8 @@ trait LabelledTuples {
                                                                      toHlist: Generic.Aux[P, L],
                                                                      evR: Mapper[isRecord.type, L]): LabelledTuple[L] =
     new LabelledTuple(toHlist.to(tup))
+
+  implicit def fromSingleField[K, V](field: FieldType[K, V]): LabelledTuple[FieldType[K, V] :: HNil] = new LabelledTuple(field :: HNil)
 
   implicit def addAs[T](t: T): AnyAs[T] = new AnyAs(t)
 }
