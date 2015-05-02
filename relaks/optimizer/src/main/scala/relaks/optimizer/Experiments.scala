@@ -23,16 +23,16 @@ trait Experiments extends NondetVars with BaseOptimizer {
 
   class Experiment[R <: HList, O](expr: () => ExperimentResult[R], space: VarSpaceDesc, getObjective: Sel[R, O], strategy: ExperimentStrategy) {
     def run(): List[R] = {
-      initializeOptimizer()
+      val optimizer = Optimizer(space, strategy)
 
       @tailrec
       def loop(counter: Int, acc: List[R]): List[R] =
         if (counter <= 0) acc
-        else getNextParams match {
+        else optimizer.next() match {
           case Some(params) =>
             val newacc = currentValueStore.withValue(params) {
               val result = expr() // mozna pozbierac ktore zmienne sa tak faktycznie wywolywane
-              updateObjectiveValue(getObjective(result()))
+              optimizer.update(getObjective(result()))
               result()
             } :: acc
             loop(counter - 1, newacc)
@@ -41,12 +41,6 @@ trait Experiments extends NondetVars with BaseOptimizer {
 
       loop(100, List.empty)
     }
-
-    private def initializeOptimizer(): Unit = Optimizer.initialize(space, strategy)
-
-    private def getNextParams: Option[ValStore] = Optimizer.nextParams()
-
-    private def updateObjectiveValue(obj: O): Unit = Optimizer.updateObjectiveValue(obj)
   }
 
   trait Sel[R <: HList, O]{
