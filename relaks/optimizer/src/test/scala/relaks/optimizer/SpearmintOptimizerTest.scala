@@ -4,7 +4,7 @@ package relaks.optimizer
  * Created by Pietras on 05/05/15.
  */
 
-import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.{TimeoutException, ConcurrentLinkedQueue}
 
 import org.scalatest._
 
@@ -39,6 +39,9 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
   val runSpearmint = "^(run spearmint).*".r
   val applyUpdate = "^(apply update).*".r
 
+  val to = new TimeoutException()
+  type TimeoutExceptionT = to.type
+
   describe("Spearmint optimizer") {
     it("should generate params when no updates have been applied") {
       val Spearmint = new Spearmint
@@ -60,7 +63,6 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
 
     it("should allow only maxParallel evals and then block until update") {
       import scala.concurrent.duration._
-      import java.util.concurrent.TimeoutException
 
       val Spearmint = new Spearmint
       var sp = Spearmint.getSp(2)
@@ -69,8 +71,7 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
 
       sp = Spearmint.getSp(2)
 
-      val to = new TimeoutException()
-      a [to.type] shouldBe thrownBy (sp.paramStream.take(3).run.runFor(100 milliseconds))
+      a [TimeoutExceptionT] shouldBe thrownBy (sp.paramStream.take(3).run.runFor(100 milliseconds))
 
       sp = Spearmint.getSp(2)
 
@@ -82,24 +83,33 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
     }
 
     it("should allow runnning in parallel") {
+      def parallelTask() = {
+        val Spearmint = new Spearmint
+        val sp = Spearmint.getSp(2)
 
-      val Spearmint = new Spearmint
-      val sp = Spearmint.getSp(2)
-
-      val chan: Channel[Task, Spearmint.Params, Process[Task, Spearmint.OptimizerResult]] = channel.lift {
-        (params: Spearmint.Params) =>
-          Task {
-            Process.eval {
-              Task.delay {
-                Thread.sleep(100)
-                Spearmint.OptimizerResult(0, params)
+        val chan: Channel[Task, Spearmint.Params, Process[Task, Spearmint.OptimizerResult]] = channel.lift {
+          (params: Spearmint.Params) =>
+            Task {
+              Process.eval {
+                Task.delay {
+                  Thread.sleep(100)
+                  Spearmint.OptimizerResult(0, params)
+                }
               }
             }
-          }
+        }
+        (nondeterminism.njoin(2, 1)(sp.paramStream.through(chan)).to(sp.update).take(4).run, Spearmint.q)
       }
-      nondeterminism.njoin(2, 1)(sp.paramStream.through(chan)).to(sp.update).take(4).run.runAsync(x => ())
+
+      val (task1, q1) = parallelTask()
+      //sanity check - it should take at least 100ms
+      task1.runAsync(x => ())
+      a [TimeoutExceptionT] shouldBe thrownBy { q1.dequeue.take(1 + 1 + 2).run.runFor(99 milliseconds) }
+
+      val (task2, q2) = parallelTask()
+      task2.runAsync(x => ())
       //sequenced takes >= 200 ms
-      noException shouldBe thrownBy { Spearmint.q.dequeue.take(1 + 1 + 2 + 2).run.runFor(199 milliseconds) }
+      noException shouldBe thrownBy { q2.dequeue.take(1 + 1 + 2 + 2).run.runFor(199 milliseconds) }
     }
 
   }
