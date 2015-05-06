@@ -26,13 +26,13 @@ object BuildRelaks extends Build {
 //      "org.scalaz" %% "scalaz-effect" % scalazVersion,
 //      "org.scalaz" %% "scalaz-typelevel" % scalazVersion,
 //      "org.scalaz" %% "scalaz-scalacheck-binding" % scalazVersion % "test",
-      "org.scala-lang.modules" % "scala-parser-combinators_2.11" % "1.0.3",
-      "org.scala-lang.modules" % "scala-xml_2.11" % "1.0.3",
+      "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3",
+      "org.scala-lang.modules" %% "scala-xml" % "1.0.3",
       "jline" % "jline" % "2.12.1",
 
       "org.scala-lang" % "scala-reflect" % _scalaVersion,
       "com.chuusai" %% "shapeless" % "2.2.0-RC4",
-      "org.scalatest" % "scalatest_2.11" % "2.2.4" % "test"
+      "org.scalatest" %% "scalatest" % "2.2.4" % "test"
     )
   )
 

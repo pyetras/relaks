@@ -1,5 +1,7 @@
 package relaks.optimizer
 
+import java.nio.file.{Files, Path}
+
 import relaks.optimizer.util.StreamProcess
 
 import scala.sys.process._
@@ -55,12 +57,18 @@ trait SpearmintOptimizer extends BaseOptimizer {
   class Spearmint(spaceDesc: ParamsSpace, strategy: ExperimentStrategy, maxParallel: Int) extends Optimizer {
     private var spearmintResult = Map.empty[Params, OptimizerResult]
     private var spearmintPending = Set.empty[Params]
+    private var directoryPath: Path = _
 
     protected def runSpearmint: Task[Int] = {
       import StreamProcess.syntax._
 
       val script = this.getClass.getResource("/runSpearmint.sh").getPath
       StreamProcess("/bin/sh", "-c", s"sh $script braninpy").withOutput(io.stdOutLines, io.stdOutLines)
+    }
+
+    lazy val initialize = {
+      directoryPath = Files.createTempDirectory("spearmint")
+
     }
 
     val ticketQueue = async.unboundedQueue[Unit]
