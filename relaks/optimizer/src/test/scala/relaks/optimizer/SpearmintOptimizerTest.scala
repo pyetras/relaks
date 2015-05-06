@@ -42,7 +42,7 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
     it("should generate params when no updates have been applied") {
       val Spearmint = new Spearmint
       val sp = Spearmint.getSp()
-      sp.paramStream.take(1).run.run
+      sp.paramStream.take(1).run.runFor(1000 milliseconds)
       Spearmint.dumpQueue should contain only "run spearmint"
     }
 
@@ -52,7 +52,7 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
 
       sp.paramStream.pipe(process1.lift { params =>
         Spearmint.OptimizerResult(0, params)
-      }).to(sp.update).take(2).run.run
+      }).to(sp.update).take(2).run.runFor(1000 milliseconds)
 
       Spearmint.dumpQueue should contain theSameElementsAs Seq("run spearmint", "apply update", "run spearmint")
     }
@@ -76,7 +76,7 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
       noException shouldBe thrownBy {
         sp.paramStream.pipe(process1.lift { params =>
           Spearmint.OptimizerResult(0, params)
-        }).to(sp.update).take(3).run.run
+        }).to(sp.update).take(3).run.runFor(100 milliseconds)
       }
     }
 
