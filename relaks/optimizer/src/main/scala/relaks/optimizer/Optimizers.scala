@@ -47,7 +47,8 @@ trait GridOptimizer extends BaseOptimizer {
 
     override def update: Sink[Task, OptimizerResult] = sink.lift(x => Task.now(()))
   }
-  override protected def initOptimizer(maxParallel: Int, spaceDesc: ParamsSpace, strategy: ExperimentStrategy): Optimizer = new GrOptimizer(spaceDesc, strategy)
+  override protected def initOptimizer(maxParallel: Int, spaceDesc: ParamsSpace, strategy: ExperimentStrategy): Optimizer =
+    new GrOptimizer(spaceDesc, strategy)
 }
 
 trait SpearmintOptimizer extends BaseOptimizer {
@@ -62,8 +63,10 @@ trait SpearmintOptimizer extends BaseOptimizer {
       Task.delay(println("Run spearmint"))
     }
 
-//    grabs updates and puts them on the updateQueue, so that update is nonblocking
-//    private lazy val updateDaemon = {
+    val initial: Process[Task, Unit] = Process.constant(()).take(maxParallel)
+
+    //grabs updates and applies them synchronously
+//    private lazy val updateDaemon: Sink[Task, OptimizerResult] = {
 //      val q = async.unboundedQueue[OptimizerResult]
 //
 //      q.dequeue.to(sink.lift(applyUpdate)).run.runAsync {
@@ -73,27 +76,49 @@ trait SpearmintOptimizer extends BaseOptimizer {
 //      q.enqueue
 //    }
 
-    val initial: Process[Task, Unit] = Process.constant(()).take(maxParallel)
+    val ticketQueue = async.unboundedQueue[Unit]
 
+    //pending updates
     val updateQueue = async.unboundedQueue[OptimizerResult]
     
     protected val paramGenerator: Process[Task, Params] = {
+      //initialize ticket queue
+      val init: Process[Task, Unit] = Process.constant(()).take(maxParallel)
+      val ticketInit = init.to(ticketQueue.enqueue)
+
+      //grab from updated or initial guesses or already applied updates TODO: should grab from updated first
+      //dequeue available blocks (never returns empty)
+      val updatesOrFresh = wye(updateQueue.dequeueAvailable, ticketQueue.dequeue)(wye.either)
+
       //if there are any updates available apply them first
+      //tries to update as many as possible before making another guess
+      def uOFMapper(res: Seq[OptimizerResult] \/ Unit): Process[Task, Nothing] = res match {
+        case -\/(resultlst) => Process.eval_ {
+          //apply all updates
+          val update = resultlst.foldLeft(Task.now(()))((task, result) => task.flatMap(x => applyUpdate(result)))
 
-      val updatedOrFresh = wye(updateQueue.dequeue, initial)(wye.either)
-
-      updatedOrFresh.flatMap { res =>
-        val afterUpdate: Process[Task, Nothing] = res match {
-          case -\/(result) => Process.eval_(applyUpdate(result))
-          case \/-(()) => Process.halt
+          //put back updates.length - 1 tickets to ticketQueue TODO: it should ensure the tickets are returned in case of error
+          update.flatMap { x =>
+            val generator: Process[Task, Unit] = Process.constant(()).take(resultlst.length - 1)
+            generator.to(ticketQueue.enqueue).run
+          }
         }
-        afterUpdate ++ Process.eval(runSpearmint.map(x => readNextPending()))
+        case \/-(()) => Process.halt
       }
+
+      for {
+        //insert all initially available tickets
+        _ <- ticketInit.last
+        //apply updates...
+        res <- updatesOrFresh
+        //and then run spearmint
+        results <- uOFMapper(res) ++ Process.eval(runSpearmint.map(x => readNextPending()))
+      } yield results
     }
 
     protected def applyUpdate(optimizerResult: OptimizerResult): Task[Unit] = {
-      println(s"appending update $optimizerResult")
       Task.delay(Task.Try {
+        println(s"appending update $optimizerResult")
         if (spearmintResult.get(optimizerResult.params).nonEmpty) {
           throw new IllegalArgumentException(s"Params ${optimizerResult.params} evaluated more than once") // TODO exception type
         } else if (!spearmintPending.contains(optimizerResult.params)) {
@@ -113,5 +138,6 @@ trait SpearmintOptimizer extends BaseOptimizer {
     override val update: Sink[Task, OptimizerResult] = updateQueue.enqueue
   }
 
-  override protected def initOptimizer(maxParallel: Int, spaceDesc: ParamsSpace, strategy: ExperimentStrategy): Optimizer = ???
+  override protected def initOptimizer(maxParallel: Int, spaceDesc: ParamsSpace, strategy: ExperimentStrategy): Optimizer =
+    new Spearmint(spaceDesc, strategy, maxParallel)
 }

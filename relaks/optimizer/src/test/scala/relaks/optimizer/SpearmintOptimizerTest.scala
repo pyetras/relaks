@@ -12,6 +12,7 @@ import org.scalatest.enablers.Aggregating
 import scalaz.concurrent.Task
 import scalaz.stream._
 import scala.language.postfixOps
+import scala.concurrent.duration._
 
 class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
 
@@ -81,7 +82,6 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
     }
 
     it("should allow runnning in parallel") {
-      import scala.concurrent.duration._
 
       val Spearmint = new Spearmint
       val sp = Spearmint.getSp(2)
