@@ -7,7 +7,6 @@ package relaks.optimizer
 import java.util.concurrent.ConcurrentLinkedQueue
 
 import org.scalatest._
-import org.scalatest.enablers.Aggregating
 
 import scalaz.concurrent.Task
 import scalaz.stream._

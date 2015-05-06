@@ -58,23 +58,10 @@ trait SpearmintOptimizer extends BaseOptimizer {
 
     protected def runSpearmint = {
       val script = getClass.getResource("/runSpearmint.sh").getPath
-      StreamProcess(Seq("/bin/sh", "-c", s"sh $script braninpy"))
+      StreamProcess("/bin/sh", "-c", s"sh $script braninpy")
       //dummy
       Task.delay(println("Run spearmint"))
     }
-
-    val initial: Process[Task, Unit] = Process.constant(()).take(maxParallel)
-
-    //grabs updates and applies them synchronously
-//    private lazy val updateDaemon: Sink[Task, OptimizerResult] = {
-//      val q = async.unboundedQueue[OptimizerResult]
-//
-//      q.dequeue.to(sink.lift(applyUpdate)).run.runAsync {
-//        case -\/(t: Throwable) => println(t)
-//      }
-//
-//      q.enqueue
-//    }
 
     val ticketQueue = async.unboundedQueue[Unit]
 
@@ -130,6 +117,7 @@ trait SpearmintOptimizer extends BaseOptimizer {
       })
     }
 
+    //reads from results.dat
     //side effect: appends to spearmintPending
     protected def readNextPending(): Params = ???
 
