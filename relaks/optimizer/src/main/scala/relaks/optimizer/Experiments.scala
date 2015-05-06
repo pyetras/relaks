@@ -18,7 +18,7 @@ import scala.language.implicitConversions
  * Created by Pietras on 23/04/15.
  */
 
-trait Experiments extends NondetVars with BaseOptimizer with LabelledTuples {
+trait Experiments extends NondetParams with BaseOptimizer with LabelledTuples {
 
   implicit val currentValueStore = new DynamicVariable(Map[String, Any]())
   implicit def extract[T: TypeTag](from: Nondet): T = currentValueStore.value(from.name).asInstanceOf[T]
@@ -27,22 +27,35 @@ trait Experiments extends NondetVars with BaseOptimizer with LabelledTuples {
     def as[T: TypeTag]: T = extract(self)
   }
 
-  class Experiment[R <: HList, O](expr: () => LabelledTuple[R], space: VarSpaceDesc, getObjective: LabelledTupleSelector[R, O], strategy: ExperimentStrategy) {
+  /**
+   * Experiment description
+   *
+   * @param expr the experiment expression, evaluates to a LabelledTuple result
+   * @param space parameter space description
+   * @param getObjective getter for a cost value (objective) from the LabelledTuple result
+   * @param strategy currently no op
+   * @tparam R LabelledTuple inner type (shapeless record)
+   * @tparam O objective type
+   */
+  class Experiment[R <: HList, O](expr: () => LabelledTuple[R], space: ParamsSpace, getObjective: LabelledTupleSelector[R, O], strategy: ExperimentStrategy) {
     def run(): Process[Task, LabelledTuple[R]] = {
       val optimizer = Optimizer(space, strategy)
 
-      val loop: Process1[ValStore, (LabelledTuple[R], OptimizerResult[O])] = process1.lift { params =>
+      val loop: Process1[Params, (LabelledTuple[R], OptimizerResult)] = process1.lift { params =>
         val resultTuple = currentValueStore.withValue(params) {
           expr() // mozna pozbierac ktore zmienne sa tak faktycznie wywolywane...
         }
-        (resultTuple, OptimizerResult(getObjective(resultTuple)))
+        (resultTuple, OptimizerResult(getObjective(resultTuple), params))
       }
 
       def fst[L]: Process1[(L, _), L] = process1.lift {_._1}
 //      def snd[R]: Process1[(_, R), R] = process1.lift {_._2}
 
-      optimizer.paramStream
-        .pipe(loop)
+      lazy val parallelEval: Process[Task, (LabelledTuple[R], OptimizerResult)] =
+        nondeterminism.njoin(0, 0){ optimizer.paramStream.map(params => Process.eval(Task.delay(params)) |> loop )}
+
+      optimizer.paramStream.pipe(loop)
+//      parallelEval
         .observe(optimizer.update.contramap(_._2)) //pipe second element (OptimizerResult) to update sink
         .pipe(fst)
     }
@@ -50,16 +63,16 @@ trait Experiments extends NondetVars with BaseOptimizer with LabelledTuples {
 
 
   object Experiment {
-    case class SearchWord(space: VarSpaceDesc) {
+    case class SearchWord(space: ParamsSpace) {
       def minimize[T](what: Witness) = StrategyWord[what.T](StrategyMinimize, what, space)
     }
 
-    case class StrategyWord[T](strategy: ExperimentStrategy, what: Witness, space: VarSpaceDesc)  {
+    case class StrategyWord[T](strategy: ExperimentStrategy, what: Witness, space: ParamsSpace)  {
       def in[R <: HList](expr: => LabelledTuple[R])(implicit selector: Selector[R, T]) =
         new Experiment(() => expr, space, LabelledTuple.selector[R, T], strategy).run()
     }
 
-    def search(spaceDesc: VarProvider) = SearchWord(spaceDesc.vars)
+    def search(spaceDesc: ParamProvider) = SearchWord(spaceDesc.paramSpace)
   }
 }
 

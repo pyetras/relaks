@@ -18,17 +18,18 @@ class GridOptmizerTest extends FunSpec with Matchers with Inside {
       val cnt = new AtomicInteger(0)
 
       def advancedMLAlgorithm(x: Int, y: Int) = {
-        println(x)
-        println(y)
+//        println(x)
+//        println(y)
         cnt.incrementAndGet()
+//        Thread.sleep(10)
         x*x + y
       }
 
       object TestExperiment extends Experiments with GridOptimizer
       import TestExperiment._
 
-      val varSpace = VarProvider(Map(
-        "x" -> DiscreteRange(1, 200),
+      val varSpace = ParamProvider(Map(
+        "x" -> DiscreteRange(0, 50),
         "y" -> ChooseOneOf(List(-1, -2, -3, -4))))
 
       val results = Experiment search varSpace minimize "result" in {
@@ -36,8 +37,9 @@ class GridOptmizerTest extends FunSpec with Matchers with Inside {
         result as "result"
       }
 
-      results.take(100).runLog.run should have length 100
-      cnt.get() should equal(100)
+      results.run.run
+//      println(cnt.get())
+      cnt.get() should equal(200)
     }
   }
 }
