@@ -23,9 +23,10 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
       "y" -> ChooseOneOf(List(-1, -2, -3, -4))))
 
     class SpearmintMock(parallel: Int, waitUpdate: Int) extends Spearmint(space.paramSpace, StrategyMinimize, parallel) {
-      override protected def runSpearmint: Task[Unit] = q.enqueueOne(s"run spearmint")
+      override protected def runSpearmint: Task[Int] = q.enqueueOne(s"run spearmint").map(x => 0)
 
-      override protected def applyUpdate(optimizerResult: OptimizerResult): Task[Unit] = q.enqueueOne(s"apply update").flatMap(x => Task.delay { Thread.sleep(waitUpdate) })
+      override protected def applyUpdate(optimizerResult: OptimizerResult): Task[Unit] =
+        q.enqueueOne(s"apply update").flatMap(x => Task.delay { Thread.sleep(waitUpdate) })
 
       //side effect: appends to spearmintPending
       override protected def readNextPending(): Params = Map.empty

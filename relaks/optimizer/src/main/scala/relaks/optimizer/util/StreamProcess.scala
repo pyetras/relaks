@@ -50,7 +50,7 @@ object StreamProcess {
 }
 
 class StrProcOps(val self: Process[Task, StreamProcess.SPResult]) extends AnyVal {
-  def runWithOutput(sout: Sink[Task, String], serr: Sink[Task, String]): Task[Int] = {
+  def withOutput(sout: Sink[Task, String], serr: Sink[Task, String]): Task[Int] = {
     val justCode: Process[Task, Unit \/ Int] = self.flatMap {
       case StreamProcess.ExitCode(code) => Process.emit(code.right[Unit])
       case StreamProcess.OutLine(line) => Process.emit(line).to(sout).map(_.left[Int])
@@ -64,22 +64,21 @@ class StrProcOps(val self: Process[Task, StreamProcess.SPResult]) extends AnyVal
       }
     }).last
 
-    //if code is -1 then fold's zero was returned
     val codeValidOpt: Task[Option[Int]] =
-      propagateErrCode.runLast.flatMap { codeOpt =>
-        Task.now {
-          codeOpt.flatMap { code =>
-            if (code == -1)
-              None
-            else
-              code.some
-          }
-        }
+      for {
+        codeOpt <- propagateErrCode.runLast
+      } yield {
+        //peek inside option
+        for {
+          code <- codeOpt
+          //if code is -1 then fold's zero was returned
+          validOpt <- if (code == -1) None else code.some
+        } yield validOpt
       }
 
     codeValidOpt.flatMap {
       case Some(code) => Task.now(code)
-      case None => Task.fail(new UnsupportedOperationException("Process did not return err code"))
+      case None => Task.fail(new UnsupportedOperationException("Process did not return exit code")) //actually should never happen
     }
   }
 }

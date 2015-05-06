@@ -56,11 +56,11 @@ trait SpearmintOptimizer extends BaseOptimizer {
     private var spearmintResult = Map.empty[Params, OptimizerResult]
     private var spearmintPending = Set.empty[Params]
 
-    protected def runSpearmint = {
-      val script = getClass.getResource("/runSpearmint.sh").getPath
-      StreamProcess("/bin/sh", "-c", s"sh $script braninpy")
-      //dummy
-      Task.delay(println("Run spearmint"))
+    protected def runSpearmint: Task[Int] = {
+      import StreamProcess.syntax._
+
+      val script = this.getClass.getResource("/runSpearmint.sh").getPath
+      StreamProcess("/bin/sh", "-c", s"sh $script braninpy").withOutput(io.stdOutLines, io.stdOutLines)
     }
 
     val ticketQueue = async.unboundedQueue[Unit]
@@ -117,8 +117,12 @@ trait SpearmintOptimizer extends BaseOptimizer {
       })
     }
 
-    //reads from results.dat
-    //side effect: appends to spearmintPending
+    /**
+     * reads from results.dat
+     * side effect: appends to spearmintPending
+     *
+     * @return params newly added to results.dat
+     */
     protected def readNextPending(): Params = ???
 
     override def paramStream: Process[Task, Params] = paramGenerator
