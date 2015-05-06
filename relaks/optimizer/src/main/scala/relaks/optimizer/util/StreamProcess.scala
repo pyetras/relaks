@@ -20,6 +20,7 @@ object StreamProcess {
   case class OutLine(line: String) extends SPO
   case class ErrLine(line: String) extends SPO
 
+  def shell(cmd: String*) = apply("/bin/sh", "-c", cmd.mkString(" "))
 
   def apply(cmd: String*): Process[Task, SPResult] = {
     val stdout, stderr = async.unboundedQueue[String] //TODO lets do something more efficient than queue

@@ -23,9 +23,19 @@ class StreamProcessTest extends FunSpec with Matchers with Inside {
     it("should create a task that writes to output streams and returns exit code") {
       val (osout, oserr, task) = withByteStreams(StreamProcess("uname").withOutput)
 
-      task.runFor(1000 milliseconds)
+      task.runFor(1000 milliseconds) should equal(0)
 
       osout.toString.trim.split("\n").length should be > 0
+      oserr.toString.trim should equal("")
+    }
+
+    it("should run a command in a shell") {
+      val (osout, oserr, task) = withByteStreams(StreamProcess.shell("ls", "-la").withOutput)
+
+      task.runFor(1000 milliseconds) should equal(0)
+
+      //. and ..
+      osout.toString.trim.split("\n").length should be >= 2
       oserr.toString.trim should equal("")
     }
   }
