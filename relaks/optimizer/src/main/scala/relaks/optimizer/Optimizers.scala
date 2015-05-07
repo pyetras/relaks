@@ -1,7 +1,10 @@
 package relaks.optimizer
 
-import java.nio.file.{Files, Path}
+import java.nio.ByteBuffer
+import java.nio.channels.{CompletionHandler, AsynchronousFileChannel}
+import java.nio.file.{StandardOpenOption, Paths, Files, Path}
 
+import com.typesafe.scalalogging.LazyLogging
 import relaks.optimizer.util.StreamProcess
 
 import scala.sys.process._
@@ -53,14 +56,16 @@ trait GridOptimizer extends BaseOptimizer {
     new GrOptimizer(spaceDesc, strategy)
 }
 
-trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearmint {
+trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearmint with LazyLogging {
+  import org.json4s.jackson.JsonMethods._
+  import util.syntax._
+
   class Spearmint(spaceDesc: ParamsSpace, strategy: ExperimentStrategy, maxParallel: Int) extends Optimizer {
     private var spearmintResult = Map.empty[Params, OptimizerResult]
     private var spearmintPending = Set.empty[Params]
     private var directoryPath: Path = _
 
     protected def runSpearmint: Task[Int] = {
-      import StreamProcess.syntax._
 
       val script = this.getClass.getResource("/runSpearmint.sh").getPath
       StreamProcess("/bin/sh", "-c", s"sh $script braninpy").withOutput(io.stdOutLines, io.stdOutLines)
@@ -68,7 +73,11 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
 
     lazy val initialize = {
       directoryPath = Files.createTempDirectory("spearmint")
+      logger.debug(s"spearmint dir: $directoryPath")
+      val config = compact(render(spaceDesc.toSpearmintJson))
+      val fileLineWriter: Process[Task, String => Task[Unit]] = io.asyncFileLinesW(directoryPath.resolve("config.json"))
 
+      Process.eval(Task.delay { compact(render(spaceDesc.toSpearmintJson)) }).through(fileLineWriter)
     }
 
     val ticketQueue = async.unboundedQueue[Unit]
@@ -113,7 +122,7 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
 
     protected def applyUpdate(optimizerResult: OptimizerResult): Task[Unit] = {
       Task.delay(Task.Try {
-        println(s"appending update $optimizerResult")
+        logger.debug(s"spearmint: appending update $optimizerResult")
         if (spearmintResult.get(optimizerResult.params).nonEmpty) {
           throw new IllegalArgumentException(s"Params ${optimizerResult.params} evaluated more than once") // TODO exception type
         } else if (!spearmintPending.contains(optimizerResult.params)) {

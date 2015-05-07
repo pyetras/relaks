@@ -8,6 +8,6 @@ libraryDependencies += "org.scalaz" %% "scalaz-core" % scalazVersion
 
 libraryDependencies += "org.scalaz" %% "scalaz-concurrent" % scalazVersion
 
-libraryDependencies += "log4j" % "log4j" % "1.2.17"
+libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0"
 
 libraryDependencies += "org.json4s" %% "json4s-jackson" % "3.3.0.RC1"

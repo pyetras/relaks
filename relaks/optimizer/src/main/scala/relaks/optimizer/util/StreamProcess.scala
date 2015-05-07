@@ -8,7 +8,6 @@ import Scalaz._
 import scalaz.concurrent._
 import scalaz.stream._
 import scalaz.stream.Process
-import scala.language.implicitConversions
 
 /**
  * Created by Pietras on 04/05/15.
@@ -43,11 +42,6 @@ object StreamProcess {
 
     merged
   }
-
-  object syntax {
-    implicit def addStrProcOps(proc: Process[Task, SPResult]): StrProcOps = new StrProcOps(proc)
-  }
-
 }
 
 class StrProcOps(val self: Process[Task, StreamProcess.SPResult]) extends AnyVal {

@@ -9,7 +9,7 @@ case class TypeDesc(`type`: String, min: String, max: String)
 case class EnumTypeDesc(options: Seq[Int])
 
 object NondetParamExtensions {
-  trait Spearmint extends { this: NondetParams =>
+  trait Spearmint extends { this: NondetParams with SpearmintOptimizer =>
     import org.json4s._
     import org.json4s.JsonDSL._
     import org.json4s.DefaultFormats

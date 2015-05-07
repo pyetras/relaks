@@ -6,7 +6,7 @@ package relaks.optimizer.util
 
 import java.io.{ByteArrayOutputStream, PrintStream}
 
-import StreamProcess.syntax._
+import syntax._
 import scalaz.concurrent.Task
 import scalaz.stream._
 import org.scalatest._
