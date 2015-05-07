@@ -33,6 +33,7 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
     }
 
     def getSp(parallel: Int = 1, waitUpdate: Int = 0) = new SpearmintMock(parallel, waitUpdate)
+    def getSpaceJson = space.toSpearmintJson
     def dumpQueue = q.dequeueAvailable.take(1).runLast.run.get
   }
 
@@ -42,12 +43,22 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
   val to = new TimeoutException()
   type TimeoutExceptionT = to.type
 
+  describe("Spearmint Nondet Param Extension") {
+    it("should serialize a parameter space to Json") {
+      import org.json4s.jackson.JsonMethods._
+      val Spearmint = new Spearmint
+
+      println(compact(render(Spearmint.getSpaceJson)))
+    }
+  }
+
   describe("Spearmint optimizer") {
     it("should generate params when no updates have been applied") {
       val Spearmint = new Spearmint
       val sp = Spearmint.getSp()
       sp.paramStream.take(1).run.runFor(1000 milliseconds)
       Spearmint.dumpQueue should contain only "run spearmint"
+
     }
 
     it("should update before generating when updates are pending") {

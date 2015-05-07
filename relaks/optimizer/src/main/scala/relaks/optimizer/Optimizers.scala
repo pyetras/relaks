@@ -53,7 +53,7 @@ trait GridOptimizer extends BaseOptimizer {
     new GrOptimizer(spaceDesc, strategy)
 }
 
-trait SpearmintOptimizer extends BaseOptimizer {
+trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearmint {
   class Spearmint(spaceDesc: ParamsSpace, strategy: ExperimentStrategy, maxParallel: Int) extends Optimizer {
     private var spearmintResult = Map.empty[Params, OptimizerResult]
     private var spearmintPending = Set.empty[Params]
