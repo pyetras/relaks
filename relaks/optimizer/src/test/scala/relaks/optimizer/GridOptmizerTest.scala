@@ -28,9 +28,9 @@ class GridOptmizerTest extends FunSpec with Matchers with Inside {
       object TestExperiment extends Experiments with GridOptimizer
       import TestExperiment._
 
-      val varSpace = ParamProvider(Map(
+      val varSpace = ParamProvider(
         "x" -> DiscreteRange(0, 50),
-        "y" -> ChooseOneOf(List(-1, -2, -3, -4))))
+        "y" -> ChooseOneOf(List(-1, -2, -3, -4)))
 
       val results = Experiment search varSpace minimize "result" in {
         val result = advancedMLAlgorithm(varSpace.x.as[Int], varSpace.y.as[Int])

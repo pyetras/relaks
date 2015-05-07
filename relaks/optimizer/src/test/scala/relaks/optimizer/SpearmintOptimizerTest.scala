@@ -18,9 +18,9 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
   class Spearmint extends SpearmintOptimizer {
     val q = async.unboundedQueue[String]
 
-    val space = ParamProvider(Map(
+    val space = ParamProvider(
       "x" -> DiscreteRange(0, 50),
-      "y" -> ChooseOneOf(List(-1, -2, -3, -4))))
+      "y" -> ChooseOneOf(List(-1, -2, -3, -4)))
 
     class SpearmintMock(parallel: Int, waitUpdate: Int) extends Spearmint(space.paramSpace, StrategyMinimize, parallel) {
       override protected def runSpearmint: Task[Int] = q.enqueueOne(s"run spearmint").map(x => 0)

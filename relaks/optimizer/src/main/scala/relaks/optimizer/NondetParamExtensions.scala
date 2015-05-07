@@ -33,7 +33,7 @@ object NondetParamExtensions {
         case ChooseOneOf(seq) =>
           ("type" -> "enum") ~ Extraction.decompose(EnumTypeDesc(seq.indices)).asInstanceOf[JObject]
         case DiscreteRange(from, to, step) if step != 1 =>
-          Extraction.decompose(TypeDesc("int", "0", new Range(from, to, step).length.toString)).asInstanceOf[JObject]
+          Extraction.decompose(TypeDesc("int", "0", Range(from, to, step).length.toString)).asInstanceOf[JObject]
         case RangeLikeSpace(from, to) =>
           Extraction.decompose(TypeDesc(mapTypeName(), from.toString, to.toString)).asInstanceOf[JObject]
       })
