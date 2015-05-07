@@ -112,7 +112,7 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
 
       //if there are any updates available apply them first
       //tries to update as many as possible before making another guess
-      def uOFMapper(res: Seq[OptimizerResult] \/ Unit): Process[Task, Nothing] = res match {
+      def applyUpdatesAndTickets(res: Seq[OptimizerResult] \/ Unit): Process[Task, Nothing] = res match {
         case -\/(resultlst) => Process.eval_ {
           //apply all updates
           val update = resultlst.foldLeft(Task.now(()))((task, result) => task.flatMap(x => applyUpdate(result)))
@@ -126,7 +126,11 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
         case \/-(()) => Process.halt
       }
 
-      def handleErrCode(code: Int): Task[Params] = {
+      /**
+       * to be called after spearmint update. If a call to readNextPending
+       * returns a unit loops runSpearmint until a new params are generated
+       */
+      def getNextParams(code: Int): Task[Params] = {
         def go(code: Int, accumulator: Int): Task[Params] = {
           if (accumulator > 10)
             Task.fail(new RuntimeException("spearmint converged"))
@@ -148,12 +152,19 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
         //apply updates...
         res <- updatesOrFresh
         //and then run spearmint
-        results <- uOFMapper(res) ++ Process.eval(runSpearmint flatMap handleErrCode)
+        results <- applyUpdatesAndTickets(res) ++ Process.eval(runSpearmint flatMap getNextParams)
       } yield results
     }
 
+    /**
+     * side effect: stores optimizerResult in spearmintResultMemo and in
+     * spearmintEvals.
+     *
+     * @param optimizerResult
+     * @return
+     */
     protected def applyUpdate(optimizerResult: OptimizerResult): Task[Unit] = {
-      Task.suspend{
+      Task.suspend {
         logger.debug(s"spearmint: appending update $optimizerResult")
         if (!spearmintPending.contains(optimizerResult.params)) {
           Task fail new IllegalArgumentException(s"Params ${optimizerResult.params} are not known to be pending evaluation")
@@ -175,7 +186,10 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
      * reads from results.dat
      * side effect: appends to spearmintPending
      *
-     * @return params newly added to results.dat
+     * @return params newly added to results.dat or unit if spearmint
+     *         requested params that have already been evaluated.
+     *         why would it do that? no idea, happens pretty often with
+     *         GPEIChooser and branin
      */
     protected def readNextPending(): Task[Unit \/ Params] = {
       //read results.dat, filter pending files
