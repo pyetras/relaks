@@ -1,12 +1,14 @@
 package relaks.optimizer
 
+import scala.util.Try
+
 /**
  * Created by Pietras on 07/05/15.
  */
 
 //TODO boo wendy booo
 case class TypeDesc(`type`: String, min: String, max: String)
-case class EnumTypeDesc(options: Seq[Int])
+case class EnumTypeDesc(options: Seq[String])
 
 object NondetParamExtensions {
   trait Spearmint extends { this: NondetParams with SpearmintOptimizer =>
@@ -20,7 +22,11 @@ object NondetParamExtensions {
         self.map(nondetParamDefToJObject).reduceLeft[JObject](_ ~ _)
       }
       def fromSpearmintJson(json: String): ParamsSpace = ???
-      def paramsFromSpearmintResults(res: Seq[String]): Params = ???
+      def paramsFromSpearmintResults(res: Array[String]): Try[Params] = Try {
+        val p = res.drop(2)
+        assert(p.length == self.size, "wrong number of parameters")
+        self.toSeq.zip(p).map(kvp => kvp._1._1 -> kvp._1._2.fromString(kvp._2)).toMap
+      }
     }
 
     implicit class ParamProviderJsonOps(self: ParamProvider) {
@@ -31,12 +37,30 @@ object NondetParamExtensions {
 
       def toSpearmintJson: JObject = ("size" -> 1) ~ (self match {
         case ChooseOneOf(seq) =>
-          ("type" -> "enum") ~ Extraction.decompose(EnumTypeDesc(seq.indices)).asInstanceOf[JObject]
+          ("type" -> "enum") ~ Extraction.decompose(EnumTypeDesc(seq.indices.map(_.toString))).asInstanceOf[JObject]
         case DiscreteRange(from, to, step) if step != 1 =>
           Extraction.decompose(TypeDesc("int", "0", Range(from, to, step).length.toString)).asInstanceOf[JObject]
         case RangeLikeSpace(from, to) =>
           Extraction.decompose(TypeDesc(mapTypeName(), from.toString, to.toString)).asInstanceOf[JObject]
       })
+
+      def toStringResult(v: Any): String = self match {
+        case ChooseOneOf(seq) => seq.indexOf(v).toString
+        case DiscreteRange(from, to, step) => ((v.asInstanceOf[Int] - from)/step).toString
+        case _ => v.toString
+      }
+
+      def fromString(str: String): Any = self match {
+        case ChooseOneOf(seq) => seq(str.toInt)
+        case RangeLikeSpace(from, to) if mapTypeName() == "float" =>
+          val d = str.toDouble
+          assert(d <= to.asInstanceOf[Double] && d >= from.asInstanceOf[Double], "parameter not within bounds")
+          d
+        case DiscreteRange(from, to, step) =>
+          val i = from + str.toInt*step
+          assert(i <= to && i >= from, "parameter not within bounds")
+          i
+      }
 
       private def mapTypeName(): String = self.typeTag.dealias.toString match {
         case "Int" => "int"

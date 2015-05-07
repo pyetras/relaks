@@ -17,11 +17,19 @@ class ScalazStreamIoOps(val self: io.type) extends AnyVal {
   } { (ch: AsynchronousFileChannel) =>
     Task.delay(ch.close())
   } { (ch: AsynchronousFileChannel) =>
-    Task.now { (line: String) =>
+    Task.now { (line: String) => //                                               v- trololololo
       Task.async(cb => ch.write(ByteBuffer.wrap((line + "\n").getBytes("UTF-8")), 0, (), new CompletionHandler[Integer, Unit] {
         override def completed(result: Integer, attachment: Unit): Unit = cb(\/-(()))
         override def failed(exc: Throwable, attachment: Unit): Unit = cb(-\/(exc))
       }))
     }
   }
+
+//  def asyncFileLinesR(path: Path): Process[Task, String] = self.resource {
+//    Task.delay(AsynchronousFileChannel.open(path, StandardOpenOption.READ))
+//  } { ch =>
+//    Task.delay(ch.close())
+//  } { (ch: AsynchronousFileChannel) =>
+//    ch.read()
+//  }
 }

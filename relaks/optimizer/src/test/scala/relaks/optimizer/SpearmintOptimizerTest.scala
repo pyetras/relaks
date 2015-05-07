@@ -8,6 +8,7 @@ import java.util.concurrent.{TimeoutException, ConcurrentLinkedQueue}
 
 import org.scalatest._
 
+import scalaz.{\/-, \/}
 import scalaz.concurrent.Task
 import scalaz.stream._
 import scala.language.postfixOps
@@ -23,16 +24,21 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
       "y" -> ChooseOneOf(List(-1, -2, -3, -4)))
 
     class SpearmintMock(parallel: Int, waitUpdate: Int) extends Spearmint(space.paramSpace, StrategyMinimize, parallel) {
-      override protected def runSpearmint: Task[Int] = q.enqueueOne(s"run spearmint").map(x => 0)
+
+      override protected lazy val initializeSpearmint: Task[Unit] = Task.now(())
+
+      override protected val runSpearmint: Task[Int] = q.enqueueOne(s"run spearmint").map(x => 0)
 
       override protected def applyUpdate(optimizerResult: OptimizerResult): Task[Unit] =
         q.enqueueOne(s"apply update").flatMap(x => Task.delay { Thread.sleep(waitUpdate) })
 
-      //side effect: appends to spearmintPending
-      override protected def readNextPending(): Params = Map.empty
+      override protected def readNextPending(): Task[Unit \/ Params] = Task.now(\/-(Map.empty))
+
+      def initSp = initializeSpearmint
     }
 
-    def getSp(parallel: Int = 1, waitUpdate: Int = 0) = new SpearmintMock(parallel, waitUpdate)
+    def getSpMock(parallel: Int = 1, waitUpdate: Int = 0) = new SpearmintMock(parallel, waitUpdate)
+    def getSp(parallel: Int = 1) = new Spearmint(space.paramSpace, StrategyMinimize, parallel)
     def getSpaceJson = space.toSpearmintJson
     def dumpQueue = q.dequeueAvailable.take(1).runLast.run.get
   }
@@ -55,7 +61,8 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
   describe("Spearmint optimizer") {
     it("should generate params when no updates have been applied") {
       val Spearmint = new Spearmint
-      val sp = Spearmint.getSp()
+      val sp = Spearmint.getSpMock()
+
       sp.paramStream.take(1).run.runFor(1000 milliseconds)
       Spearmint.dumpQueue should contain only "run spearmint"
 
@@ -63,7 +70,7 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
 
     it("should update before generating when updates are pending") {
       val Spearmint = new Spearmint
-      val sp = Spearmint.getSp()
+      val sp = Spearmint.getSpMock()
 
       sp.paramStream.pipe(process1.lift { params =>
         Spearmint.OptimizerResult(0, params)
@@ -76,15 +83,15 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
       import scala.concurrent.duration._
 
       val Spearmint = new Spearmint
-      var sp = Spearmint.getSp(2)
+      var sp = Spearmint.getSpMock(2)
 
       noException shouldBe thrownBy (sp.paramStream.take(2).run.runFor(10 milliseconds))
 
-      sp = Spearmint.getSp(2)
+      sp = Spearmint.getSpMock(2)
 
       a [TimeoutExceptionT] shouldBe thrownBy (sp.paramStream.take(3).run.runFor(100 milliseconds))
 
-      sp = Spearmint.getSp(2)
+      sp = Spearmint.getSpMock(2)
 
       noException shouldBe thrownBy {
         sp.paramStream.pipe(process1.lift { params =>
@@ -96,7 +103,7 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
     it("should allow runnning in parallel") {
       def parallelTask() = {
         val Spearmint = new Spearmint
-        val sp = Spearmint.getSp(2)
+        val sp = Spearmint.getSpMock(2)
 
         val chan: Channel[Task, Spearmint.Params, Process[Task, Spearmint.OptimizerResult]] = channel.lift {
           (params: Spearmint.Params) =>
@@ -122,6 +129,12 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
       //sequenced takes >= 200 ms
       noException shouldBe thrownBy { q2.dequeue.take(1 + 1 + 2 + 2).run.runFor(199 milliseconds) }
     }
+
+//    it("should run spearmint") {
+//      val Spearmint = new Spearmint
+//      val sp = Spearmint.getSp(2)
+//      sp.paramStream.take(2).run.run
+//    }
 
   }
 }
