@@ -15,6 +15,7 @@ import scalaz._
 import scalaz.concurrent._
 import scalaz.stream.Process
 import scalaz.stream._
+import Scalaz._
 
 /**
  * Created by Pietras on 23/04/15.
@@ -101,10 +102,23 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
     //pending updates
     private val updateQueue = async.unboundedQueue[OptimizerResult]
     
-    protected val paramGenerator: Process[Task, Params] = {
+    protected lazy val paramGenerator: Process[Task, Params] = {
       //initialize ticket queue
       val ticketInit: Process[Task, Unit] = Process.constant(()).take(maxParallel)
       val init: Process[Task, Unit] = Process.eval_(initializeSpearmint) ++ ticketInit.to(ticketQueue.enqueue)
+
+//      def updatesOrFresh: Process[Task, Seq[OptimizerResult] \/ Unit] =
+//        Process.await(updateQueue.size.continuous.take(1).runLast) {
+//          case Some(size) =>
+//            println(s"size: $size")
+//            if (size == 0)
+//              wye(updateQueue.dequeueAvailable, ticketQueue.dequeue)(wye.either)
+//            else
+//              updateQueue.dequeueAvailable.map(_.left[Unit])
+//        }.take(1) ++ Process.suspend(updatesOrFresh)
+
+      //TODO implement this using akka actor and Process.eval(Task.async(...))
+      //this actor can be stateful, restorable etc
 
       //grab from updated or initial guesses or already applied updates TODO: should grab from updated first
       //dequeue available blocks (never returns empty)
@@ -112,8 +126,9 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
 
       //if there are any updates available apply them first
       //tries to update as many as possible before making another guess
-      def applyUpdatesAndTickets(res: Seq[OptimizerResult] \/ Unit): Process[Task, Nothing] = res match {
-        case -\/(resultlst) => Process.eval_ {
+      def applyUpdatesAndTickets(res: Seq[OptimizerResult] \/ Unit): Task[Unit] = res match {
+        case -\/(resultlst) =>
+          //println("got updated")
           //apply all updates
           val update = resultlst.foldLeft(Task.now(()))((task, result) => task.flatMap(x => applyUpdate(result)))
 
@@ -122,8 +137,9 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
             val generator: Process[Task, Unit] = Process.constant(()).take(resultlst.length - 1)
             generator.to(ticketQueue.enqueue).run
           }
-        }
-        case \/-(()) => Process.halt
+        case \/-(()) =>
+          //println("got ticket")
+          Task.now(())
       }
 
       /**
@@ -152,7 +168,7 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
         //apply updates...
         res <- updatesOrFresh
         //and then run spearmint
-        results <- applyUpdatesAndTickets(res) ++ Process.eval(runSpearmint flatMap getNextParams)
+        results <- Process eval applyUpdatesAndTickets(res).flatMap(_ => runSpearmint flatMap getNextParams)
       } yield results
     }
 
