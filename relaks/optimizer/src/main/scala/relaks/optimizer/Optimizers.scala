@@ -104,25 +104,28 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
     
     protected lazy val paramGenerator: Process[Task, Params] = {
       //initialize ticket queue
-      val ticketInit: Process[Task, Unit] = Process.constant(()).take(maxParallel)
-      val init: Process[Task, Unit] = Process.eval_(initializeSpearmint) ++ ticketInit.to(ticketQueue.enqueue)
 
-//      def updatesOrFresh: Process[Task, Seq[OptimizerResult] \/ Unit] =
-//        Process.await(updateQueue.size.continuous.take(1).runLast) {
-//          case Some(size) =>
-//            println(s"size: $size")
-//            if (size == 0)
-//              wye(updateQueue.dequeueAvailable, ticketQueue.dequeue)(wye.either)
-//            else
-//              updateQueue.dequeueAvailable.map(_.left[Unit])
-//        }.take(1) ++ Process.suspend(updatesOrFresh)
+      val ticketInit: Task[Unit] = ticketQueue.enqueueAll(for (_ <- 1 to maxParallel) yield ())
+      val init: Task[Unit] = initializeSpearmint.flatMap(_ => ticketInit)
 
-      //TODO implement this using akka actor and Process.eval(Task.async(...))
-      //this actor can be stateful, restorable etc
-
-      //grab from updated or initial guesses or already applied updates TODO: should grab from updated first
-      //dequeue available blocks (never returns empty)
-      val updatesOrFresh = wye(updateQueue.dequeueAvailable, ticketQueue.dequeue)(wye.either)
+      /**
+       * grab from updated or initial guesses or already applied updates
+       * dequeue available blocks (never returns empty)
+       *
+       * TODO: implement this using akka actor and Process.eval(Task.async(...))
+       * this actor can be stateful, restorable etc
+       */
+      val updatesOrFresh: Process[Task, Seq[OptimizerResult] \/ Unit] =
+        Process.repeatEval {
+          for {
+            sizeOpt <- updateQueue.size.continuous.take(1).runLast
+            nextOpt <-
+              if (sizeOpt.getOrElse(???) == 0)
+                wye(updateQueue.dequeueAvailable, ticketQueue.dequeue)(wye.either).take(1).runLast
+              else
+                updateQueue.dequeueAvailable.map(_.left[Unit]).take(1).runLast
+          } yield nextOpt.getOrElse(???)
+        }
 
       //if there are any updates available apply them first
       //tries to update as many as possible before making another guess
@@ -163,8 +166,8 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
       }
 
       for {
-        //insert all initially available tickets
-        _ <- init.last
+        //insert all initially available tickets and run spearmint
+        _ <- Process.eval(init)
         //apply updates...
         res <- updatesOrFresh
         //and then run spearmint
