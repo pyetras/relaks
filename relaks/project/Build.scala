@@ -38,5 +38,10 @@ object BuildRelaks extends Build {
 
   lazy val lang = project.in(file("lang")).settings(commonSettings:_*).dependsOn(optimizer, data)
   lazy val optimizer = project.in(file("optimizer")).settings(commonSettings:_*).dependsOn(data)
+    .configs(FastTest)
+    .settings(inConfig(FastTest)(Defaults.testTasks): _*)
+    .settings(testOptions in FastTest := Seq(Tests.Argument("-l", "Slowpoke")))
   lazy val data = project.in(file("data")).settings(commonSettings:_*)
+
+  lazy val FastTest = config("fast") extend Test
 }

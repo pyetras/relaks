@@ -129,12 +129,8 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
       //sequenced takes >= 200 ms
       noException shouldBe thrownBy { q2.dequeue.take(1 + 1 + 2 + 2).run.runFor(199 milliseconds) }
     }
-
-//    it("should run spearmint") {
-//      val Spearmint = new Spearmint
-//      val sp = Spearmint.getSp(2)
-//      sp.paramStream.take(2).run.run
-//    }
-
+    it("should dequeue updates first (when available)") {
+      pending
+    }
   }
 }
