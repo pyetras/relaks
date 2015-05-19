@@ -10,6 +10,7 @@ import shapeless.nat._
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scalaz.syntax.Ops
+import scala.collection.mutable
 /**
  * Created by Pietras on 10/04/15.
  */
@@ -60,18 +61,33 @@ trait Types { this: ASTNodes =>
 
   sealed class ListType[T: ClassTag] extends UnliftedArgType[List[T]] with CompoundType
 
-  final class Prod[+T <: HList]
+  final class Tup[+T <: HList]
 
-  sealed abstract class ProdType[T <: HList : TypeTag] extends UnliftedArgType[Prod[T]] with CompoundType {
+  sealed abstract class TupType[T <: HList : TypeTag] extends UnliftedArgType[Tup[T]] with CompoundType {
     type LUB
     val length: Int
     val lowerBound: ArgType[LUB]
     val productTypes: Seq[TType]
-    override def containerName = s"Prod$length"
+    override def containerName = s"Tup$length"
     override def typeArgName = implicitly[TypeTag[T]].tpe.dealias.toString
   }
 
-  type ProductLU[H <: HList, LU] = ToTraversable.Aux[H, List, LU] //TODO: make it more efficient and preserve classtag
+  sealed class Table
+  sealed class NTable[N <: Nat] extends Table
+  final class TypedTable[T <: HList] extends NTable[_1]
+
+  sealed class UntypedTableType extends UnliftedArgType[Table] {
+    var constraints = Vector.empty[Any]
+  }
+
+  sealed abstract class TypedTableType[T <: HList : TypeTag] extends UnliftedArgType[TypedTable[T]] with CompoundType {
+    val length: Int
+    val colNames: Vector[String]
+    override def containerName = s"Table$length"
+    override def typeArgName = implicitly[TypeTag[T]].tpe.dealias.toString
+  }
+
+  type TupleLU[H <: HList, LU] = ToTraversable.Aux[H, List, LU] //TODO: make it more efficient and preserve classtag
 
   sealed abstract class SimpleArgType[T: ClassTag] extends UnliftedArgType[T]
 
@@ -94,11 +110,11 @@ trait Types { this: ASTNodes =>
 
     implicit def listType[T: ClassTag](implicit typ: ArgType[T]): ListType[T] = new ListType[T]
 
-    class ProdTypeConstructor[T <: HList : TypeTag, LU: ClassTag](n: Int) {
+    class TupTypeConstructor[T <: HList : TypeTag, LU: ClassTag](n: Int) {
       def apply(inner: Seq[TType]): TType = {
         val lift = inner.exists(_.isSuperPosed)
         val lut = new UnliftedArgType[LU] {}//FIXME np listy beda kiepskie
-        val typ = new ProdType[T] {
+        val typ = new TupType[T] {
           override val length: Int = n
           override type LUB = LU
           override val lowerBound: ArgType[LU] = if (lift) { lut.supPosType } else { lut }
@@ -107,11 +123,11 @@ trait Types { this: ASTNodes =>
         if (lift) { typ.supPosType } else { typ }
       }
     }
-    implicit def productTypeConstructor[H <: HList : TypeTag, N <: Nat, LU: ClassTag]
+    implicit def tupleTypeConstructor[H <: HList : TypeTag, N <: Nat, LU: ClassTag]
       (implicit len: Length.Aux[H, N],
        ti: ToInt[N],
-       tt: ProductLU[H, LU]): ProdTypeConstructor[H, LU] =
-      new ProdTypeConstructor[H, LU](Nat.toInt[N])
+       tt: TupleLU[H, LU]): TupTypeConstructor[H, LU] =
+      new TupTypeConstructor[H, LU](Nat.toInt[N])
   }
 
   trait Typed { this: Tree =>
@@ -120,6 +136,7 @@ trait Types { this: ASTNodes =>
     def tpe = _tpe
 
     override def toString = if (_tpe != UnknownType) { s"$mainToString : ${_tpe.toString}" } else { mainToString }
+
   }
 
   trait TypedTreeOps[T <: Tree with Typed] extends Ops[T] {
@@ -133,5 +150,12 @@ trait Types { this: ASTNodes =>
     implicit def TypedTreeToTypedTreeOps[T <: Tree with Typed](tree: T): TypedTreeOps[T] = new TypedTreeOps[T] {
       def self = tree
     }
+  }
+
+  /**
+   * Tree type extractor
+    */
+  object :@ {
+    def unapply[T <: Tree with Typed](t: T) = Some((t, t.tpe))
   }
 }

@@ -17,10 +17,10 @@ class ProductTest  extends FunSpec with Matchers with Inside {
     val x = choose between 1 and 3
     val t = (1, 4: Rep[Int], x, true)
     type TType = Int::Int::Int::Boolean::HNil
-    val tup: Rep[Prod[TType]] = t
+    val tup: Rep[Tup[TType]] = t
 
     it("should create correct element types") {
-      val typ = tup.getTpe.unlift.asInstanceOf[ProdType[TType]]
+      val typ = tup.getTpe.unlift.asInstanceOf[TupType[TType]]
       typ.productTypes should have length 4
     }
 

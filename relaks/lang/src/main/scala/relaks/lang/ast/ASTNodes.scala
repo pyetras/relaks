@@ -79,6 +79,8 @@ trait ASTNodes extends Types {
 
   sealed case class ProductConstructor(lst: Seq[Expression]) extends Expression
 
+  sealed case class LoadTableFromFs(path: String) extends Expression
+
   sealed trait NondetGenerator extends Expression
   sealed case class NondetGeneratorRange(from: Literal, to: Literal) extends NondetGenerator
   sealed case class NondetGeneratorList(s: Expression) extends NondetGenerator

@@ -19,10 +19,10 @@ import scala.language.reflectiveCalls
  * Created by Pietras on 16/04/15.
  */
 
-trait ProductExtensions extends Symbols {
+trait TupleExtensions extends Symbols {
 
-  class ProductOperations[B1 <: HList](val arg1: Rep[Prod[B1]]) {
-    val luType = arg1.getTpe.unlift.asInstanceOf[ProdType[B1]].lowerBound
+  class TupleOperations[B1 <: HList](val arg1: Rep[Tup[B1]]) {
+    val luType = arg1.getTpe.unlift.asInstanceOf[TupType[B1]].lowerBound
 
     def apply(i: Nat)(implicit toInt: ToInt[i.N], at: At[B1, i.N]) : Rep[at.Out] = arg1.tree match {
       case Expr(ProductConstructor(seq)) => new Rep[at.Out] {
@@ -30,30 +30,33 @@ trait ProductExtensions extends Symbols {
       }
     }
 
-    def at[LUB](i: Rep[Int])(implicit ev: ProductLU[B1, LUB]): Rep[LUB] = new Rep[LUB] { //FIXME jakos?
+    def at[LUB](i: Rep[Int])(implicit ev: TupleLU[B1, LUB]): Rep[LUB] = new Rep[LUB] { //FIXME jakos?
       override val tree: Expression = Apply(Stdlib.at, List(arg1.tree, i.tree))(luType)
     }
   }
 
-  implicit def productToProductOps[H <: HList](p: Rep[Prod[H]]): ProductOperations[H] = new ProductOperations[H](p)
+  implicit def tupleToTupleOps[H <: HList](p: Rep[Tup[H]]): TupleOperations[H] = new TupleOperations[H](p)
 
-  private[this] object asRep extends Poly1 {
+  /**
+   * this will lift any type T to a Rep[T]
+    */
+  private object asRep extends Poly1 {
     implicit def lifted[T: ArgType] = at[Rep[T]](x => x)
     implicit def unlifted[T: ArgType](implicit c: T => Rep[T]) = at[T](x => c(x))
   }
 
-  implicit def productToRep[P <: Product, H <: HList, R <: HList, LU, Mapped <: HList](p: P)
+  implicit def tupleToRep[P <: Product, H <: HList, R <: HList, LU, Mapped <: HList](p: P)
                                                                (implicit ev: Generic.Aux[P, H],
                                                                 ul: UnliftType.Aux[H, Rep, R],
-                                                                evlu: ProductLU[R, LU],
-                                                                typC: ProdTypeConstructor[R, LU],
+                                                                evlu: TupleLU[R, LU],
+                                                                typC: TupTypeConstructor[R, LU],
                                                                 tev: IsTuple[P],
                                                                 mapper: Mapper.Aux[asRep.type, H, Mapped],
-                                                                traversable: ToTraversable.Aux[Mapped, List, Rep[LU]]): Rep[Prod[R]] = {
+                                                                traversable: ToTraversable.Aux[Mapped, List, Rep[LU]]): Rep[Tup[R]] = {
     val hlist = ev.to(p)
     val replist = hlist.map(asRep).toList[Rep[LU]] // <: List[Rep[Any]]
     val typ = typC(replist.map(_.getTpe))
-    new Rep[Prod[R]] {
+    new Rep[Tup[R]] {
       override val tree: Expression = ProductConstructor(replist.map(_.tree))(typ)
     }
   }

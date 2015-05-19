@@ -20,7 +20,7 @@ trait DSL
   with OrderExtensions
   with NumericExtensions
   with ListExtensions
-  with ProductExtensions
+  with TupleExtensions
   with ContCompiler {
 
   import AST._
