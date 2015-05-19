@@ -31,6 +31,10 @@ trait Symbols {
     sym.head
   }
 
+  def freshRep[T](typ: TType): Rep[T] = new Rep[T] {
+    override val tree: AST.Expression = fresh(typ)
+  }
+
   def saveDefinition(sym: Sym, expression: Expression) : Assignment = {
     val ass = Assignment(sym, expression)(expression.tpe)
     initTree(ass)

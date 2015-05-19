@@ -67,7 +67,7 @@ trait Types { this: ASTNodes =>
     type LUB
     val length: Int
     val lowerBound: ArgType[LUB]
-    val productTypes: Seq[TType]
+    val productTypes: Vector[TType]
     override def containerName = s"Tup$length"
     override def typeArgName = implicitly[TypeTag[T]].tpe.dealias.toString
   }
@@ -110,24 +110,33 @@ trait Types { this: ASTNodes =>
 
     implicit def listType[T: ClassTag](implicit typ: ArgType[T]): ListType[T] = new ListType[T]
 
-    class TupTypeConstructor[T <: HList : TypeTag, LU: ClassTag](n: Int) {
-      def apply(inner: Seq[TType]): TType = {
+    abstract class TupTypeConstructor[T <: HList : TypeTag](n: Int) {
+      type LU
+      val luCT: ClassTag[LU]
+
+      def apply(inner: Vector[TType]): TType = {
         val lift = inner.exists(_.isSuperPosed)
+
+        implicit val ct = luCT
         val lut = new UnliftedArgType[LU] {}//FIXME np listy beda kiepskie
+
         val typ = new TupType[T] {
           override val length: Int = n
           override type LUB = LU
           override val lowerBound: ArgType[LU] = if (lift) { lut.supPosType } else { lut }
-          override val productTypes: Seq[TType] = inner
+          override val productTypes: Vector[TType] = inner
         }
         if (lift) { typ.supPosType } else { typ }
       }
     }
-    implicit def tupleTypeConstructor[H <: HList : TypeTag, N <: Nat, LU: ClassTag]
+    implicit def tupleTypeConstructor[H <: HList : TypeTag, N <: Nat, LUB: ClassTag]
       (implicit len: Length.Aux[H, N],
        ti: ToInt[N],
-       tt: TupleLU[H, LU]): TupTypeConstructor[H, LU] =
-      new TupTypeConstructor[H, LU](Nat.toInt[N])
+       tt: TupleLU[H, LUB]): TupTypeConstructor[H] =
+      new TupTypeConstructor[H](Nat.toInt[N]) {
+        override type LU = LUB
+        override val luCT: ClassTag[LU] = implicitly[ClassTag[LUB]]
+      }
   }
 
   trait Typed { this: Tree =>

@@ -129,7 +129,7 @@ class PrettyPrinter{
           _ <- print(" ")
           _ <- traverse(lim)
         } yield ()
-        case Filter(Right(rel), cond) => for {
+        case Where(Right(rel), cond) => for {
           _ <- print("FILTER ")
           _ <- traverse(rel)
           _ <- print(" BY ")

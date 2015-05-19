@@ -116,7 +116,7 @@ trait ASTNodes extends Types {
 
   case class Foreach(rels: NonEmptyList[Relation], statements: NonEmptyList[Statement]) extends Latin
   case class Limit(rel: Relation, limiter: Expression) extends Latin
-  case class Filter(rel: Relation, condition: Expression) extends Latin
+  case class Where(rel: Relation, condition: Expression) extends Latin
 
   sealed trait OrderDirection
   object Asc extends OrderDirection
@@ -128,4 +128,6 @@ trait ASTNodes extends Types {
   case class Optimization(method: String = "spearmint") extends SearchType
   object Grid extends SearchType
   case class Search(rels: NonEmptyList[Expression], typ: SearchType, statements: NonEmptyList[Statement]) extends Latin
+  
+  trait Query extends Expression
 }

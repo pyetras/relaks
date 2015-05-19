@@ -149,8 +149,8 @@ class PcParser extends FWBParser[String]{
 
     lazy val limit: Parser[Limit] = "limit".ki ~> column ~ expression ^^ { case col~expr => Limit(Right(col), expr)}
 
-    lazy val filter: Parser[Filter] = "filter".ki ~> column ~ ("by".ki ~> expression) ^^
-      { case col~expr => Filter(Right(col), expr)}
+    lazy val filter: Parser[Where] = "filter".ki ~> column ~ ("by".ki ~> expression) ^^
+      { case col~expr => Where(Right(col), expr)}
 
     lazy val order: Parser[AST.ColumnOrder] = "order".ki ~> column ~ ("by".ki ~> directions) ^^
       { case col ~ dirs => AST.ColumnOrder(Right(col), dirs) }

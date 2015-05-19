@@ -15,7 +15,48 @@ trait TableExtensions extends TableIO {
 
 }
 
-trait TableIO extends LabelledTuples with Symbols with BaseRelationalCompiler {
+trait QueryTrees extends Symbols {
+  type Fields = Vector[Symbol]
+
+  sealed case class Project(table: TTree, fields: Fields) extends Query
+  sealed case class Map(generator: Sym, table: TTree, select: TTree) extends Query
+  sealed case class Take(table: TTree, count: TTree) extends Query
+  sealed case class Filter(generator: Sym, table: TTree, filter: TTree) extends Query
+  sealed case class GroupBy(generator: Sym, table: TTree, group: TTree) extends Query
+  sealed case class Row(value: TTree) extends Query
+}
+
+trait TableOps extends QueryTrees {
+  class TableOperations(arg1: Rep[Table]) {
+    def apply(fields: Fields) = {
+      object TableComprehensions {
+        def flatMap[F <: HList, LU](f: Rep[Tup[F]] => Rep[Table]) = {
+          val generator = freshRep[Tup[F]](UnknownType) //ugly
+          val mapper = f(generator)
+          new Rep[Table] {
+            override val tree: Atom = Map(generator.tree.asInstanceOf[Sym], Project(arg1.tree, fields), mapper.tree)(new UntypedTableType) //Todo superpos
+          }
+        }
+
+        def map[F <: HList, T <: HList](f: Rep[Tup[F]] => Rep[Tup[T]]) = {
+          flatMap((x:Rep[Tup[F]]) => RowRep(f(x)))
+        }
+
+      }
+      TableComprehensions
+    }
+  }
+
+  private object RowRep {
+    def apply[T <: HList](t: Rep[Tup[T]]) = new Rep[Table] {
+      override val tree: Expression = Row(t.tree)(new UntypedTableType)
+    }
+  }
+
+  implicit def addTableOps(t: Rep[Table]): TableOperations = new TableOperations(t)
+}
+
+trait TableIO extends Symbols with BaseRelationalCompiler {
   def load(path: String): Rep[Table] = new Rep[Table] {
     override val tree: Atom = LoadTableFromFs(path)(new UntypedTableType)
   }
@@ -28,5 +69,5 @@ trait TableIO extends LabelledTuples with Symbols with BaseRelationalCompiler {
 }
 
 trait BaseRelationalCompiler {
-  val storedOutput: mutable.Set[Expression] = mutable.Set.empty
+  var storedOutput: Set[Expression] = Set.empty
 }

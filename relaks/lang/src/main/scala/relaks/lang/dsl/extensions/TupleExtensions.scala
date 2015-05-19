@@ -22,7 +22,7 @@ import scala.language.reflectiveCalls
  * Created by Pietras on 16/04/15.
  */
 
-trait TupleExtensions extends Symbols {
+trait TupleExtensions extends Symbols with AnyExtensions {
 
   object Tup {
 
@@ -60,7 +60,14 @@ trait TupleExtensions extends Symbols {
   }
 
   class TupleOperations[B1 <: HList](val arg1: Rep[Tup[B1]]) {
-    val luType = arg1.getTpe.unlift.asInstanceOf[TupType[B1]].lowerBound
+    lazy val (luType, productTypes) = arg1.getTpe.unlift match {
+      case t: TupType[B1] => (t.lowerBound, t.productTypes)
+      case _ => (UnknownType, new Seq[TType]{
+        override def length: Int = ???
+        override def apply(idx: Int): AST.TType = UnknownType
+        override def iterator: Iterator[AST.TType] = ???
+      })
+    }
 
     /**
      * Static (compile time) getter
@@ -74,9 +81,16 @@ trait TupleExtensions extends Symbols {
       override val tree: Expression = Apply(Stdlib.at, List(arg1.tree, i.tree))(luType)
     }
 
-    private[dsl] def extract[Out](i: Int): Rep[Out] = arg1.tree match {
-      case Expr(ProductConstructor(seq)) => new Rep[Out] {
-        override val tree: AST.Expression = seq(i)
+    private[dsl] def extract[Out](i: Int): Rep[Out] = {
+      def access(i: Rep[Int], tpe: TType) = new Rep[Out] {
+        override val tree: Expression = Apply(Stdlib.at, List(arg1.tree, i.tree))(UnknownType)
+      }
+
+      arg1.tree match {
+        case Expr(ProductConstructor(seq)) => new Rep[Out] {
+          override val tree: Expression = seq(i)
+        }
+        case (e: TTree) :@ (t: TType) => access(i, productTypes(i))//in case it doesn't have an actual value assigned (fresh for example)
       }
     }
   }
@@ -95,13 +109,13 @@ trait TupleExtensions extends Symbols {
                                                                (implicit ev: Generic.Aux[P, H],
                                                                 ul: UnliftType.Aux[H, Rep, R],
                                                                 evlu: TupleLU[R, LU],
-                                                                typC: TupTypeConstructor[R, LU],
+                                                                typC: TupTypeConstructor[R],
                                                                 tev: IsTuple[P],
                                                                 mapper: Mapper.Aux[asRep.type, H, Mapped],
                                                                 traversable: ToTraversable.Aux[Mapped, List, Rep[LU]]): Rep[Tup[R]] = {
     val hlist = ev.to(p)
     val replist = hlist.map(asRep).toList[Rep[LU]] // <: List[Rep[Any]]
-    val typ = typC(replist.map(_.getTpe))
+    val typ = typC(replist.map(_.getTpe).toVector)
     new Rep[Tup[R]] {
       override val tree: Expression = ProductConstructor(replist.map(_.tree))(typ)
     }
