@@ -62,16 +62,22 @@ trait TupleExtensions extends Symbols {
   class TupleOperations[B1 <: HList](val arg1: Rep[Tup[B1]]) {
     val luType = arg1.getTpe.unlift.asInstanceOf[TupType[B1]].lowerBound
 
-   private[dsl] def extract[Out](i: Int): Rep[Out] = arg1.tree match {
+    /**
+     * Static (compile time) getter
+     */
+    def apply(i: Nat)(implicit toInt: ToInt[i.N], at: At[B1, i.N]) : Rep[at.Out] = extract[at.Out](toInt())
+
+    /**
+     * Dynamic (runtime) getter
+     */
+    def at[LUB](i: Rep[Int])(implicit ev: TupleLU[B1, LUB]): Rep[LUB] = new Rep[LUB] { //FIXME jakos?
+      override val tree: Expression = Apply(Stdlib.at, List(arg1.tree, i.tree))(luType)
+    }
+
+    private[dsl] def extract[Out](i: Int): Rep[Out] = arg1.tree match {
       case Expr(ProductConstructor(seq)) => new Rep[Out] {
         override val tree: AST.Expression = seq(i)
       }
-    }
-
-    def apply(i: Nat)(implicit toInt: ToInt[i.N], at: At[B1, i.N]) : Rep[at.Out] = extract[at.Out](toInt())
-
-    def at[LUB](i: Rep[Int])(implicit ev: TupleLU[B1, LUB]): Rep[LUB] = new Rep[LUB] { //FIXME jakos?
-      override val tree: Expression = Apply(Stdlib.at, List(arg1.tree, i.tree))(luType)
     }
   }
 
