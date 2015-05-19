@@ -5,14 +5,14 @@ import org.scalatest._
 /**
  * Created by Pietras on 17/04/15.
  */
-class ProductTest  extends FunSpec with Matchers with Inside {
+class TupleTest  extends FunSpec with Matchers with Inside {
   import AST._
   object Program extends DSL
   import Program._
 
   import scala.collection.immutable.{List => SList}
 
-  describe("Staged products") {
+  describe("Staged tuple") {
     import shapeless._ // FIXME: leo why
     val x = choose between 1 and 3
     val t = (1, 4: Rep[Int], x, true)
@@ -26,6 +26,7 @@ class ProductTest  extends FunSpec with Matchers with Inside {
 
     it("should superpos type if necessary") {
       tup.getTpe.isSuperPosed should be(true)
+      (1, 4: Rep[Int], true).getTpe.isSuperPosed should be(false)
     }
 
     it("should allow static access") {
@@ -45,6 +46,15 @@ class ProductTest  extends FunSpec with Matchers with Inside {
 
     it("should not create a tuple with incorrect type") {
       """(1, 2, Set[Int]): Rep[_]""" shouldNot compile
+    }
+
+    it("should support unpacking") {
+      val Tup((x, y)) = tupleToRep((1, true))
+      x shouldBe an [Rep[_]]
+      """x * 1""" should compile
+      y shouldBe a [Rep[_]]
+      y.getTpe should equal(boolType)
+      """y * 1""" shouldNot compile
     }
 
   }
