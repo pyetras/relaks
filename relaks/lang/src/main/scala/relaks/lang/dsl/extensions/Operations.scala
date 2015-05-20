@@ -21,5 +21,5 @@ trait Operations[B1] {
 
   val tree = arg1.tree
 
-  implicit protected[this] def b1Type = tree.tpe.unlift.asInstanceOf[ArgType[B1]]
+  implicit protected[this] def b1Type = tree.tpe.asInstanceOf[ArgType[B1]]
 }

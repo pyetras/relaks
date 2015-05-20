@@ -2,6 +2,7 @@ package relaks.lang.dsl
 
 import AST._
 import AST.syntax._
+import com.typesafe.scalalogging.LazyLogging
 
 import scala.collection.mutable
 import scala.language.implicitConversions
@@ -18,6 +19,14 @@ trait Symbols {
   private var symCounter = 0
 
   sealed case class Sym(name: Int) extends Atom {
+
+    override def productElement(n: Int): Any = {
+      findDefinition(this).get
+    }
+    override def productArity: Int = if (findDefinition(this).isDefined) 1 else 0
+
+    override def canEqual(that: Any): Boolean = this.getClass == that.getClass
+
     override def equals(other: Any) = other match {
       case s:Sym => this.hashCode() == other.hashCode()
       case _ => false
@@ -37,7 +46,7 @@ trait Symbols {
 
   def saveDefinition(sym: Sym, expression: Expression) : Assignment = {
     val ass = Assignment(sym, expression)(expression.tpe)
-    initTree(ass)
+//    initTree(ass)
     definitions += ((sym, ass))
     ass
   }

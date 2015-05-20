@@ -1,53 +1,74 @@
 package relaks.lang.dsl.extensions
 
+import org.kiama.attribution.Attributable
 import relaks.lang.dsl._
 import AST._
+import utils.TreeUtils._
 
 import org.kiama.attribution.Attribution._
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
+import scalaz.{Scalaz, ValidationNel}
+import Scalaz._
 
 /**
  * Created by Pietras on 13/04/15.
  */
 trait SuperPosExtensions extends ListExtensions with Symbols with SuperPosGenerators {
+
   def once[T](superPos: Rep[T]): Rep[T] = {
-    assert(superPos.getTpe.isSuperPosed)
+//    assert(superPos.tree->isSuperPosed) //should happen after initialisation
 
     new Rep[T] {
-      override val tree: Expression = Once(superPos.tree)(superPos.getTpe.unlift)
+      override val tree: Expression = Once(superPos.tree)(superPos.getTpe)
     }
   }
 
-  private val superPosDeps: Expression => Set[Sym] = {
+}
+
+trait SuperPosAnalysis extends Symbols with BaseCompiler {
+  protected val superPosDeps: Expression => Set[Sym] = {
     def followNode(node: Expression) =
       node.children.foldLeft(Set[Sym]())((acc, child) =>
         acc ++ (child.asInstanceOf[Expression] -> superPosDeps)
       )
-    attr (node => node.tpe match {
-      case t:SuperPosGenType[_] => Set(node.asInstanceOf[Sym])
-      case _ => node match {
+    attr ( node => {
+//      node.assertInitialized()
+      node match {
+        case Expr(_: NondetGenerator) => Set(node.asInstanceOf[Sym])
         case Expr(link) if link.hasChildren => followNode(link)
         case Expr(link) if !link.hasChildren => Set()
       }
     })
   }
 
+  protected val isSuperPosed: Expression => Boolean = {
+    attr(node => {
+//      node.assertInitialized()
+      (node -> superPosDeps).nonEmpty
+    })
+  }
+
   def showSpace(superPos: Expression): Map[Int, Any] = {
-    assert(superPos.tpe.isSuperPosed)
+    assert(superPos->isSuperPosed)
     (superPos->superPosDeps map {
       case sym @ Expr(NondetGeneratorList(Expr(lc @ ListConstructor(lst)))) => sym.asInstanceOf[Sym].name -> lc
       case sym @ Expr(NondetGeneratorList(Expr(ll @ Literal(x)))) => sym.asInstanceOf[Sym].name -> ll
       case sym @ Expr(NondetGeneratorRange(l, r)) => sym.asInstanceOf[Sym].name -> (l.value, r.value)
     }).toMap
   }
-}
 
+  override def doAnalyze(root: AST.Expression): ValidationNel[String, Unit] = root match {
+    case n @ Once(atom) =>
+      (if(atom->isSuperPosed) ().successNel else "argument of `once` must be superposed".failureNel) *> super.doAnalyze(n)
+    case n @ _ => super.doAnalyze(n)
+  }
+}
 
 sealed trait SuperPosGenerators extends ListExtensions with Symbols {
   private sealed abstract class SuperPosed[T: ClassTag](implicit ev: ArgType[T]) {
     def toTree: NondetGenerator
-    def tpe = new SuperPosGenType[T] { val insideType = ev }
+    def tpe = ev
   }
 
   private case class SuperPosRange[T: ClassTag](from: T, to: T)(implicit typ: ScalaType[T]) extends SuperPosed[T] {
@@ -85,15 +106,13 @@ sealed trait SuperPosGenerators extends ListExtensions with Symbols {
 private[extensions] class SuperPosMapper[B1, B2, BR] {
   import AST.syntax._
   def toRep(name: Expression, args: Expression*)(implicit tpe: ArgType[BR]): Rep[BR] = {
-    // if any of the types is superposed, lift the return type
-    val lift = args.exists(_.tpe.isSuperPosed) // || name.tpe.isSuperPosed //TODO: reenable with function types
     new Rep[BR] {
-      override val tree: Expression = Apply(name, args.toList)(if (lift) { tpe.supPosType } else { tpe })
+      override val tree: Expression = Apply(name, args.toList)(tpe)
     }
   }
 }
 
-trait SuperPosContCompiler extends BaseContCompiler with SuperPosExtensions {
+trait SuperPosContCompiler extends BaseContCompiler with SuperPosExtensions with SuperPosAnalysis {
   override def eval(expr: AST.Expression, cont: (Any) => Cont): Cont = expr match {
     case sym @ Expr(c:NondetGenerator) => (s: State) => cont(s(sym.asInstanceOf[Sym].name))(s)
 

@@ -16,17 +16,11 @@ import scala.collection.mutable
  */
 trait Types { this: ASTNodes =>
   sealed trait TType {
-    def isSuperPosed: Boolean
-    def unlift: TType //return unsuperposed version of this type
     override def equals(other: Any) = ClassTag(other.getClass) == ClassTag(this.getClass)
   }
   trait NumType
-  trait SuperPosType
 
   sealed abstract class ArgType[T: ClassTag] extends TType { self =>
-    def supPosType : SuperPosResult[T] = new SuperPosResult[T] {
-      override val insideType: ArgType[T] = self
-    }
     override def toString = s"$containerName[$typeArgName]"
     def containerName: String = {
       def findNonAnon(kls: Class[_]) : String = {
@@ -39,22 +33,8 @@ trait Types { this: ASTNodes =>
     def typeArgName: String = implicitly[ClassTag[T]].runtimeClass.getSimpleName
   }
 
-  sealed abstract class SuperPosArgType[T: ClassTag] extends ArgType[T] with SuperPosType {
-    override def unlift: TType = insideType
-    override final val isSuperPosed: Boolean = true
-    val insideType: ArgType[T]
-
-    override def toString: String = s"$containerName|$insideType⟩"
-    override def containerName = ""
-  }
-
-  sealed abstract class SuperPosResult[T: ClassTag] extends SuperPosArgType[T]
-
-  abstract class SuperPosGenType[T: ClassTag] extends SuperPosArgType[T]
 
   sealed abstract class UnliftedArgType[T: ClassTag] extends ArgType[T] {
-    override def unlift: TType = this
-    override final val isSuperPosed: Boolean = false
   }
 
   sealed trait CompoundType
@@ -96,8 +76,6 @@ trait Types { this: ASTNodes =>
   class ScalaNumType[T : ClassTag] extends ScalaType[T] with NumType
 
   object UnknownType extends TType {
-    override def unlift: TType = ???
-    override def isSuperPosed: Boolean = ???
   }
 
   trait ScalaTypeImplis {
@@ -115,7 +93,6 @@ trait Types { this: ASTNodes =>
       val luCT: ClassTag[LU]
 
       def apply(inner: Vector[TType]): TType = {
-        val lift = inner.exists(_.isSuperPosed)
 
         implicit val ct = luCT
         val lut = new UnliftedArgType[LU] {}//FIXME np listy beda kiepskie
@@ -123,10 +100,10 @@ trait Types { this: ASTNodes =>
         val typ = new TupType[T] {
           override val length: Int = n
           override type LUB = LU
-          override val lowerBound: ArgType[LU] = if (lift) { lut.supPosType } else { lut }
+          override val lowerBound: ArgType[LU] = lut
           override val productTypes: Vector[TType] = inner
         }
-        if (lift) { typ.supPosType } else { typ }
+        typ
       }
     }
     implicit def tupleTypeConstructor[H <: HList : TypeTag, N <: Nat, LUB: ClassTag]

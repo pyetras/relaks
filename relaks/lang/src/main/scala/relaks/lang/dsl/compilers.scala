@@ -4,11 +4,20 @@ import relaks.lang.dsl.AST._
 import relaks.lang.dsl.extensions._
 import org.kiama.attribution.Attribution._
 
+import scalaz.{ValidationNel, Validation, Scalaz}
+import Scalaz._
+
 /**
  * Created by Pietras on 23/04/15.
  */
 trait BaseCompiler {
   type Result
+  final def analyze(root: Expression) = {
+    initTree(root)
+    doAnalyze(root)
+  }
+  def doAnalyze(root: Expression): ValidationNel[String, Unit] =
+    root.children.foldLeft(().successNel[String])((acc, child) => acc *> doAnalyze(child.asInstanceOf[Expression]))
   def compile(expr: Expression): Result
   def run(res: Result): Any
 }

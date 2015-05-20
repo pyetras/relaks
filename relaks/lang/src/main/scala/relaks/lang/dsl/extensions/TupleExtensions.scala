@@ -2,6 +2,7 @@ package relaks.lang.dsl.extensions
 
 import relaks.lang.dsl._
 import AST._
+import relaks.lang.dsl.utils.{FillNat, UnliftType}
 import shapeless._
 import shapeless.ops.traversable.FromTraversable
 import shapeless.ops.traversable.FromTraversable._
@@ -60,7 +61,7 @@ trait TupleExtensions extends Symbols with AnyExtensions {
   }
 
   class TupleOperations[B1 <: HList](val arg1: Rep[Tup[B1]]) {
-    lazy val (luType, productTypes) = arg1.getTpe.unlift match {
+    lazy val (luType, productTypes) = arg1.getTpe match {
       case t: TupType[B1] => (t.lowerBound, t.productTypes)
       case _ => (UnknownType, new Seq[TType]{
         override def length: Int = ???

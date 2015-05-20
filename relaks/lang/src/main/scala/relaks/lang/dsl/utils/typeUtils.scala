@@ -1,15 +1,9 @@
-package relaks.lang.dsl
+package relaks.lang.dsl.utils
 
-import AST._
-import AST.syntax._
 import shapeless._
-import shapeless.ops.hlist.{Reverse, Mapper}
-import shapeless.ops.product._
+import shapeless.ops.hlist.Reverse
 
-import scala.language.implicitConversions
-import scala.language.higherKinds
-import scala.language.existentials
-import scala.language.reflectiveCalls
+import scala.language.{existentials, higherKinds, implicitConversions, reflectiveCalls}
 /**
  * Created by Pietras on 19/05/15.
  */

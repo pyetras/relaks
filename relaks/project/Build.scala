@@ -26,6 +26,9 @@ object BuildRelaks extends Build {
 //      "org.scalaz" %% "scalaz-effect" % scalazVersion,
 //      "org.scalaz" %% "scalaz-typelevel" % scalazVersion,
 //      "org.scalaz" %% "scalaz-scalacheck-binding" % scalazVersion % "test",
+      "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0",
+      "ch.qos.logback" % "logback-classic" % "1.1.3",
+
       "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3",
       "org.scala-lang.modules" %% "scala-xml" % "1.0.3",
       "jline" % "jline" % "2.12.1",
