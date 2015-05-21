@@ -1,9 +1,10 @@
 package relaks.lang.dsl
 
+import org.kiama.==>
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl.extensions._
 import org.kiama.attribution.Attribution._
-
+import org.kiama.rewriting.Rewriter
 import scalaz.{ValidationNel, Validation, Scalaz}
 import Scalaz._
 
@@ -14,10 +15,15 @@ trait BaseCompiler {
   type Result
   final def analyze(root: Expression) = {
     initTree(root)
-    doAnalyze(root)
+    val strategy = Rewriter.collect[List, ValidationNel[String, Unit]] ({
+      case (expr:Expression) => doAnalyze(expr)
+    })
+
+    strategy(root).reduce { _ *> _}
   }
   def doAnalyze(root: Expression): ValidationNel[String, Unit] =
-    root.children.foldLeft(().successNel[String])((acc, child) => acc *> doAnalyze(child.asInstanceOf[Expression]))
+    ().successNel[String]
+
   def compile(expr: Expression): Result
   def run(res: Result): Any
 }
