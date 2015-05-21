@@ -46,7 +46,7 @@ trait Symbols {
 
   def saveDefinition(sym: Sym, expression: Expression) : Assignment = {
     val ass = Assignment(sym, expression)(expression.tpe)
-//    initTree(ass)
+//    initTree(ass) //TODO sure?
     definitions += ((sym, ass))
     ass
   }

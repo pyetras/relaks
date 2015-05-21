@@ -5,40 +5,40 @@ import relaks.lang.dsl.AST._
 import relaks.lang.dsl.extensions._
 import org.kiama.attribution.Attribution._
 import shapeless.{HNil, ::}
-import scalaz.ValidationNel
+import scalaz.{Success, Failure, ValidationNel}
 import shapeless._
 
 /**
  * Created by Pietras on 20/05/15.
  */
 class SuperPosTest extends FunSpec with Matchers with Inside {
-  describe("SuperPos attribution") {
-    def prog() = {
-      object Program extends ASTSyntax
-      with Symbols
-      with SuperPosExtensions
-      with AnyExtensions
-      with BoolExtensions
-      with OrderExtensions
-      with NumericExtensions
-      with ListExtensions
-      with TupleExtensions
-      with SuperPosAnalysis {
-        override type Result = Unit
+  def prog() = {
+    object Program extends ASTSyntax
+    with Symbols
+    with SuperPosExtensions
+    with AnyExtensions
+    with BoolExtensions
+    with OrderExtensions
+    with NumericExtensions
+    with ListExtensions
+    with TupleExtensions
+    with SuperPosAnalysis {
+      override type Result = Unit
 
-        override def run(res: Program.Result): Any = ???
+      override def run(res: Program.Result): Any = ???
 
-        override def compile(expr: AST.Expression): Program.Result = ???
+      override def compile(expr: AST.Expression): Program.Result = ???
 
-        def superPosed(n: TTree) = n.asInstanceOf[Expression] -> isSuperPosed
-      }
-
-      import Program._
-      val a: Rep[Int] = 1
-      val b = choose between 1 and 3
-      (Program, a, b)
+      def superPosed(n: TTree) = n.asInstanceOf[Expression] -> isSuperPosed
     }
 
+    import Program._
+    val a: Rep[Int] = 1
+    val b = choose between 1 and 3
+    (Program, a, b)
+  }
+
+  describe("SuperPos attribution") {
     it("should assign correct superPos attributes to simple types") {
       val (p, a, b) = prog()
       import p._
@@ -86,7 +86,7 @@ class SuperPosTest extends FunSpec with Matchers with Inside {
     }
 
     it("should assing correct superPos attributes to tuple types and operations") {
-      val (p, a, b) = prog()
+      val (p, a, _) = prog()
       import p._
 
       val tupA = {
@@ -126,6 +126,15 @@ class SuperPosTest extends FunSpec with Matchers with Inside {
       val getB = tupB.at(a)
       analyze(getB.tree)
       superPosed(getB.tree) should not be(true)
+    }
+  }
+
+  describe("SuperPos analyzer") {
+    it("should validate the `once` operator") {
+      val (p, a, b) = prog()
+      import p._
+      analyze(once(a).tree) should matchPattern { case Failure(_) => }
+      analyze(once(b).tree) should matchPattern { case Success(()) => }
     }
   }
 }

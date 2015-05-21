@@ -42,7 +42,7 @@ trait SuperPosAnalysis extends Symbols with BaseCompiler {
     })
   }
 
-  protected val isSuperPosed: Expression => Boolean = {
+  val isSuperPosed: Expression => Boolean = {
     attr(node => {
 //      node.assertInitialized()
       (node -> superPosDeps).nonEmpty
