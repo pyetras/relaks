@@ -33,7 +33,7 @@ import scala.language.{existentials, higherKinds, implicitConversions, reflectiv
 //        val replist = hlist.map(asRep).toList[Rep[LU]] // <: List[Rep[Any]]
 //        val typ = typC(replist.map(_.getTpe))
 //        new Rep[Tup[R]] {
-//          override val tree: Expression = ProductConstructor(replist.map(_.tree))(typ)
+//          override val tree: Expression = TupleConstructor(replist.map(_.tree))(typ)
 //        }
 //
 //      }

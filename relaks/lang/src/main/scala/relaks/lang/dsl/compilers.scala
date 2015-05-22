@@ -21,7 +21,7 @@ trait BaseCompiler {
 
     strategy(root).reduce { _ *> _}
   }
-  def doAnalyze(root: Expression): ValidationNel[String, Unit] =
+  protected def doAnalyze(root: Expression): ValidationNel[String, Unit] =
     ().successNel[String]
 
   def compile(expr: Expression): Result

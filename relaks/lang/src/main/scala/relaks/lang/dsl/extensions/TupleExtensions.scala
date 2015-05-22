@@ -1,5 +1,6 @@
 package relaks.lang.dsl.extensions
 
+import com.typesafe.scalalogging.LazyLogging
 import relaks.lang.dsl._
 import AST._
 import relaks.lang.dsl.utils.{FillNat, UnliftType}
@@ -23,7 +24,7 @@ import scala.language.reflectiveCalls
  * Created by Pietras on 16/04/15.
  */
 
-trait TupleExtensions extends Symbols with AnyExtensions {
+trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging {
 
   object Tup {
 
@@ -54,7 +55,7 @@ trait TupleExtensions extends Symbols with AnyExtensions {
                                                                       zip: ZipConst.Aux[Rep[Tup[T]], Reversed, Zipped],
                                                                       mapper: Mapper.Aux[toReps.type, Zipped, Mapped],
                                                                       tupler: Tupler[Mapped]) = r.tree match {
-      case ProductConstructor(lst) =>
+      case TupleConstructor(lst) =>
         Some(seq().reverse.zipConst(r).map(toReps).tupled)
       case _ => None
     }
@@ -88,10 +89,13 @@ trait TupleExtensions extends Symbols with AnyExtensions {
       }
 
       arg1.tree match {
-        case Expr(ProductConstructor(seq)) => new Rep[Out] {
+        case Expr(TupleConstructor(seq)) => new Rep[Out] {
           override val tree: Expression = seq(i)
         }
-        case (e: TTree) :@ (t: TType) => access(i, productTypes(i))//in case it doesn't have an actual value assigned (fresh for example)
+        case (e: TTree) :@ (t: TType) => {//in case it doesn't have an actual value assigned (fresh for example)
+          logger.warn("Static access to an uninitialized tuple")
+          access(i, productTypes(i))
+        }
       }
     }
   }
@@ -118,7 +122,7 @@ trait TupleExtensions extends Symbols with AnyExtensions {
     val replist = hlist.map(asRep).toList[Rep[LU]] // <: List[Rep[Any]]
     val typ = typC(replist.map(_.getTpe).toVector)
     new Rep[Tup[R]] {
-      override val tree: Expression = ProductConstructor(replist.map(_.tree))(typ)
+      override val tree: Expression = TupleConstructor(replist.map(_.tree).toVector)(typ)
     }
   }
 }

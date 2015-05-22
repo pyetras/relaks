@@ -121,7 +121,7 @@ trait Types { this: ASTNodes =>
     def assignType(typ: TType) = _tpe = typ
     def tpe = _tpe
 
-    override def toString = if (_tpe != UnknownType) { s"$mainToString : ${_tpe.toString}" } else { mainToString }
+    override def toString = if (_tpe != UnknownType) { s"$mainToString : ${_tpe.toString}" } else { s"$mainToString: ?" }
 
   }
 

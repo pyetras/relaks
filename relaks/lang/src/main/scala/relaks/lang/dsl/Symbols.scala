@@ -23,7 +23,7 @@ trait Symbols {
     override def productElement(n: Int): Any = {
       findDefinition(this).get
     }
-    override def productArity: Int = if (findDefinition(this).isDefined) 1 else 0
+    override def productArity: Int = if (isDefined(this)) 1 else 0
 
     override def canEqual(that: Any): Boolean = this.getClass == that.getClass
 
@@ -32,26 +32,30 @@ trait Symbols {
       case _ => false
     }
     override def hashCode() = name.hashCode()
+
+    override def mainToString: String = if (isDefined(this)) s"↗${findDefinition(this).get.mainToString}" else "↗?"
   }
 
-  def fresh: Sym = {
+  protected def fresh: Sym = {
     val sym = Stream.from(symCounter).map((i) => Sym(i)) dropWhile definitions.contains
     symCounter = sym.head.name + 1
     sym.head
   }
 
-  def freshRep[T](typ: TType): Rep[T] = new Rep[T] {
+  protected def freshRep[T](typ: TType): Rep[T] = new Rep[T] {
     override val tree: AST.Expression = fresh(typ)
   }
 
-  def saveDefinition(sym: Sym, expression: Expression) : Assignment = {
+  private def saveDefinition(sym: Sym, expression: Expression) : Assignment = {
     val ass = Assignment(sym, expression)(expression.tpe)
 //    initTree(ass) //TODO sure?
     definitions += ((sym, ass))
     ass
   }
 
-  def findDefinition(sym: Sym) : Option[Expression] = definitions.get(sym).map(_.right)
+  private def isDefined(sym: Sym): Boolean = definitions.contains(sym)
+
+  private def findDefinition(sym: Sym) : Option[Expression] = definitions.get(sym).map(_.right)
 
   implicit def toAtom(expression: Expression) : Atom = expression match {
     case sym @ Sym(_) => sym

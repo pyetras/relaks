@@ -58,7 +58,7 @@ trait SuperPosAnalysis extends Symbols with BaseCompiler {
     }).toMap
   }
 
-  override def doAnalyze(root: AST.Expression): ValidationNel[String, Unit] = root match {
+  override protected def doAnalyze(root: AST.Expression): ValidationNel[String, Unit] = root match {
     case n @ Once(atom) =>
       (if(atom->isSuperPosed) ().successNel else "argument of `once` must be superposed".failureNel) *> super.doAnalyze(n)
     case n @ _ => super.doAnalyze(n)

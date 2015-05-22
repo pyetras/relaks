@@ -14,6 +14,8 @@ trait ASTNodes extends Types {
 
   sealed trait Tree extends Typed with Attributable {
     def mainToString: String = this.getClass.getSimpleName
+
+//    override def toString: String = mainToString //already overridden in Typed
   }
 
   sealed trait Leaf extends Product{
@@ -77,7 +79,7 @@ trait ASTNodes extends Types {
 
   sealed case class ListConstructor(lst: Seq[Expression]) extends Expression
 
-  sealed case class ProductConstructor(lst: Seq[Expression]) extends Expression
+  sealed case class TupleConstructor(tuple: Vector[Expression]) extends Expression
 
   sealed case class LoadTableFromFs(path: String) extends Expression
 
