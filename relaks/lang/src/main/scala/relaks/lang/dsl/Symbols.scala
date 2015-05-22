@@ -72,4 +72,11 @@ trait Symbols {
     }
   }
 
+  /**
+   * use _/> ... instead of Expr(...) (less parentheses)
+   */
+  object /*_*//> {
+    def unapply(expr: Expression) = Expr.unapply(expr).map(followed => ((), followed))
+  }
+
 }

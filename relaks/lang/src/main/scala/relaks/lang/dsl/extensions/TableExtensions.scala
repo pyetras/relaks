@@ -15,6 +15,7 @@ import Scalaz._
 
 import scala.collection.mutable
 import scala.language.implicitConversions
+import scala.language.existentials
 
 /**
  * Created by Pietras on 17/05/15.
@@ -45,17 +46,25 @@ trait QueryTrees extends Symbols {
 }
 
 trait TableOps extends QueryTrees {
+  type RowN[L <: HList] = Rep[Tup[L]]
   type Row[A] = Rep[Tup[A :: HNil]]
   type Row2[A, B] = Rep[Tup[A :: B :: HNil]]
   type Row3[A, B, C] = Rep[Tup[A :: B :: C :: HNil]]
 
-  class ProjectedTableComprehensions[FieldsLen <: Nat](fieldsLength: Int, projection: Atom) {
-    def flatMap[F <: HList](f: Rep[Tup[F]] => Rep[Table])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]) = {
+  class ProjectedTableComprehensions[FieldsLen <: Nat](fieldsLength: Int, projection: Atom) extends Rep[Table] {
+
+    override val tree: Expression = projection
+
+    private def tupleGenerator[F <: HList](): (TupleConstructor, Rep[Tup[F]]) = {
       val tupleTree = TupleConstructor((0 until fieldsLength).map(_ => fresh).toVector) //todo types
       val generator = new Rep[Tup[F]] {
           override val tree: Expression = tupleTree //TODO type
         }
+      (tupleTree, generator)
+    }
 
+    def flatMap[F <: HList](f: Rep[Tup[F]] => Rep[Table])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]) = {
+      val (tupleTree, generator) = tupleGenerator()
       val mapper = f(generator)
       new Rep[Table] {
         override val tree: Atom = Transform(tupleTree, projection, mapper.tree)(new UntypedTableType)
@@ -63,12 +72,31 @@ trait TableOps extends QueryTrees {
     }
 
     def map[F <: HList, T <: HList](f: Rep[Tup[F]] => Rep[Tup[T]])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]) = {
-      flatMap((x:Rep[Tup[F]]) => RowRep(f(x)))
+      flatMap((x:RowN[F]) => RowRep(f(x)))
     }
 
-    def withFilter(t: Nothing => Boolean) = {
-      println(t)
-      this
+    def withFilter(f: Rep[Tup[Nothing]] => Rep[Boolean]) = {
+      val (tupleTree, generator) = tupleGenerator()
+      val cond = f(generator).tree
+      cond match {
+        case Literal(true) => this //remove empty filters immediately, most likely occurs
+                                   // with the cast matcher _.isInstanceOf in for comprehensions
+        case _ => filterHelper(tupleTree, cond)
+      }
+    }
+
+    private def filterHelper(tupleTree: AST.TupleConstructor, cond: AST.Expression): ProjectedTableComprehensions[FieldsLen] = {
+      val filteredProjection = Filter(tupleTree, projection, cond)
+      new Rep[Table] {
+        override val tree: Expression = filteredProjection
+      }
+      new ProjectedTableComprehensions[FieldsLen](fieldsLength, filteredProjection)
+    }
+
+    def filter[F <: HList](f: Rep[Tup[F]] => Rep[Boolean]) = {
+      val (tupleTree, generator) = tupleGenerator()
+      val cond = f(generator).tree
+      filterHelper(tupleTree, cond)
     }
   }
   

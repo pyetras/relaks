@@ -37,6 +37,32 @@ class TableTest extends FunSpec with Matchers with Inside {
 
       }
 
+      it("should construct a filter expression") {
+        object Program extends DSL with TableExtensions
+        import Program._
+        val a = load("hello")
+        val res = a(('x, 'y)).filter { (t: Row2[Int, Int]) =>
+          t(0) === 1
+        }
+
+        analyze(res.tree)
+
+        res.tree should matchPattern { case Expr(Filter(_, _, Apply(Stdlib.==, _))) => }
+      }
+
+      it("should construct a filter expression from a for comprehension") {
+        object Program extends DSL with TableExtensions
+        import Program._
+        val a = load("hello")
+        val res = for {
+          as: Row2[Int, Int] <- a(('x, 'y)) if as(0) === 1
+        } yield (as(0), 1)
+
+        analyze(res.tree)
+
+        res.tree should matchPattern { case Expr(Transform(_, Expr(Filter(_, _, Apply(Stdlib.==, _))), _)) => }
+      }
+
     }
     describe("ast rewriter") {
       it("should unnest nested comprehensions into joins") {
@@ -55,7 +81,7 @@ class TableTest extends FunSpec with Matchers with Inside {
 
         val transformed = unnestTransforms(res.tree) //TODO: why does this not have a type
         analyze(transformed)
-        transformed should matchPattern { case Expr(Transform(_, Expr(j: Join), Expr(_: Pure))) => }
+        transformed should matchPattern { case _/>Transform(_, _/>Join(_/>Join(_, _, CartesianJoin, _), _, CartesianJoin, _), Expr(_: Pure)) => }
       }
     }
   }
