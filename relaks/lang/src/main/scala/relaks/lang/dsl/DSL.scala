@@ -3,10 +3,8 @@ package relaks.lang.dsl
 import relaks.lang.dsl.AST.ASTSyntax
 import relaks.lang.dsl.extensions._
 
-import scala.annotation.implicitNotFound
 import scala.collection.mutable
 import scala.language.implicitConversions
-import org.kiama.attribution.Attribution._
 
 /**
  * Created by Pietras on 14/04/15.
@@ -22,7 +20,5 @@ trait DSL
   with ListExtensions
   with TupleExtensions
   with ContCompiler {
-
-  import AST._
   private var stored = new mutable.MutableList[Rep[Any]]
 }

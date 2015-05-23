@@ -1,4 +1,4 @@
-import relaks.lang.dsl.Rep
+
 
 /**
  * Created by Pietras on 23/04/15.
@@ -20,7 +20,6 @@ object HelloTest {
     //        x = 3.14
     //      """)
     //    println((new PrettyPrinter())(p2))
-    import relaks.lang.dsl.DSL
 
     object Program extends DSL
     import Program._

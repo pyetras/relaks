@@ -1,8 +1,9 @@
 package relaks.lang.dsl.extensions
 
-import relaks.lang.dsl.AST._
+import relaks.lang.ast._
 import relaks.lang.dsl.AST.syntax._
 import relaks.lang.dsl.Rep
+
 import scalaz.syntax.Ops
 
 /**

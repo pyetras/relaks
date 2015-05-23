@@ -1,7 +1,6 @@
 package relaks.lang.dsl
 
-import AST._
-import AST.syntax._
+import relaks.lang.ast._
 
 import scala.collection.mutable
 

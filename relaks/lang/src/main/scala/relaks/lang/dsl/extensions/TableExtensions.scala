@@ -1,24 +1,22 @@
 package relaks.lang.dsl.extensions
 
 import com.typesafe.scalalogging.LazyLogging
-import org.kiama.==>
-import org.kiama.rewriting.Rewriter.{rule, strategy}
+import org.kiama.attribution.Attribution.attr
+import org.kiama.rewriting.Rewriter.rule
 import org.kiama.rewriting.Strategy
+import relaks.lang.ast._
+import relaks.lang.dsl.AST._
+import relaks.lang.dsl.AST.syntax._
 import relaks.lang.dsl._
-import AST._
-import AST.syntax._
+import relaks.lang.dsl.extensions.ast._
 import shapeless._
-import relaks.data.LabelledTuples
 import shapeless.ops.nat.ToInt
 import shapeless.ops.tuple.ToTraversable
 import shapeless.ops.{hlist, tuple}
-import org.kiama.attribution.Attribution.attr
-import scalaz.{ValidationNel, Scalaz}
-import Scalaz._
 
-import scala.collection.mutable
-import scala.language.implicitConversions
-import scala.language.existentials
+import scala.language.{existentials, implicitConversions}
+import scalaz.Scalaz._
+import scalaz.ValidationNel
 
 /**
  * Created by Pietras on 17/05/15.
@@ -27,28 +25,8 @@ trait TableExtensions extends TableIO with TableOps {
   
 }
 
-trait QueryTrees extends Symbols {
-  type Fields = Vector[Symbol]
 
-  sealed trait TableQuery extends Query {
-    override def tpe: AST.TType = new UntypedTableType
-  }
-
-  sealed case class Project(table: TTree, fields: Fields) extends TableQuery
-  sealed case class Transform(generator: TupleConstructor, table: TTree, select: TTree) extends TableQuery
-
-  sealed case class Join(left: TTree, right: TTree, typ: JoinType, conditions: Option[(TupleConstructor, TTree)]) extends TableQuery
-  trait JoinType
-  object CartesianJoin extends JoinType
-  object InnerJoin extends JoinType
-
-  sealed case class Limit(table: TTree, start: TTree, count: TTree) extends TableQuery
-  sealed case class Filter(generator: TupleConstructor, table: TTree, filter: TTree) extends TableQuery
-  sealed case class GroupBy(generator: TupleConstructor, table: TTree, group: TTree) extends TableQuery
-  sealed case class Pure(value: TTree) extends TableQuery
-}
-
-trait TableOps extends QueryTrees {
+trait TableOps extends Symbols {
   type RowN[L <: HList] = Rep[Tup[L]]
   type Row[A] = Rep[Tup[A :: HNil]]
   type Row2[A, B] = Rep[Tup[A :: B :: HNil]]
@@ -143,7 +121,7 @@ trait BaseRelationalCompiler {
   var storedOutput: Set[Expression] = Set.empty
 }
 
-trait TableComprehensionRewriter extends QueryTrees with LazyLogging with Symbols {
+trait TableComprehensionRewriter extends LazyLogging with Symbols {
   private def leafSyms: Expression => Set[Sym] = attr { tree =>
     tree match {
       case Expr(node) => node.children.map(c => c.asInstanceOf[Expression] -> leafSyms).foldLeft(Set.empty[Sym]) {_ ++ _}
@@ -184,9 +162,7 @@ trait TableComprehensionRewriter extends QueryTrees with LazyLogging with Symbol
     }
   }
 
-  def unnestTransforms: Strategy = strategy[Expression] {
-//    case t @ Expr(Transform(TupleConstructor(in), table, Expr(Pure(TupleConstructor(out))))) => //simple map comprehension - nothing to rewrite
-//      t
+  def unnestTransforms: Strategy = rule[Expression] {
     //nested transformation whose result is a pure expression
     case Transform(TupleConstructor(parSyms), parTable, _/> Transform(TupleConstructor(childSyms), childTable, _/> (select @ Pure(_)))) =>
       logger.debug("found candidates for a merge with pure output")
@@ -206,10 +182,7 @@ trait TableComprehensionRewriter extends QueryTrees with LazyLogging with Symbol
       }
       val generator = TupleConstructor(parSyms ++ childSyms)
       val join = Join(parTable, childTable, if (filter.isDefined) InnerJoin else CartesianJoin, filter)
-      Transform(generator, join, select).some
-    case t =>
-      logger.debug(s"visiting $t")
-      None
+      Transform(generator, join, select)
 //    case Expr(nested @ Transform(_, _, Expr(Transform(_, _, _)))) => //nested comprehension
 //      //collect all tables
 //      def collect(t: Transform, acc: Vector[(Vector[Expression], TTree)] = Vector.empty): (Vector[(Vector[Expression], TTree)], TTree) =

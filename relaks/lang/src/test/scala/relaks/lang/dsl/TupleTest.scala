@@ -1,6 +1,7 @@
 package relaks.lang.dsl
 
 import org.scalatest._
+import relaks.lang.ast._
 
 /**
  * Created by Pietras on 17/04/15.

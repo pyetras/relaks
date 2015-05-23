@@ -1,14 +1,12 @@
 package relaks.lang.dsl
 
-import AST._
-import AST.syntax._
 import com.typesafe.scalalogging.LazyLogging
+import relaks.lang.ast._
+import relaks.lang.dsl.AST.syntax._
 
 import scala.collection.mutable
 import scala.language.implicitConversions
-import scalaz._
-import Scalaz._
-import org.kiama.attribution.Attribution._
+import scalaz.Scalaz._
 
 /**
  * Created by Pietras on 15/04/15.
@@ -19,15 +17,17 @@ trait Symbols extends LazyLogging { self =>
   private var symCounter = 0
 
   sealed case class Sym(name: Int) extends Atom {
+
+    //kiama shit
     def this(name: Int, expr: Expression) {
       this(symCounter)
-      logger.debug(s"constructing sym from $expr")
+//      logger.debug(s"constructing sym from $expr")
       saveDefinition(this, expr)
       symCounter += 1
     }
 
     override def productElement(n: Int): Any = {
-      if (n == 0) self
+      if (n == 0) self //kiama shit. first element is the class scope
         else if (n == 1) name
         else
           findDefinition(this).get
@@ -52,7 +52,7 @@ trait Symbols extends LazyLogging { self =>
   }
 
   protected def freshRep[T](typ: TType): Rep[T] = new Rep[T] {
-    override val tree: AST.Expression = fresh(typ)
+    override val tree: Expression = fresh(typ)
   }
 
   private def saveDefinition(sym: Sym, expression: Expression) : Assignment = {

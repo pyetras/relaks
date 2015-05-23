@@ -1,8 +1,7 @@
 package relaks.lang.dsl.extensions
 
+import relaks.lang.ast._
 import relaks.lang.dsl._
-import AST._
-import AST.syntax._
 
 import scala.language.implicitConversions
 

@@ -1,20 +1,19 @@
 package relaks.lang.dsl
 
-import org.scalatest.{Inside, Matchers, FunSpec}
+import org.scalatest.{FunSpec, Inside, Matchers}
+import relaks.lang.ast._
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl.extensions._
-import org.kiama.attribution.Attribution._
-import shapeless.{HNil, ::}
-import scalaz.{Success, Failure, ValidationNel}
-import shapeless._
+import shapeless.{::, HNil}
+
+import scalaz.{Failure, Success}
 
 /**
  * Created by Pietras on 20/05/15.
  */
 class SuperPosTest extends FunSpec with Matchers with Inside {
   def prog() = {
-    object Program extends ASTSyntax
-    with Symbols
+    object Program extends Symbols
     with SuperPosExtensions
     with AnyExtensions
     with BoolExtensions
@@ -27,7 +26,7 @@ class SuperPosTest extends FunSpec with Matchers with Inside {
 
       override def run(res: Program.Result): Any = ???
 
-      override def compile(expr: AST.Expression): Program.Result = ???
+      override def compile(expr: Expression): Program.Result = ???
 
       def superPosed(n: TTree) = n.asInstanceOf[Expression] -> isSuperPosed
     }

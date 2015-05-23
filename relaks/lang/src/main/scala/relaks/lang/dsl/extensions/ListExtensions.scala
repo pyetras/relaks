@@ -1,7 +1,8 @@
 package relaks.lang.dsl.extensions
 
+import relaks.lang.ast._
+import relaks.lang.dsl.AST._
 import relaks.lang.dsl._
-import AST._
 
 import scala.language.implicitConversions
 import scala.reflect.ClassTag

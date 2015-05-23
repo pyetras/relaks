@@ -1,10 +1,10 @@
 package relaks.lang.dsl.extensions
 
+import relaks.lang.ast._
+import relaks.lang.dsl.AST._
 import relaks.lang.dsl._
-import AST._
 
-import scala.language.implicitConversions
-import scala.language.reflectiveCalls
+import scala.language.{implicitConversions, reflectiveCalls}
 
 /**
  * Created by Pietras on 16/04/15.
@@ -30,7 +30,7 @@ trait NumericExtensions extends ASTSyntax with Symbols {
 }
 
 trait NumericContCompiler extends BaseContCompiler with Symbols {
-  override def eval(expr: AST.Expression, cont: (Any) => Cont): Cont = expr match {
+  override def eval(expr: Expression, cont: (Any) => Cont): Cont = expr match {
     case Expr(Apply(Stdlib.+, a :: b :: Nil)) => eval(a, { case i1:Int => eval(b, { case i2:Int => cont(i1+i2)})})
     case _ => super.eval(expr, cont)
   }

@@ -1,7 +1,7 @@
 package relaks.lang.dsl.utils
 
 import relaks.lang.dsl.AST._
-import org.kiama.attribution.Attribution._
+import relaks.lang.dsl._
 /**
  * Created by Pietras on 20/05/15.
  */

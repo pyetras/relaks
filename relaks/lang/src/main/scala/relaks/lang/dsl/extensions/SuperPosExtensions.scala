@@ -1,15 +1,13 @@
 package relaks.lang.dsl.extensions
 
-import org.kiama.attribution.Attributable
-import relaks.lang.dsl._
-import AST._
-import utils.TreeUtils._
-
 import org.kiama.attribution.Attribution._
+import relaks.lang.ast._
+import relaks.lang.dsl._
+
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
+import scalaz.Scalaz._
 import scalaz.{Scalaz, ValidationNel}
-import Scalaz._
 
 /**
  * Created by Pietras on 13/04/15.
@@ -58,7 +56,7 @@ trait SuperPosAnalysis extends Symbols with BaseCompiler {
     }).toMap
   }
 
-  override protected def doAnalyze(root: AST.Expression): ValidationNel[String, Unit] = root match {
+  override protected def doAnalyze(root: Expression): ValidationNel[String, Unit] = root match {
     case n @ Once(atom) =>
       (if(atom->isSuperPosed) ().successNel else "argument of `once` must be superposed".failureNel) *> super.doAnalyze(n)
     case n @ _ => super.doAnalyze(n)
@@ -113,7 +111,7 @@ private[extensions] class SuperPosMapper[B1, B2, BR] {
 }
 
 trait SuperPosContCompiler extends BaseContCompiler with SuperPosExtensions with SuperPosAnalysis {
-  override def eval(expr: AST.Expression, cont: (Any) => Cont): Cont = expr match {
+  override def eval(expr: Expression, cont: (Any) => Cont): Cont = expr match {
     case sym @ Expr(c:NondetGenerator) => (s: State) => cont(s(sym.asInstanceOf[Sym].name))(s)
 
     case Once(sym:Sym) => // in the future this will be simply desugared

@@ -1,6 +1,6 @@
 package relaks.lang.dsl
 
-import relaks.lang.dsl.AST._
+import relaks.lang.ast._
 
 /**
  * Created by Pietras on 10/04/15.

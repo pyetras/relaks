@@ -1,12 +1,12 @@
 package relaks.lang.dsl
 
-import org.kiama.==>
-import relaks.lang.dsl.AST._
-import relaks.lang.dsl.extensions._
 import org.kiama.attribution.Attribution._
 import org.kiama.rewriting.Rewriter
-import scalaz.{ValidationNel, Validation, Scalaz}
-import Scalaz._
+import relaks.lang.ast._
+import relaks.lang.dsl.extensions._
+
+import scalaz.Scalaz._
+import scalaz.{Scalaz, ValidationNel}
 
 /**
  * Created by Pietras on 23/04/15.

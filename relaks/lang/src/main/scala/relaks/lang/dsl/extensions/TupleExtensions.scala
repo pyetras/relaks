@@ -1,23 +1,16 @@
 package relaks.lang.dsl.extensions
 
 import com.typesafe.scalalogging.LazyLogging
+import relaks.lang.ast._
+import relaks.lang.dsl.AST._
 import relaks.lang.dsl._
-import AST._
-import relaks.lang.dsl.utils.{FillNat, UnliftType}
+import relaks.lang.dsl.utils.{FillNat, TupleLU, UnliftType}
 import shapeless._
-import shapeless.ops.traversable.FromTraversable
-import shapeless.ops.traversable.FromTraversable._
 import shapeless.ops.hlist._
 import shapeless.ops.nat.ToInt
 import shapeless.syntax.std.tuple._
-import shapeless.syntax.std.traversable._
-import relaks.lang.dsl.AST.syntax._
 
-
-import scala.language.implicitConversions
-import scala.language.higherKinds
-import scala.language.existentials
-import scala.language.reflectiveCalls
+import scala.language.{existentials, higherKinds, implicitConversions, reflectiveCalls}
 
 
 /**
@@ -66,8 +59,8 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging {
       case t: TupType[B1] => (t.lowerBound, t.productTypes)
       case _ => (UnknownType, new Seq[TType]{
         override def length: Int = ???
-        override def apply(idx: Int): AST.TType = UnknownType
-        override def iterator: Iterator[AST.TType] = ???
+        override def apply(idx: Int): TType = UnknownType
+        override def iterator: Iterator[TType] = ???
       })
     }
 
