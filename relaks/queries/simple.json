@@ -1,0 +1,76 @@
+{
+  "head" : {
+    "version" : 1,
+    "generator" : {
+      "type" : "org.apache.drill.exec.planner.logical.DrillImplementor",
+      "info" : ""
+    },
+    "type" : "APACHE_DRILL_LOGICAL",
+    "options" : null,
+    "queue" : 0,
+    "resultMode" : "EXEC"
+  },
+  "storage" : {
+    "dfs" : {
+      "type" : "file",
+      "enabled" : true,
+      "connection" : "file:///",
+      "workspaces" : {
+        "root" : {
+          "location" : "/",
+          "writable" : false,
+          "defaultInputFormat" : null
+        },
+        "tmp" : {
+          "location" : "/tmp",
+          "writable" : true,
+          "defaultInputFormat" : null
+        }
+      },
+      "formats" : {
+        "psv" : {
+          "type" : "text",
+          "extensions" : [ "tbl" ],
+          "delimiter" : "|"
+        },
+        "csv" : {
+          "type" : "text",
+          "extensions" : [ "csv" ],
+          "delimiter" : ","
+        },
+        "tsv" : {
+          "type" : "text",
+          "extensions" : [ "tsv" ],
+          "delimiter" : "\t"
+        },
+        "parquet" : {
+          "type" : "parquet"
+        },
+        "json" : {
+          "type" : "json"
+        },
+        "avro" : {
+          "type" : "avro"
+        }
+      }
+    }
+  },
+  "query" : [ {
+    "op" : "scan",
+    "@id" : 1,
+    "storageengine" : "dfs",
+    "selection" : {
+      "format" : {
+        "type" : "named",
+        "name" : "parquet"
+      },
+      "files" : [ "file:/Users/Pietras/Downloads/apache-drill-1.0.0/sample-data/region.parquet" ]
+    }
+  }, {
+    "op" : "store",
+    "@id" : 2,
+    "input" : 1,
+    "target" : null,
+    "storageEngine" : "--SCREEN--"
+  } ]
+}

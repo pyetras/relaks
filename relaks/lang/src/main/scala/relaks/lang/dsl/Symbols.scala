@@ -13,17 +13,26 @@ import org.kiama.attribution.Attribution._
 /**
  * Created by Pietras on 15/04/15.
  */
-trait Symbols {
+trait Symbols extends LazyLogging { self =>
 
   private val definitions = new mutable.HashMap[Sym, Assignment]
   private var symCounter = 0
 
   sealed case class Sym(name: Int) extends Atom {
+    def this(name: Int, expr: Expression) {
+      this(symCounter)
+      logger.debug(s"constructing sym from $expr")
+      saveDefinition(this, expr)
+      symCounter += 1
+    }
 
     override def productElement(n: Int): Any = {
-      findDefinition(this).get
+      if (n == 0) self
+        else if (n == 1) name
+        else
+          findDefinition(this).get
     }
-    override def productArity: Int = if (isDefined(this)) 1 else 0
+    override def productArity: Int = if (isDefined(this)) 3 else 2
 
     override def canEqual(that: Any): Boolean = this.getClass == that.getClass
 

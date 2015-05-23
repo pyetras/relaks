@@ -1,5 +1,6 @@
 package relaks.lang.dsl
 
+import com.typesafe.scalalogging.LazyLogging
 import org.scalatest.{Inside, Matchers, FunSpec}
 import relaks.lang.dsl.extensions.{TableComprehensionRewriter, TableExtensions, TableOps}
 import shapeless._
@@ -8,7 +9,7 @@ import relaks.lang.dsl.AST._
 /**
  * Created by Pietras on 22/05/15.
  */
-class TableTest extends FunSpec with Matchers with Inside {
+class TableTest extends FunSpec with Matchers with Inside with LazyLogging {
   describe("table extensions") {
     describe("syntax for untyped tables") {
       it("should construct ast for a simple map") {
@@ -68,6 +69,9 @@ class TableTest extends FunSpec with Matchers with Inside {
       it("should unnest nested comprehensions into joins") {
         object Program extends DSL with TableExtensions with TableComprehensionRewriter
         import Program._
+        import org.kiama.rewriting.Rewriter.{all => alls}
+        import org.kiama.rewriting.Rewriter._
+
 
         val a = load("hello")
         val b = load("world")
@@ -79,8 +83,11 @@ class TableTest extends FunSpec with Matchers with Inside {
           cs: Row2[Int, Int] <- c(('cx, 'cy))
         } yield (as(0), as(1), bs(0), bs(1), cs(0), cs(1))
 
-        val transformed = unnestTransforms(res.tree) //TODO: why does this not have a type
-        analyze(transformed)
+        val strategy = repeat(oncetd(unnestTransforms))
+        analyze(res.tree)
+        val transformed = strategy(res.tree) //TODO: why does this not have a type
+        analyze(transformed.get.asInstanceOf[TTree])
+
         transformed should matchPattern { case _/>Transform(_, _/>Join(_/>Join(_, _, CartesianJoin, _), _, CartesianJoin, _), Expr(_: Pure)) => }
       }
     }

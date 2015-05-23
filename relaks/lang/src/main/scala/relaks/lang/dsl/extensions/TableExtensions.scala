@@ -1,6 +1,9 @@
 package relaks.lang.dsl.extensions
 
 import com.typesafe.scalalogging.LazyLogging
+import org.kiama.==>
+import org.kiama.rewriting.Rewriter.{rule, strategy}
+import org.kiama.rewriting.Strategy
 import relaks.lang.dsl._
 import AST._
 import AST.syntax._
@@ -34,7 +37,7 @@ trait QueryTrees extends Symbols {
   sealed case class Project(table: TTree, fields: Fields) extends TableQuery
   sealed case class Transform(generator: TupleConstructor, table: TTree, select: TTree) extends TableQuery
 
-  sealed case class Join(left: TTree, right: TTree, typ: JoinType, conditions: List[(TTree, TTree)]) extends TableQuery
+  sealed case class Join(left: TTree, right: TTree, typ: JoinType, conditions: Option[(TupleConstructor, TTree)]) extends TableQuery
   trait JoinType
   object CartesianJoin extends JoinType
   object InnerJoin extends JoinType
@@ -85,7 +88,9 @@ trait TableOps extends QueryTrees {
       }
     }
 
-    private def filterHelper(tupleTree: AST.TupleConstructor, cond: AST.Expression): ProjectedTableComprehensions[FieldsLen] = {
+    private def filterHelper(tupleTree: TupleConstructor, cond: Expression): ProjectedTableComprehensions[FieldsLen] = {
+//      val _/>Project(original, fields) = projection
+      //filtering does not cause projection
       val filteredProjection = Filter(tupleTree, projection, cond)
       new Rep[Table] {
         override val tree: Expression = filteredProjection
@@ -93,7 +98,8 @@ trait TableOps extends QueryTrees {
       new ProjectedTableComprehensions[FieldsLen](fieldsLength, filteredProjection)
     }
 
-    def filter[F <: HList](f: Rep[Tup[F]] => Rep[Boolean]) = {
+    //TODO: a filter version that does not cause projection
+    def filter[F <: HList](f: Rep[Tup[F]] => Rep[Boolean])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]) = {
       val (tupleTree, generator) = tupleGenerator()
       val cond = f(generator).tree
       filterHelper(tupleTree, cond)
@@ -159,24 +165,66 @@ trait TableComprehensionRewriter extends QueryTrees with LazyLogging with Symbol
     case _ => ().successNel[String]
   }
 
-  def unnestTransforms(expr: Expression): Expression = expr match {
-    case t @ Expr(Transform(TupleConstructor(in), table, Expr(Pure(TupleConstructor(out))))) => //simple map comprehension - nothing to rewrite
-      t
-    case Expr(nested @ Transform(_, _, Expr(Transform(_, _, _)))) => //nested comprehension
-      //collect all tables
-      def collect(t: Transform, acc: Vector[(Vector[Expression], TTree)] = Vector.empty): (Vector[(Vector[Expression], TTree)], TTree) =
-        t match {
-          case Transform(TupleConstructor(gen), table, Expr(next @ Transform(_, _, _))) => collect(next, acc :+ (gen, table))
-          case Transform(TupleConstructor(gen), table, select) => (acc :+ (gen, table), select)
+  private def closestFilter: Expression => Option[Filter] = attr { tree =>
+    tree match {
+      case f: Filter => f.some
+      case Project(_/> table, _) => table -> closestFilter
+      case _ => None
+    }
+  }
+
+  private def tableSource: Expression => Option[Expression] = attr { tree =>
+    tree match {
+      case t: LoadTableFromFs => t.some
+      case t: Join => t.some
+      case t: Limit => t.some
+      case t: GroupBy => t.some
+      case Transform(_, _/> table, _) => table -> tableSource
+      case Filter(_, _/> table, _) => table -> tableSource
+    }
+  }
+
+  def unnestTransforms: Strategy = strategy[Expression] {
+//    case t @ Expr(Transform(TupleConstructor(in), table, Expr(Pure(TupleConstructor(out))))) => //simple map comprehension - nothing to rewrite
+//      t
+    //nested transformation whose result is a pure expression
+    case Transform(TupleConstructor(parSyms), parTable, _/> Transform(TupleConstructor(childSyms), childTable, _/> (select @ Pure(_)))) =>
+      logger.debug("found candidates for a merge with pure output")
+      //see if there is a filter that contains both parent and child syms
+      val filter: Option[(TupleConstructor, TTree)] = (childTable -> closestFilter) flatMap { filter =>
+        logger.debug(s"Found a filter on child table $filter")
+        val Filter(generator, _, sel) = filter
+        val filterSyms = sel -> leafSyms
+        if (filterSyms.intersect(parSyms.asInstanceOf[Vector[Sym]].toSet).nonEmpty &&
+          filterSyms.intersect(childSyms.asInstanceOf[Vector[Sym]].toSet).nonEmpty) {
+          logger.debug("filter selector contains syms from both parent and child transformation")
+          (generator, sel).some
+        } else {
+          logger.debug("filter selector does not contain syms from both parent and child transformation")
+          None
         }
-      val (gensTables, select) = collect(nested)
-      val generator = TupleConstructor(gensTables.map(_._1).reduce(_ ++ _))
-
-      val fst +: snd +: tables = gensTables.map(_._2)
-      val zero: Atom = Join(fst, snd, CartesianJoin, List.empty)
-      val join = tables.foldLeft(zero)((join, right) => Join(join, right, CartesianJoin, List.empty))
-      Transform(generator, join, select)
-
-    case _ => ???
+      }
+      val generator = TupleConstructor(parSyms ++ childSyms)
+      val join = Join(parTable, childTable, if (filter.isDefined) InnerJoin else CartesianJoin, filter)
+      Transform(generator, join, select).some
+    case t =>
+      logger.debug(s"visiting $t")
+      None
+//    case Expr(nested @ Transform(_, _, Expr(Transform(_, _, _)))) => //nested comprehension
+//      //collect all tables
+//      def collect(t: Transform, acc: Vector[(Vector[Expression], TTree)] = Vector.empty): (Vector[(Vector[Expression], TTree)], TTree) =
+//        t match {
+//          case Transform(TupleConstructor(gen), table, _/> (next @ Transform(_, _, _))) => collect(next, acc :+ (gen, table))
+//          case Transform(TupleConstructor(gen), table, _/> (select @ Pure(_))) => (acc :+ (gen, table), select)
+//        }
+//      val (gensTables, select) = collect(nested)
+//      val generator = TupleConstructor(gensTables.map(_._1).reduce(_ ++ _))
+//
+//      val fst +: snd +: tables = gensTables.map(_._2)
+//      val zero: Atom = Join(fst, snd, CartesianJoin, List.empty)
+//      val join = tables.foldLeft(zero)((join, right) => Join(join, right, CartesianJoin, List.empty))
+//      Transform(generator, join, select)
+//
+//    case _ => ???
   }
 }
