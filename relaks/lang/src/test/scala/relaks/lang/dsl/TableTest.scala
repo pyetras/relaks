@@ -6,6 +6,7 @@ import relaks.lang.ast._
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl.extensions.ast._
 import relaks.lang.dsl.extensions.{TableComprehensionRewriter, TableExtensions}
+import shapeless._
 
 /**
  * Created by Pietras on 22/05/15.
@@ -49,7 +50,7 @@ class TableTest extends FunSpec with Matchers with Inside with LazyLogging {
 
         analyze(res.tree)
 
-        res.tree should matchPattern { case Expr(Filter(_, _, Apply(Stdlib.==, _))) => }
+        res.tree should matchPattern { case Expr(Filter(_, _, _/>Apply(Stdlib.==, _))) => }
       }
 
       it("should construct a filter expression from a for comprehension") {
@@ -62,7 +63,7 @@ class TableTest extends FunSpec with Matchers with Inside with LazyLogging {
 
         analyze(res.tree)
 
-        res.tree should matchPattern { case Expr(Transform(_, Expr(Filter(_, _, Apply(Stdlib.==, _))), _)) => }
+        res.tree should matchPattern { case Expr(Transform(_, Expr(Filter(_, _, _/>Apply(Stdlib.==, _))), _)) => }
       }
 
     }
@@ -70,8 +71,7 @@ class TableTest extends FunSpec with Matchers with Inside with LazyLogging {
       it("should unnest nested comprehensions into joins") {
         object Program extends DSL with TableExtensions with TableComprehensionRewriter
         import Program._
-        import org.kiama.rewriting.Rewriter.{all => alls, _}
-
+        import org.kiama.rewriting.Rewriter._
 
         val a = load("hello")
         val b = load("world")
@@ -88,7 +88,48 @@ class TableTest extends FunSpec with Matchers with Inside with LazyLogging {
         val transformed = strategy(res.tree).get.asInstanceOf[TTree]
 //        analyze(transformed)
 
-        transformed should matchPattern { case _/>Transform(_, _/>Join(_, _/>Join(_, _, CartesianJoin, _), CartesianJoin, _), Expr(_: Pure)) => }
+        transformed should matchPattern { case _/>Transform(_, _/>Join(_, _/>Join(_, _, CartesianJoin, _), CartesianJoin, _), _/>(_: Pure)) => }
+      }
+
+      it("should unnest nested comprehensions with filters into non-cartesian joins") {
+        object Program extends DSL with TableExtensions with TableComprehensionRewriter
+        import Program._
+        import org.kiama.rewriting.Rewriter._
+
+        val a = load("hello")
+        val b = load("world")
+
+        val res = for {
+          as: Row2[Int, Int] <- a(('ax, 'ay))
+          bs: Row2[Int, Int] <- b(('bx, 'by)) if as(0) === bs(0)
+        } yield (as(1), bs(1))
+
+        val strategy = repeat(oncetd(unnestTransforms))
+        analyze(res.tree)
+        val transformed = strategy(res.tree).get.asInstanceOf[TTree]
+        transformed should matchPattern { case _/>Transform(_, _/>Join(_, _, InnerJoin, Some((_, _/>Apply(Stdlib.==, _)))), _/>(_: Pure)) => }
+      }
+
+      it("should unnest multiple comprehensions with filters into non-cartesian joins") {
+        object Program extends DSL with TableExtensions with TableComprehensionRewriter
+        import Program._
+        import org.kiama.rewriting.Rewriter._
+
+        val a = load("hello")
+        val b = load("world")
+        val c = load("!!!")
+
+        val res = for {
+          as: Row2[Int, Int] <- a(('ax, 'ay))
+          bs: Row2[Int, Int] <- b(('bx, 'by))
+          cs: Row2[Int, Int] <- c(('cx, 'cy)) if as(0) === bs(0) && bs(0) === cs(0)
+        } yield (as(0), as(1), bs(0), bs(1), cs(0), cs(1))
+
+        val strategy = repeat(oncetd(unnestTransforms))
+        analyze(res.tree)
+        val transformed = strategy(res.tree).get.asInstanceOf[TTree]
+        analyze(transformed)
+        transformed should matchPattern { case _/>Transform(_, _/>Join(_, _/>Join(_, _, InnerJoin, _), InnerJoin, _), _/>(_: Pure)) => }
       }
     }
   }

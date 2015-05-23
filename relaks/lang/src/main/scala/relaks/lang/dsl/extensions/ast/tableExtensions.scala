@@ -9,16 +9,16 @@ import relaks.lang.dsl.AST._
 sealed trait TableQuery extends Query {
   override def tpe: TType = new UntypedTableType
 }
+trait GeneratorBase
 
-sealed case class Project(table: TTree, fields: Vector[Symbol]) extends TableQuery
-sealed case class Transform(generator: TupleConstructor, table: TTree, select: TTree) extends TableQuery
+sealed case class Transform(generator: GeneratorBase, table: Atom, select: Atom) extends TableQuery
 
-sealed case class Join(left: TTree, right: TTree, typ: JoinType, conditions: Option[(TupleConstructor, TTree)]) extends TableQuery
+sealed case class Join(left: Atom, right: Atom, typ: JoinType, conditions: Option[(GeneratorBase, Atom)]) extends TableQuery
 sealed trait JoinType
 object CartesianJoin extends JoinType
 object InnerJoin extends JoinType
 
-sealed case class Limit(table: TTree, start: TTree, count: TTree) extends TableQuery
-sealed case class Filter(generator: TupleConstructor, table: TTree, filter: TTree) extends TableQuery
-sealed case class GroupBy(generator: TupleConstructor, table: TTree, group: TTree) extends TableQuery
-sealed case class Pure(value: TTree) extends TableQuery
+sealed case class Limit(table: Atom, start: Atom, count: Atom) extends TableQuery
+sealed case class Filter(generator: GeneratorBase, table: Atom, filter: Atom) extends TableQuery
+sealed case class GroupBy(generator: GeneratorBase, table: Atom, group: Atom) extends TableQuery
+sealed case class Pure(value: Atom) extends TableQuery

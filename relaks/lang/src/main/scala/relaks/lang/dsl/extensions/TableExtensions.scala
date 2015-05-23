@@ -25,30 +25,52 @@ trait TableExtensions extends TableIO with TableOps {
   
 }
 
+trait TableUtils extends Symbols {
+  class Generator(val symsToFields: Map[Sym, Symbol], val symsToTables: Map[Sym, Atom]) extends GeneratorBase {
+    def this(syms_ : Vector[Sym], fields_ : Vector[Symbol], table_ : Atom) =
+      this(syms_ zip fields_ toMap, syms_ zip (0 until syms_.length).map(_ => table_) toMap)
 
-trait TableOps extends Symbols {
+
+    def unifyWith(other: Generator): Generator = new Generator(symsToFields ++ other.symsToFields, symsToTables ++ other.symsToTables)
+  }
+
+  object Generator {
+    def apply(syms: Vector[Sym], fields: Vector[Symbol], table: Atom) = new Generator(syms, fields, table)
+    def unapply(generator: Generator): Option[(Iterable[Sym], Iterable[Symbol])] = generator.symsToFields.unzip.some
+  }
+
+  object GenPlusFilter {
+    def unapply(opt: Option[(GeneratorBase, Atom)]) = for {
+      (g: Generator, filter) <- opt
+    } yield (g, filter)
+  }
+}
+
+trait TableOps extends Symbols with TableUtils {
+
   type RowN[L <: HList] = Rep[Tup[L]]
   type Row[A] = Rep[Tup[A :: HNil]]
   type Row2[A, B] = Rep[Tup[A :: B :: HNil]]
   type Row3[A, B, C] = Rep[Tup[A :: B :: C :: HNil]]
 
-  class ProjectedTableComprehensions[FieldsLen <: Nat](fieldsLength: Int, projection: Atom) extends Rep[Table] {
+  class ProjectedTableComprehensions[FieldsLen <: Nat](fieldsLength: Int, fields: Vector[Symbol], table: Atom) extends Rep[Table] {
 
-    override val tree: Expression = projection
+    override val tree: Expression = table
 
-    private def tupleGenerator[F <: HList](): (TupleConstructor, Rep[Tup[F]]) = {
-      val tupleTree = TupleConstructor((0 until fieldsLength).map(_ => fresh).toVector) //todo types
+    private def tupleGenerator[F <: HList](): (Generator, Rep[Tup[F]]) = {
+      val syms = (0 until fieldsLength).map(_ => fresh).toVector
+      val tupleTree = TupleConstructor(syms) //todo types
       val generator = new Rep[Tup[F]] {
           override val tree: Expression = tupleTree //TODO type
         }
-      (tupleTree, generator)
+      (Generator(syms, fields, table), generator)
     }
 
     def flatMap[F <: HList](f: Rep[Tup[F]] => Rep[Table])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]) = {
       val (tupleTree, generator) = tupleGenerator()
       val mapper = f(generator)
       new Rep[Table] {
-        override val tree: Atom = Transform(tupleTree, projection, mapper.tree)(new UntypedTableType)
+        override val tree: Atom = Transform(tupleTree, table, mapper.tree)(new UntypedTableType)
       }
     }
 
@@ -57,30 +79,28 @@ trait TableOps extends Symbols {
     }
 
     def withFilter(f: Rep[Tup[Nothing]] => Rep[Boolean]) = {
-      val (tupleTree, generator) = tupleGenerator()
-      val cond = f(generator).tree
+      val (generator, rep) = tupleGenerator()
+      val cond = f(rep).tree
       cond match {
         case Literal(true) => this //remove empty filters immediately, most likely occurs
                                    // with the cast matcher _.isInstanceOf in for comprehensions
-        case _ => filterHelper(tupleTree, cond)
+        case _ => filterHelper(generator, cond)
       }
     }
 
-    private def filterHelper(tupleTree: TupleConstructor, cond: Expression): ProjectedTableComprehensions[FieldsLen] = {
-//      val _/>Project(original, fields) = projection
-      //filtering does not cause projection
-      val filteredProjection = Filter(tupleTree, projection, cond)
+    private def filterHelper(generator: Generator, cond: Expression): ProjectedTableComprehensions[FieldsLen] = {
+      val filteredTable = Filter(generator, table, cond)
       new Rep[Table] {
-        override val tree: Expression = filteredProjection
+        override val tree: Expression = filteredTable
       }
-      new ProjectedTableComprehensions[FieldsLen](fieldsLength, filteredProjection)
+      new ProjectedTableComprehensions[FieldsLen](fieldsLength, fields, filteredTable)
     }
 
     //TODO: a filter version that does not cause projection
     def filter[F <: HList](f: Rep[Tup[F]] => Rep[Boolean])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]) = {
-      val (tupleTree, generator) = tupleGenerator()
-      val cond = f(generator).tree
-      filterHelper(tupleTree, cond)
+      val (generator, rep) = tupleGenerator()
+      val cond = f(rep).tree
+      filterHelper(generator, cond)
     }
   }
   
@@ -89,10 +109,8 @@ trait TableOps extends Symbols {
                                                       lenEv: tuple.Length.Aux[P, FieldsLen],
                                                       fieldsLength: ToInt[FieldsLen],
                                                       toVector: ToTraversable.Aux[P, Vector, Symbol]) = {
-      
-      val projection = Project(arg1.tree, toVector(fields))(new UntypedTableType)
 
-      new ProjectedTableComprehensions[FieldsLen](fieldsLength(), projection)
+      new ProjectedTableComprehensions[FieldsLen](fieldsLength(), toVector(fields), arg1.tree)
     }
   }
 
@@ -121,7 +139,7 @@ trait BaseRelationalCompiler {
   var storedOutput: Set[Expression] = Set.empty
 }
 
-trait TableComprehensionRewriter extends LazyLogging with Symbols {
+trait TableComprehensionRewriter extends LazyLogging with Symbols with TableUtils {
   private def leafSyms: Expression => Set[Sym] = attr { tree =>
     tree match {
       case Expr(node) => node.children.map(c => c.asInstanceOf[Expression] -> leafSyms).foldLeft(Set.empty[Sym]) {_ ++ _}
@@ -129,24 +147,25 @@ trait TableComprehensionRewriter extends LazyLogging with Symbols {
     }
   }
 
-  def doAnalyze_(tree: Expression): ValidationNel[String, Unit] = tree match {
-    case Transform(Expr(TupleConstructor(in)), table, Expr(Pure(TupleConstructor(out)))) => //simple map comprehension - nothing to rewrite
-      //for each field, find out where it went and what transformations were applied
-      val ins = in.asInstanceOf[Vector[Sym]].toSet
-      val outs = out.map(expr => expr -> leafSyms)
+//  def doAnalyze_(tree: Expression): ValidationNel[String, Unit] = tree match {
+//    case Transform(Expr(TupleConstructor(in)), table, Expr(Pure(TupleConstructor(out)))) => //simple map comprehension - nothing to rewrite
+//      //for each field, find out where it went and what transformations were applied
+//      val ins = in.asInstanceOf[Vector[Sym]].toSet
+//      val outs = out.map(expr => expr -> leafSyms)
+//
+//      val dropped = ins diff (outs.reduce(_ ++ _)) //TODO move this to analyze/rewrite phase
+//      if (dropped.nonEmpty) {
+//        logger.debug(s"${dropped.size} of projected fields not used")
+//      }
+//      ().successNel[String]
+//    case _ => ().successNel[String]
+//  }
 
-      val dropped = ins diff (outs.reduce(_ ++ _)) //TODO move this to analyze/rewrite phase
-      if (dropped.nonEmpty) {
-        logger.debug(s"${dropped.size} of projected fields not used")
-      }
-      ().successNel[String]
-    case _ => ().successNel[String]
-  }
-
-  private def closestFilter: Expression => Option[Filter] = attr { tree =>
+  private def closestFilter: Expression => Option[(Generator, Atom)] = attr { tree =>
     tree match {
-      case f: Filter => f.some
-      case Project(_/> table, _) => table -> closestFilter
+      case _/> Filter(gen: Generator, _, filter) => (gen, filter).some
+      case _/> Join(_, _, InnerJoin, GenPlusFilter(gen, filter)) => (gen, filter).some
+//      case _/>Project(_/> table, _) => table -> closestFilter
       case _ => None
     }
   }
@@ -164,40 +183,30 @@ trait TableComprehensionRewriter extends LazyLogging with Symbols {
 
   def unnestTransforms: Strategy = rule[Expression] {
     //nested transformation whose result is a pure expression
-    case Transform(TupleConstructor(parSyms), parTable, _/> Transform(TupleConstructor(childSyms), childTable, _/> (select @ Pure(_)))) =>
+    case Transform(gPar: Generator, parTable,
+                  _/> Transform(gChild: Generator, childTable, _/> (select @ Pure(_)))) =>
       logger.debug("found candidates for a merge with pure output")
+
       //see if there is a filter that contains both parent and child syms
-      val filter: Option[(TupleConstructor, TTree)] = (childTable -> closestFilter) flatMap { filter =>
+      val filter: Option[(Generator, Atom)] = (childTable -> closestFilter) flatMap { filter =>
         logger.debug(s"Found a filter on child table $filter")
-        val Filter(generator, _, sel) = filter
+        val (filterGen, sel) = filter
         val filterSyms = sel -> leafSyms
-        if (filterSyms.intersect(parSyms.asInstanceOf[Vector[Sym]].toSet).nonEmpty &&
-          filterSyms.intersect(childSyms.asInstanceOf[Vector[Sym]].toSet).nonEmpty) {
+        val Generator(parSyms, _) = gPar
+
+        if (filterSyms.intersect(parSyms.toSet).nonEmpty) {
           logger.debug("filter selector contains syms from both parent and child transformation")
-          (generator, sel).some
+          val mergedGen = gPar.unifyWith(filterGen)
+          (mergedGen, sel).some
         } else {
           logger.debug("filter selector does not contain syms from both parent and child transformation")
           None
         }
       }
-      val generator = TupleConstructor(parSyms ++ childSyms)
-      val join = Join(parTable, childTable, if (filter.isDefined) InnerJoin else CartesianJoin, filter)
+
+      val generator = gPar.unifyWith(gChild)
+      val join = Join(parTable, childTable, if (filter.isEmpty) CartesianJoin else InnerJoin, filter)
+
       Transform(generator, join, select)
-//    case Expr(nested @ Transform(_, _, Expr(Transform(_, _, _)))) => //nested comprehension
-//      //collect all tables
-//      def collect(t: Transform, acc: Vector[(Vector[Expression], TTree)] = Vector.empty): (Vector[(Vector[Expression], TTree)], TTree) =
-//        t match {
-//          case Transform(TupleConstructor(gen), table, _/> (next @ Transform(_, _, _))) => collect(next, acc :+ (gen, table))
-//          case Transform(TupleConstructor(gen), table, _/> (select @ Pure(_))) => (acc :+ (gen, table), select)
-//        }
-//      val (gensTables, select) = collect(nested)
-//      val generator = TupleConstructor(gensTables.map(_._1).reduce(_ ++ _))
-//
-//      val fst +: snd +: tables = gensTables.map(_._2)
-//      val zero: Atom = Join(fst, snd, CartesianJoin, List.empty)
-//      val join = tables.foldLeft(zero)((join, right) => Join(join, right, CartesianJoin, List.empty))
-//      Transform(generator, join, select)
-//
-//    case _ => ???
   }
 }

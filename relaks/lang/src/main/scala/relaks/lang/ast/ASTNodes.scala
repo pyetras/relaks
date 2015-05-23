@@ -8,7 +8,7 @@ import scalaz.NonEmptyList
  * Created by Pietras on 26/03/15.
  */
 private[this] object syntax extends ToTypedTreeOps with ScalaTypeImplis
-import relaks.lang.ast.syntax._
+import syntax._
 
 sealed trait Tree extends Typed with Attributable {
   def mainToString: String = this.getClass.getSimpleName
