@@ -20,5 +20,5 @@ trait DSL
   with ListExtensions
   with TupleExtensions
   with ContCompiler {
-  private var stored = new mutable.MutableList[Rep[Any]]
+
 }
