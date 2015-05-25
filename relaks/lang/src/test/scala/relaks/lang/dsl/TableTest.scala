@@ -84,7 +84,7 @@ class TableTest extends FunSpec with Matchers with Inside with LazyLogging {
           cs: Row2[Int, Int] <- c(('cx, 'cy))
         } yield (as(0), as(1), bs(0), bs(1), cs(0), cs(1))
 
-        val strategy = repeat(oncetd(unnestTransforms))
+        val strategy = repeat(oncetd(rule[Expression](unnestTransforms)))
 //        analyze(res.tree)
         val transformed = strategy(res.tree).get.asInstanceOf[TTree]
 //        analyze(transformed)
@@ -105,7 +105,7 @@ class TableTest extends FunSpec with Matchers with Inside with LazyLogging {
           bs: Row2[Int, Int] <- b(('bx, 'by)) if as(0) === bs(0)
         } yield (as(1), bs(1))
 
-        val strategy = repeat(oncetd(unnestTransforms))
+        val strategy = repeat(oncetd(rule[Expression](unnestTransforms)))
         analyze(res.tree)
         val transformed = strategy(res.tree).get.asInstanceOf[TTree]
         transformed should matchPattern { case _/>Transform(_, _/>Join(_, _, InnerJoin, Some((_, _/>Apply(Stdlib.==, _)))), _/>(_: Pure)) => }
@@ -126,7 +126,7 @@ class TableTest extends FunSpec with Matchers with Inside with LazyLogging {
           cs: Row2[Int, Int] <- c(('cx, 'cy)) if as(0) === bs(0) && bs(0) === cs(0)
         } yield (as(0), as(1), bs(0), bs(1), cs(0), cs(1))
 
-        val strategy = repeat(oncetd(unnestTransforms))
+        val strategy = repeat(oncetd(rule[Expression](unnestTransforms)))
         analyze(res.tree)
         val transformed = strategy(res.tree).get.asInstanceOf[TTree]
         analyze(transformed)

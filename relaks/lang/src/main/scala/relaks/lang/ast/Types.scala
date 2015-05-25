@@ -57,6 +57,8 @@ final class TypedTable[T <: HList] extends NTable[_1]
 
 sealed class UntypedTableType extends UnliftedArgType[Table] {
   var constraints = Vector.empty[Any]
+
+  override def toString: String = s"UTTable"
 }
 
 sealed abstract class TypedTableType[T <: HList : TypeTag] extends UnliftedArgType[TypedTable[T]] with CompoundType {
