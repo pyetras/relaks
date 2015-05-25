@@ -19,7 +19,9 @@ sealed trait Query extends Expression with PrettyPrintable {
 
 
 sealed trait TableQuery extends Query
-trait GeneratorBase
+trait GeneratorBase {
+//  def unifyWith(other: GeneratorBase): GeneratorBase
+}
 
 sealed trait SingleSourceTransformation extends Query {
   override def sources: Seq[Atom] = stepTable.toSeq
@@ -38,11 +40,11 @@ sealed case class Transform(generator: GeneratorBase, table: Atom, select: Atom)
   override def stepTable: Option[Atom] = table.some
 }
 
-sealed case class Join(left: Atom, right: Atom, typ: JoinType, conditions: Option[(GeneratorBase, Atom)]) extends TableQuery {
+sealed case class Join(left: (GeneratorBase, Atom), right: (GeneratorBase, Atom), typ: JoinType, conditions: Option[(GeneratorBase, Atom)]) extends TableQuery {
   override def mainToString: String = withArgs(super.mainToString, (typ.toString +: conditions.toSeq.map(_._2.toString)):_*)
 
   override def stepTable: Option[Atom] = None
-  override def sources: Seq[Atom] = Seq(left, right)
+  override def sources: Seq[Atom] = Seq(left._2, right._2)
 }
 sealed trait JoinType {
   override def toString: String = this.getClass.getSimpleName

@@ -34,40 +34,19 @@ trait TableExtensions extends TableIO with TableOps with TableUtils {
 trait TableUtils extends Symbols {
   sealed trait ForTableQuery
 
-  type SymTables = Map[Sym, Set[Atom]]
+  type SymTables = Map[Sym, Symbol]
 
-  class Generator(val symsToFields: Map[Sym, Symbol], val symsToTables: Map[Sym, Sym @@ ForTableQuery]) extends GeneratorBase {
-    def this(syms_ : Vector[Sym], fields_ : Vector[Symbol], table_ : Sym @@ ForTableQuery) =
-      this(
-        (syms_ zip fields_).toMap,
-        (syms_ zip (0 until syms_.length).map(_ => table_)).toMap
-      )
-    
-    lazy val fieldsTables: Map[Symbol, Set[Sym @@ ForTableQuery]] = symsToFields.foldLeft(Map.empty[Symbol, Set[Sym @@ ForTableQuery]]) { (map, symField) =>
-      val (sym, field) = symField
-      map |+| Map(field -> Set(symsToTables(sym)))
-    }
+  class Generator(val symsToFields: SymTables) extends GeneratorBase {
+    def this(syms_ : Vector[Sym], fields_ : Vector[Symbol]) =
+      this((syms_ zip fields_).toMap)
 
-    def hasDuplicateNames = fieldsTables.any(_.size > 1)
+    def unifyWith(other: Generator): Generator = new Generator(symsToFields ++ other.symsToFields)
 
-    def unifyWith(other: Generator): Generator = new Generator(symsToFields ++ other.symsToFields, symsToTables ++ other.symsToTables)
+    def duplicates: Map[Symbol, Iterable[Sym]] = symsToFields.groupBy(_._2).mapValues(_.keys).filter(_._2.size > 1)
 
-    /**
-     * returns two generators, first contains only projections for table sym, second
-     * just projections for tables != sym
-     *
-     * @param sym
-     * @return
-     */
-    def splitOn(sym: Sym @@ ForTableQuery): (Generator, Generator) = {
-      val newSymsToTables = symsToTables.span(_._2 == sym)
-      val newSymsToFields = symsToFields.span(kv => newSymsToTables._1.contains(kv._1))
-      (new Generator(newSymsToFields._1, newSymsToTables._1), new Generator(newSymsToFields._2, newSymsToTables._2))
-    }
+    def contains(sym: Sym) = symsToFields.contains(sym)
 
-    override def toString: String = s"Generator[${symsToTables.groupBy(_._2).mapValues(_.keys) // Map[table -> sym]
-                                                  .map({case (table, syms) => s"($table: ${syms.map(s => symsToFields(s)).mkString(", ")})"})
-                                                  .mkString(", ")}]"
+    override def toString: String = s"Generator[${symsToFields.values.mkString(", ")}]"
   }
 
   implicit val generatorSemigroup: Semigroup[Generator] = new Semigroup[Generator] {
@@ -75,7 +54,7 @@ trait TableUtils extends Symbols {
   }
 
   object Generator {
-    def apply(syms: Vector[Sym], fields: Vector[Symbol], table: Sym @@ ForTableQuery) = new Generator(syms, fields, table)
+    def apply(syms: Vector[Sym], fields: Vector[Symbol]) = new Generator(syms, fields)
     def unapply(generator: Generator): Option[(Iterable[Sym], Iterable[Symbol])] = generator.symsToFields.unzip.some
   }
 
@@ -162,7 +141,7 @@ trait TableOps extends Symbols with TableUtils {
       val generator = new Rep[Tup[F]] {
           override val tree: Expression = tupleTree //TODO type
         }
-      (Generator(syms, fields, query -> getTable), generator)
+      (Generator(syms, fields), generator)
     }
 
     def flatMap[F <: HList](f: Rep[Tup[F]] => Rep[Table])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]) = {
@@ -241,24 +220,35 @@ trait BaseRelationalCompiler {
 }
 
 trait DrillCompiler extends BaseRelationalCompiler with Symbols with TableUtils with LazyLogging {
-  def collectProjections: (Vector[Generator], Atom) ==> Writer[Map[Sym, Generator], Unit] = {
+  type Duplicates = Map[Symbol, Iterable[Sym]]
+  type Renamer = Map[(Symbol, Sym @@ ForTableQuery), Symbol]
+  def collectDuplicates: (Vector[Duplicates], Atom) ==> Writer[Map[Sym, Generator], Unit] = {
     case (generators, Some(sym) /> (table: TableQuery)) => {
+
+      //unpack next steps and optionally include filter generators for join query
+      val (gens, sources): (Vector[Generator], Seq[(Vector[Generator], Atom)])= table match {
+        case Join((lgen: Generator, left), (rgen: Generator, right), _, cond) =>
+          (generators ++ cond.map(_._1.asInstanceOf[Generator]).toVector, Seq((Vector(lgen), left), (Vector(rgen), right)))
+        case QueryWithGenerator(gen, StepTable(next)) => (generators, Seq((Vector(gen), next)))
+        case StepTable(next) => (generators, Seq((Vector.empty[Generator], next)))
+        case _ => (generators, Seq.empty)
+      }
+
       logger.debug(s"collecting $generators")
+
       val tqSym = sym -> getTable //should be == sym
 
       //unify generators and select only relevant
-      val (m, otherGen) = generators.foldLeft1Opt(_ |+| _).map(gen => {
-        val (myGenerator, otherGenerator) = gen.splitOn(tqSym)
-        (Map((sym, myGenerator)), Vector(otherGenerator))
-      }).getOrElse((Map.empty[Sym, Generator], Vector.empty[Generator]))
+      val m = gens.foldLeft1Opt(_ |+| _).map(gen => {
+        Map((sym, gen))
+      }).getOrElse(Map.empty[Sym, Generator])
 
-      val Sources(sources) = table
-      sources.foldLeft(m.tell)((writer, source) => writer flatMap (_ => collectProjections((otherGen, source))))
+      sources.foldLeft(m.tell)((writer, genSource) => writer flatMap (_ => collectDuplicates(genSource)))
     }
-    case (generators, QueryWithGenerator(gen, StepTable(next))) => collectProjections((generators :+ gen, next))
+    case (generators, QueryWithGenerator(gen, StepTable(next))) => collectDuplicates((generators :+ gen, next))
   }
 
-  class CompileDrill(projections: Map[Sym, Set[Generator]], var queryEnv: Map[Sym, LogicalOperator] = Map.empty) {
+  class CompileDrill(projections: Map[Sym, Generator], var queryEnv: Map[Sym, LogicalOperator] = Map.empty) {
     var fieldsEnv = Map.empty[Sym, Symbol]
     def apply(root: Expression) = ???
 
@@ -269,7 +259,9 @@ trait DrillCompiler extends BaseRelationalCompiler with Symbols with TableUtils 
       case Some(sym) /> Query(q) =>
         val op = compileQuery(q)
 
-//        projections(sym).si
+//        val projected = projections.get(sym).flatMap(gen => {
+//
+//        }).getOrElse(op)
 
         queryEnv += ((sym, op))
         op
@@ -352,11 +344,12 @@ trait TableComprehensionRewriter extends LazyLogging with Symbols with TableUtil
 
   /**
    * Merges nested expressions into joins
+   * TODO change argument to atom
    * @return
    */
-  def unnestTransforms: Expression ==> Atom = {
+  def unnestTransforms: Expression ==> Unit = {
     //nested transformation whose result is a pure expression
-    case _ /> Transform(gPar: Generator, parTable,
+    case Some(sym) /> Transform(gPar: Generator, parTable,
     _ /> Transform(gChild: Generator, childTable, _ /> (select@Pure(_)))) =>
       logger.debug("found candidates for a merge with pure output")
 
@@ -380,9 +373,9 @@ trait TableComprehensionRewriter extends LazyLogging with Symbols with TableUtil
       }
 
       val generator = gPar.unifyWith(gChild)
-      val join = Join(parTable, childTable, if (filter.isEmpty) CartesianJoin else InnerJoin, filter)
+      val join = Join((gPar, parTable), (gChild, childTable), if (filter.isEmpty) CartesianJoin else InnerJoin, filter)
 
-      Transform(generator, join, select)
+      sym.replaceWith(Transform(generator, join, select))
   }
 
 }

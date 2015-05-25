@@ -13,7 +13,7 @@ import scalaz.Scalaz._
  */
 trait Symbols extends LazyLogging { self =>
 
-  private val definitions = new mutable.HashMap[Sym, Assignment]
+  private var definitions = Map.empty[Sym, Assignment]
   private var symCounter = 0
 
   private object NoOpExpr extends Expression with Leaf
@@ -52,6 +52,12 @@ trait Symbols extends LazyLogging { self =>
       case _ => false
     }
     override def hashCode() = name.hashCode()
+
+    def replaceWith(expr: Expression): Sym = {
+      assert(isDefined(this))
+      saveDefinition(this, expr)
+      this
+    }
 
     private def toString_(that: Expression => String) = if (isDefined(this)) s"↗${that(findDefinition(this).get)}" else "↗?"
 
