@@ -42,7 +42,9 @@ trait Symbols extends LazyLogging { self =>
     }
     override def hashCode() = name.hashCode()
 
-    override def mainToString: String = if (isDefined(this)) s"↗${findDefinition(this).get.mainToString}" else "↗?"
+    private def toString_(that: Expression => String) = if (isDefined(this)) s"↗${that(findDefinition(this).get)}" else "↗?"
+
+    override def mainToString: String = toString_(_.mainToString)
   }
 
   protected def fresh: Sym = {
@@ -85,7 +87,13 @@ trait Symbols extends LazyLogging { self =>
    * use _/> ... instead of Expr(...) (less parentheses)
    */
   object /*_*//> {
-    def unapply(expr: Expression) = Expr.unapply(expr).map(followed => ((), followed))
+    def unapply(expr: Expression): Option[(Option[Sym], Expression)] = {
+      val symOpt = expr match {
+        case s: Sym => Some(s)
+        case _ => None
+      }
+      Expr.unapply(expr).map(followed => (symOpt, followed))
+    }
   }
 
 }

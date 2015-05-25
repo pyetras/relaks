@@ -10,6 +10,8 @@ object BuildRelaks extends Build {
   val scalazVersion = "7.1.1"
   val _scalaVersion = "2.11.6"
 
+  val mavenLocal = "Local Maven Repository" at Path.userHome.asFile.toURI.toURL + "/.m2/repository"
+
   val basicSettings = Project.defaultSettings ++ Seq(
     version := "1.0",
     scalaVersion := _scalaVersion,
@@ -19,7 +21,8 @@ object BuildRelaks extends Build {
   val commonSettings = basicSettings ++ Seq(
     resolvers ++= Seq(
       Resolver.sonatypeRepo("releases"),
-      Resolver.sonatypeRepo("snapshots")
+      Resolver.sonatypeRepo("snapshots"),
+      mavenLocal
     ),
     libraryDependencies ++= Seq(
 //      "org.scalaz" %% "scalaz-core" % scalazVersion,

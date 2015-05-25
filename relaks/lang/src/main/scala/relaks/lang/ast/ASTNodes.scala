@@ -12,11 +12,11 @@ import syntax._
 
 sealed trait Tree extends Typed with Attributable {
   def mainToString: String = this.getClass.getSimpleName
-
-//    override def toString: String = mainToString //already overridden in Typed
+  protected def withArgs(main: String, args: String*) = s"${main}[${args.mkString(", ")}]"
+  //    override def toString: String = mainToString //already overridden in Typed
 }
 
-sealed trait Leaf extends Product{
+sealed trait Leaf extends Product {
   override def productElement(n: Int): Any = throw new IndexOutOfBoundsException(n.toString)
   override def productArity: Int = 0
   override def canEqual(that: Any): Boolean = this.getClass == that.getClass
@@ -29,7 +29,7 @@ case class Assignment(left: Expression, right: Expression) extends Statement
 case class Generate(exprs: NonEmptyList[Expression]) extends Statement
 object NoOp extends Statement with Leaf
 
-sealed trait Expression extends Tree
+trait Expression extends Tree
 
 trait Atom extends Expression
 
@@ -77,9 +77,9 @@ object Const {
 
 sealed case class ListConstructor(lst: Seq[Expression]) extends Expression
 
-sealed case class TupleConstructor(tuple: Vector[Expression]) extends Expression
-
-sealed case class LoadTableFromFs(path: String) extends Expression
+sealed case class TupleConstructor(tuple: Vector[Expression]) extends Expression {
+  val names = tuple.indices.map(i => s"x$i")
+}
 
 sealed trait NondetGenerator extends Expression
 sealed case class NondetGeneratorRange(from: Literal, to: Literal) extends NondetGenerator
@@ -128,5 +128,3 @@ object Inferred extends InferredRelation
 //  case class Optimization(method: String = "spearmint") extends SearchType
 //  object Grid extends SearchType
 //  case class Search(rels: NonEmptyList[Expression], typ: SearchType, statements: NonEmptyList[Statement]) extends Latin
-
-trait Query extends Expression

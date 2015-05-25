@@ -1,11 +1,12 @@
 package relaks.lang.dsl
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.typesafe.scalalogging.LazyLogging
 import org.scalatest.{FunSpec, Inside, Matchers}
 import relaks.lang.ast._
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl.extensions.ast._
-import relaks.lang.dsl.extensions.{TableComprehensionRewriter, TableExtensions}
+import relaks.lang.dsl.extensions.{DrillCompiler, TableComprehensionRewriter, TableExtensions}
 import shapeless._
 
 /**
@@ -129,7 +130,18 @@ class TableTest extends FunSpec with Matchers with Inside with LazyLogging {
         analyze(res.tree)
         val transformed = strategy(res.tree).get.asInstanceOf[TTree]
         analyze(transformed)
+        println(transformed.verboseString)
         transformed should matchPattern { case _/>Transform(_, _/>Join(_, _/>Join(_, _, InnerJoin, _), InnerJoin, _), _/>(_: Pure)) => }
+      }
+    }
+    describe("drill compiler") {
+      it("should compile a load table expression") {
+//        object Program extends TableExtensions with TableComprehensionRewriter with DrillCompiler
+//
+//        val table = Program.load("here")
+//        val mapper = new ObjectMapper()
+//        val obj = Program.compile(table.tree)
+//        println(mapper.writeValueAsString(obj))
       }
     }
   }

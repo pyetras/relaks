@@ -1,41 +1,58 @@
 package relaks.lang.dsl.extensions
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.typesafe.scalalogging.LazyLogging
+import org.apache.drill.common.JSONOptions
+import org.apache.drill.common.logical.data.{LogicalOperator, Scan, Transform => DrillTransform}
+import org.kiama.==>
 import org.kiama.attribution.Attribution.attr
 import org.kiama.rewriting.Rewriter.rule
-import org.kiama.rewriting.Strategy
+import org.kiama.rewriting.{Rewriter, Strategy}
 import relaks.lang.ast._
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl.AST.syntax._
 import relaks.lang.dsl._
 import relaks.lang.dsl.extensions.ast._
+import relaks.lang.dsl.utils.TreePrettyPrintable
 import shapeless._
 import shapeless.ops.nat.ToInt
 import shapeless.ops.tuple.ToTraversable
 import shapeless.ops.{hlist, tuple}
 
+import scala.collection.mutable
 import scala.language.{existentials, implicitConversions}
 import scalaz.Scalaz._
-import scalaz.ValidationNel
+import scalaz._
 
 /**
  * Created by Pietras on 17/05/15.
  */
-trait TableExtensions extends TableIO with TableOps {
-  
+trait TableExtensions extends TableIO with TableOps with TableUtils {
+
 }
 
 trait TableUtils extends Symbols {
-  class Generator(val symsToFields: Map[Sym, Symbol], val symsToTables: Map[Sym, Atom]) extends GeneratorBase {
-    def this(syms_ : Vector[Sym], fields_ : Vector[Symbol], table_ : Atom) =
-      this(syms_ zip fields_ toMap, syms_ zip (0 until syms_.length).map(_ => table_) toMap)
+  type SymTables = Map[Sym, Set[Atom]]
 
+  class Generator(val symsToFields: Map[Sym, Symbol], val symsToTables: Map[Sym, TableQuery]) extends GeneratorBase {
+    def this(syms_ : Vector[Sym], fields_ : Vector[Symbol], table_ : TableQuery) =
+      this(
+        (syms_ zip fields_).toMap,
+        (syms_ zip (0 until syms_.length).map(_ => table_)).toMap
+      )
+    
+    lazy val fieldsTables: Map[Symbol, Set[TableQuery]] = symsToFields.foldLeft(Map.empty[Symbol, Set[TableQuery]]) { (map, symField) => 
+      val (sym, field) = symField
+      map |+| Map(field -> Set(symsToTables(sym)))
+    }
+
+    def hasDuplicateNames = fieldsTables.any(_.size > 1)
 
     def unifyWith(other: Generator): Generator = new Generator(symsToFields ++ other.symsToFields, symsToTables ++ other.symsToTables)
   }
 
   object Generator {
-    def apply(syms: Vector[Sym], fields: Vector[Symbol], table: Atom) = new Generator(syms, fields, table)
+    def apply(syms: Vector[Sym], fields: Vector[Symbol], table: TableQuery) = new Generator(syms, fields, table)
     def unapply(generator: Generator): Option[(Iterable[Sym], Iterable[Symbol])] = generator.symsToFields.unzip.some
   }
 
@@ -43,6 +60,58 @@ trait TableUtils extends Symbols {
     def unapply(opt: Option[(GeneratorBase, Atom)]) = for {
       (g: Generator, filter) <- opt
     } yield (g, filter)
+  }
+
+  object Query {
+    def unapply(expr: Expression): Option[Query] = expr match {
+      case _/>(q : Query) => q.some
+      case _ => None
+    }
+  }
+
+  object StepTable {
+    def unapply(expr: Expression): Option[Atom] = expr match {
+      case _/> Query(q) => q.stepTable
+      case _ => None
+    }
+  }
+
+  object Sources {
+    def unapply(expr: Expression): Option[Seq[Atom]] = expr match {
+      case _/> Query(q) => q.sources.some
+      case _ => Seq.empty[Atom].some
+    }
+  }
+
+  object QueryWithGenerator {
+    def unapply(expr: Atom): Option[(Generator, Atom)] = expr match {
+      case t @ (_/> Transform(g: Generator, _, _)) => (g, t).some
+      case f @ (_/> Filter(g: Generator, _, _)) => (g, f).some
+      case group @ (_/> GroupBy(g: Generator, _, _)) => (g, group).some
+      case _ => None
+    }
+  }
+  class QueryPrettyPrintable(q: Query) extends TreePrettyPrintable {
+    override def printVerbose: Rdr = {
+      val printSubs: Rdr =
+        q.sources.foldLeft(noop)((rdr, source) => rdr.flatMap(_ => source match {
+          case _ /> Query(sourceq) => sourceq.printVerbose
+        }))
+
+      for {
+        _ <- println(q.mainToString)
+        _ <- indent {
+          printSubs
+        }
+      } yield ()
+    }
+  }
+
+  implicit def exprPrettyPrintable(expr: Expression): TreePrettyPrintable = expr match {
+    case _/>Query(q) => new QueryPrettyPrintable(q)
+    case _ => new TreePrettyPrintable {
+      override def printVerbose: Rdr = Reader(x => x._1 ++= expr.toString)
+    }
   }
 }
 
@@ -53,9 +122,14 @@ trait TableOps extends Symbols with TableUtils {
   type Row2[A, B] = Rep[Tup[A :: B :: HNil]]
   type Row3[A, B, C] = Rep[Tup[A :: B :: C :: HNil]]
 
-  class ProjectedTableComprehensions[FieldsLen <: Nat](fieldsLength: Int, fields: Vector[Symbol], table: Atom) extends Rep[Table] {
+  private val getTable: Atom => TableQuery = attr {
+    case _/>(table: TableQuery) => table
+    case StepTable(q) => q -> getTable
+  }
 
-    override val tree: Expression = table
+  class ProjectedTableComprehensions[FieldsLen <: Nat](fieldsLength: Int, fields: Vector[Symbol], query: Atom) extends Rep[Table] {
+
+    override val tree: Expression = query
 
     private def tupleGenerator[F <: HList](): (Generator, Rep[Tup[F]]) = {
       val syms = (0 until fieldsLength).map(_ => fresh).toVector
@@ -63,14 +137,14 @@ trait TableOps extends Symbols with TableUtils {
       val generator = new Rep[Tup[F]] {
           override val tree: Expression = tupleTree //TODO type
         }
-      (Generator(syms, fields, table), generator)
+      (Generator(syms, fields, query -> getTable), generator)
     }
 
     def flatMap[F <: HList](f: Rep[Tup[F]] => Rep[Table])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]) = {
       val (tupleTree, generator) = tupleGenerator()
       val mapper = f(generator)
       new Rep[Table] {
-        override val tree: Atom = Transform(tupleTree, table, mapper.tree)(new UntypedTableType)
+        override val tree: Atom = Transform(tupleTree, query, mapper.tree)(new UntypedTableType)
       }
     }
 
@@ -78,18 +152,20 @@ trait TableOps extends Symbols with TableUtils {
       flatMap((x:RowN[F]) => RowRep(f(x)))
     }
 
+    //todo: withfilter and filter should not force a projection,
+    // therefore additional class (TableMonadic, TableProjection and TableWithFilter) is required
     def withFilter(f: Rep[Tup[Nothing]] => Rep[Boolean]) = {
       val (generator, rep) = tupleGenerator()
       val cond = f(rep).tree
       cond match {
-        case Literal(true) => this //remove empty filters immediately, most likely occurs
+        case _/>Literal(true) => this //remove empty filters immediately, most likely occurs
                                    // with the cast matcher _.isInstanceOf in for comprehensions
         case _ => filterHelper(generator, cond)
       }
     }
 
     private def filterHelper(generator: Generator, cond: Expression): ProjectedTableComprehensions[FieldsLen] = {
-      val filteredTable = Filter(generator, table, cond)
+      val filteredTable = Filter(generator, query, cond)
       new Rep[Table] {
         override val tree: Expression = filteredTable
       }
@@ -139,6 +215,50 @@ trait BaseRelationalCompiler {
   var storedOutput: Set[Expression] = Set.empty
 }
 
+trait DrillCompiler extends BaseRelationalCompiler with Symbols with TableUtils with LazyLogging {
+  def collectProjections: (Set[Generator], Atom) ==> Writer[Map[TableQuery, Set[Generator]], Unit] = {
+    case (generators, _/>(table: TableQuery)) => {
+      val m = Map((table, generators))
+      val Sources(sources) = table
+      sources.foldLeft(m.tell)((writer, source) => writer flatMap (_ => collectProjections((Set.empty, source))))
+    }
+    case (generators, QueryWithGenerator(gen, StepTable(next))) => collectProjections((generators + gen, next))
+  }
+
+//  def compileLogical(expr: Atom) =
+//    expr match {
+//      case Some(sym) /> _ if symtab.contains(sym) => (symtab, symtable => symtable(sym))
+//      case Some(sym) /> (q: Query) =>
+//        compileQuery(q).flatMap(nodef => {
+//          val (node, f) = nodef
+//          SymState (newsymtab => (newsymtab + (sym -> node), f))
+//        }).apply(symtab)
+//    }
+//  }
+
+  def compileQuery(expr: Query) = expr match {
+    case LoadTableFromFs(path) =>
+      val json = "{\"format\" : {\"type\" : \"parquet\"},\"files\" : [ \"file:/tmp/nation\" ]}"
+      val mapper = new ObjectMapper()
+      val opts = mapper.readValue(json, classOf[JSONOptions])
+      val scan = new Scan("dfs", opts)
+      scan
+//    case t @ Transform(gen: Generator, table, select) =>
+//      if (gen.hasDuplicateNames) {
+//        logger.debug(s"expression $t has generator with duplicate names, will emit a projection")
+//      }
+//
+//      val transform = new DrillTransform()
+//
+//      val drillTable = compileLogical(table)
+//
+//      drillTable
+
+  }
+
+  def compileExpression(expr: Expression): String
+}
+
 trait TableComprehensionRewriter extends LazyLogging with Symbols with TableUtils {
   private def leafSyms: Expression => Set[Sym] = attr { tree =>
     tree match {
@@ -181,32 +301,43 @@ trait TableComprehensionRewriter extends LazyLogging with Symbols with TableUtil
     }
   }
 
-  def unnestTransforms: Strategy = rule[Expression] {
-    //nested transformation whose result is a pure expression
-    case Transform(gPar: Generator, parTable,
-                  _/> Transform(gChild: Generator, childTable, _/> (select @ Pure(_)))) =>
-      logger.debug("found candidates for a merge with pure output")
+  /**
+   * Merges nested expressions into joins
+   * @return
+   */
+  def unnestTransforms: Strategy = {
+    val transform: Expression ==> Atom = {
+      //nested transformation whose result is a pure expression
+      case _ /> Transform(gPar: Generator, parTable,
+      _ /> Transform(gChild: Generator, childTable, _ /> (select@Pure(_)))) =>
+        logger.debug("found candidates for a merge with pure output")
 
-      //see if there is a filter that contains both parent and child syms
-      val filter: Option[(Generator, Atom)] = (childTable -> closestFilter) flatMap { filter =>
-        logger.debug(s"Found a filter on child table $filter")
-        val (filterGen, sel) = filter
-        val filterSyms = sel -> leafSyms
-        val Generator(parSyms, _) = gPar
+        //see if there is a filter that contains both parent and child syms
+        //TODO split filters
+        //TODO remove old filter from tree
+        val filter: Option[(Generator, Atom)] = (childTable -> closestFilter) flatMap { filter =>
+          val (filterGen, sel) = filter
+          logger.debug(s"Found a filter on child table: $sel")
+          val filterSyms = sel -> leafSyms
+          val Generator(parSyms, _) = gPar
 
-        if (filterSyms.intersect(parSyms.toSet).nonEmpty) {
-          logger.debug("filter selector contains syms from both parent and child transformation")
-          val mergedGen = gPar.unifyWith(filterGen)
-          (mergedGen, sel).some
-        } else {
-          logger.debug("filter selector does not contain syms from both parent and child transformation")
-          None
+          if (filterSyms.intersect(parSyms.toSet).nonEmpty) {
+            logger.debug("filter selector contains syms from both parent and child transformation")
+            val mergedGen = gPar.unifyWith(filterGen)
+            (mergedGen, sel).some
+          } else {
+            logger.debug("filter selector does not contain syms from both parent and child transformation")
+            None
+          }
         }
-      }
 
-      val generator = gPar.unifyWith(gChild)
-      val join = Join(parTable, childTable, if (filter.isEmpty) CartesianJoin else InnerJoin, filter)
+        val generator = gPar.unifyWith(gChild)
+        val join = Join(parTable, childTable, if (filter.isEmpty) CartesianJoin else InnerJoin, filter)
 
-      Transform(generator, join, select)
+        Transform(generator, join, select)
+    }
+
+    rule[Expression](transform)
   }
+
 }
