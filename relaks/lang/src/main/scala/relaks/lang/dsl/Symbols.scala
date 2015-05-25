@@ -16,14 +16,25 @@ trait Symbols extends LazyLogging { self =>
   private val definitions = new mutable.HashMap[Sym, Assignment]
   private var symCounter = 0
 
-  sealed case class Sym(name: Int) extends Atom {
+  private object NoOpExpr extends Expression with Leaf
 
-    //kiama shit
-    def this(name: Int, expr: Expression) {
-      this(symCounter)
-//      logger.debug(s"constructing sym from $expr")
-      saveDefinition(this, expr)
-      symCounter += 1
+  class Sym(name_ : Int, expr_ : Expression) extends Atom {
+    //kiama shit. sym class must have only one constructor, otherwise
+    //an immense shitstorm is unleashed. if expr_ is a noop use the name_
+    //parameter, otherwise generate one on my own from symCounter and save
+    //expr_ to dictionary
+    val name = expr_ match {
+      case NoOpExpr => name_
+      case _ =>
+        val cnt = symCounter
+        symCounter += 1
+        cnt
+    }
+
+    expr_ match {
+      case NoOpExpr =>
+      case _ =>
+        saveDefinition(this, expr_)
     }
 
     override def productElement(n: Int): Any = {
@@ -45,6 +56,11 @@ trait Symbols extends LazyLogging { self =>
     private def toString_(that: Expression => String) = if (isDefined(this)) s"↗${that(findDefinition(this).get)}" else "↗?"
 
     override def mainToString: String = toString_(_.mainToString)
+  }
+
+  object Sym {
+    def apply(name: Int) = new Sym(name, NoOpExpr)
+    def unapply(sym: Sym) = sym.name.some
   }
 
   protected def fresh: Sym = {

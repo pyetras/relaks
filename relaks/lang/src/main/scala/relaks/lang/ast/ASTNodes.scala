@@ -16,7 +16,7 @@ sealed trait Tree extends Typed with Attributable {
   //    override def toString: String = mainToString //already overridden in Typed
 }
 
-sealed trait Leaf extends Product {
+trait Leaf extends Product {
   override def productElement(n: Int): Any = throw new IndexOutOfBoundsException(n.toString)
   override def productArity: Int = 0
   override def canEqual(that: Any): Boolean = this.getClass == that.getClass

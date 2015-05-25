@@ -39,12 +39,14 @@ sealed case class Transform(generator: GeneratorBase, table: Atom, select: Atom)
 }
 
 sealed case class Join(left: Atom, right: Atom, typ: JoinType, conditions: Option[(GeneratorBase, Atom)]) extends TableQuery {
-  override def mainToString: String = withArgs(super.mainToString, conditions.toSeq.map(_._2.toString):_*)
+  override def mainToString: String = withArgs(super.mainToString, (typ.toString +: conditions.toSeq.map(_._2.toString)):_*)
 
   override def stepTable: Option[Atom] = None
   override def sources: Seq[Atom] = Seq(left, right)
 }
-sealed trait JoinType
+sealed trait JoinType {
+  override def toString: String = this.getClass.getSimpleName
+}
 object CartesianJoin extends JoinType
 object InnerJoin extends JoinType
 
