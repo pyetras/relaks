@@ -25,17 +25,21 @@ trait Symbols extends LazyLogging { self =>
     //expr_ to dictionary
     val name = expr_ match {
       case NoOpExpr => name_
-      case _ =>
-        val cnt = symCounter
-        symCounter += 1
-        cnt
+      case _ => name_
     }
 
     expr_ match {
       case NoOpExpr =>
-      case _ =>
-        saveDefinition(this, expr_)
+      case _ => //logger.debug(s"wazzup rewrite $expr_")
+//        saveDefinition(this, expr_)
+//        replaceWith(expr_)
     }
+
+    // TODO decide: either run everything as a query, make sym duplication create
+    // new syms or make sym duplication replace old syms
+    // simple duplication by copying just the name does not work well with kiama
+    // since ancestor's syms are not being rewritten, they still point to the old
+    // versions of the ancestors
 
     override def productElement(n: Int): Any = {
       if (n == 0) self //kiama shit. first element is the class scope
@@ -53,10 +57,10 @@ trait Symbols extends LazyLogging { self =>
     }
     override def hashCode() = name.hashCode()
 
-    def replaceWith(expr: Expression): Sym = {
+    def replaceWith(expr: Expression): Sym = { //TODO: make this dependent on context
       assert(isDefined(this))
       saveDefinition(this, expr)
-      this
+      Sym(name) //returns new sym to reset kiama's attribution
     }
 
     private def toString_(that: Expression => String) = if (isDefined(this)) s"↗${that(findDefinition(this).get)}" else "↗?"

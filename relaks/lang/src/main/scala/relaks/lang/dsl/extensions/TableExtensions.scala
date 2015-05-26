@@ -31,100 +31,26 @@ trait TableExtensions extends TableIO with TableOps with TableUtils {
 
 }
 
-trait TableUtils extends Symbols {
+trait TableUtils extends Symbols with Queries {
   sealed trait ForTableQuery
-
-  type SymTables = Map[Sym, Symbol]
-
-  class Generator(val symsToFields: SymTables) extends GeneratorBase {
-    def this(syms_ : Vector[Sym], fields_ : Vector[Symbol]) =
-      this((syms_ zip fields_).toMap)
-
-    def unifyWith(other: Generator): Generator = new Generator(symsToFields ++ other.symsToFields)
-
-    def duplicates: Map[Symbol, Iterable[Sym]] = symsToFields.groupBy(_._2).mapValues(_.keys).filter(_._2.size > 1)
-
-    def contains(sym: Sym) = symsToFields.contains(sym)
-
-    override def toString: String = s"Generator[${symsToFields.values.mkString(", ")}]"
-  }
-
-  implicit val generatorSemigroup: Semigroup[Generator] = new Semigroup[Generator] {
-    override def append(f1: Generator, f2: => Generator): Generator = f1.unifyWith(f2)
-  }
-
-  object Generator {
-    def apply(syms: Vector[Sym], fields: Vector[Symbol]) = new Generator(syms, fields)
-    def unapply(generator: Generator): Option[(Iterable[Sym], Iterable[Symbol])] = generator.symsToFields.unzip.some
-  }
-
-  object GenPlusFilter {
-    def unapply(opt: Option[(GeneratorBase, Atom)]) = for {
-      (g: Generator, filter) <- opt
-    } yield (g, filter)
-  }
-
-  object Query {
-    def unapply(expr: Expression): Option[Query] = expr match {
-      case _/>(q : Query) => q.some
-      case _ => None
-    }
-  }
-
-  object StepTable {
-    def unapply(expr: Expression): Option[Atom] = expr match {
-      case _/> Query(q) => q.stepTable
-      case _ => None
-    }
-  }
-
-  object Sources {
-    def unapply(expr: Expression): Option[Seq[Atom]] = expr match {
-      case _/> Query(q) => q.sources.some
-      case _ => Seq.empty[Atom].some
-    }
-  }
-
-  object QueryWithGenerator {
-    def unapply(expr: Atom): Option[(Generator, Atom)] = expr match {
-      case t @ (_/> Transform(g: Generator, _, _)) => (g, t).some
-      case f @ (_/> Filter(g: Generator, _, _)) => (g, f).some
-      case group @ (_/> GroupBy(g: Generator, _, _)) => (g, group).some
-      case _ => None
-    }
-  }
-
-  class QueryPrettyPrintable(q: Query) extends TreePrettyPrintable {
-    override def printVerbose: Rdr = {
-      val printSubs: Rdr =
-        q.sources.foldLeft(noop)((rdr, source) => rdr.flatMap(_ => source match {
-          case _ /> Query(sourceq) => sourceq.printVerbose
-        }))
-
-      for {
-        _ <- println(q.mainToString)
-        _ <- indent {
-          printSubs
-        }
-      } yield ()
-    }
-  }
-
-  implicit def exprPrettyPrintable(expr: Expression): TreePrettyPrintable = expr match {
-    case _/>Query(q) => new QueryPrettyPrintable(q)
-    case _ => new TreePrettyPrintable {
-      override def printVerbose: Rdr = Reader(x => x._1 ++= expr.toString)
-    }
-  }
 
   protected val getTable: Atom => Sym @@ ForTableQuery = attr {
     case Some(sym) /> (_: TableQuery) => Tag(sym)
     case StepTable(q) => q -> getTable
   }
 
+  def forTable(sym: Sym): Sym @@ ForTableQuery = ForTable.unapply(sym).get
+
+  object ForTable {
+    def unapply(sym: Sym) = sym match {
+      case Some(s) /> (_: TableQuery) => Tag[Sym, ForTableQuery](s).some
+      case _ => None
+    }
+  }
+
 }
 
-trait TableOps extends Symbols with TableUtils {
+trait TableOps extends Symbols with Queries {
 
   type RowN[L <: HList] = Rep[Tup[L]]
   type Row[A] = Rep[Tup[A :: HNil]]
@@ -136,19 +62,16 @@ trait TableOps extends Symbols with TableUtils {
     override val tree: Expression = query
 
     private def tupleGenerator[F <: HList](): (Generator, Rep[Tup[F]]) = {
-      val syms = (0 until fieldsLength).map(_ => fresh).toVector
-      val tupleTree = TupleConstructor(syms) //todo types
-      val generator = new Rep[Tup[F]] {
-          override val tree: Expression = tupleTree //TODO type
-        }
-      (Generator(syms, fields), generator)
+      val gen = Generator.fromFields(fields)
+      val tuple = gen.toTuple[F] //todo types
+      (gen, tuple)
     }
 
     def flatMap[F <: HList](f: Rep[Tup[F]] => Rep[Table])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]) = {
-      val (tupleTree, generator) = tupleGenerator()
-      val mapper = f(generator)
+      val (gen, tuple) = tupleGenerator()
+      val mapper = f(tuple)
       new Rep[Table] {
-        override val tree: Atom = Transform(tupleTree, query, mapper.tree)(new UntypedTableType)
+        override val tree: Atom = Transform(gen, query, mapper.tree)(new UntypedTableType)
       }
     }
 
@@ -194,12 +117,6 @@ trait TableOps extends Symbols with TableUtils {
     }
   }
 
-  private object RowRep {
-    def apply[T <: HList](t: Rep[Tup[T]]) = new Rep[Table] {
-      override val tree: Expression = Pure(t.tree)(new UntypedTableType)
-    }
-  }
-
   implicit def addTableOps(t: Rep[Table]): TableOperations = new TableOperations(t)
 }
 
@@ -219,37 +136,45 @@ trait BaseRelationalCompiler {
   var storedOutput: Set[Expression] = Set.empty
 }
 
-trait DrillCompiler extends BaseRelationalCompiler with Symbols with TableUtils with LazyLogging {
-  type Duplicates = Map[Symbol, Iterable[Sym]]
-  type Renamer = Map[(Symbol, Sym @@ ForTableQuery), Symbol]
-  def collectDuplicates: (Vector[Duplicates], Atom) ==> Writer[Map[Sym, Generator], Unit] = {
-    case (generators, Some(sym) /> (table: TableQuery)) => {
+trait DrillCompiler extends BaseRelationalCompiler with Symbols with Queries with LazyLogging with TableUtils {
+  type Duplicate = Map[Symbol, Vector[Sym]]
+  type Renamer = Map[(Sym @@ ForTableQuery, Symbol), Symbol]
 
-      //unpack next steps and optionally include filter generators for join query
-      val (gens, sources): (Vector[Generator], Seq[(Vector[Generator], Atom)])= table match {
+  def collectDuplicates: (Vector[Duplicate], Atom) ==> Writer[Map[Sym @@ ForTableQuery, Duplicate], Unit] = {
+    case (duplicates, Some(sym) /> (table: TableQuery)) => {
+
+      //unpack next steps and optionally include filter duplicates for join query
+      val (dups, sources): (Vector[Duplicate], Seq[(Vector[Duplicate], Atom)])= table match {
         case Join((lgen: Generator, left), (rgen: Generator, right), _, cond) =>
-          (generators ++ cond.map(_._1.asInstanceOf[Generator]).toVector, Seq((Vector(lgen), left), (Vector(rgen), right)))
-        case QueryWithGenerator(gen, StepTable(next)) => (generators, Seq((Vector(gen), next)))
-        case StepTable(next) => (generators, Seq((Vector.empty[Generator], next)))
-        case _ => (generators, Seq.empty)
+          (duplicates ++ cond.map(_._1.asInstanceOf[Generator].duplicates).toVector, Seq((Vector(lgen.duplicates), left), (Vector(rgen.duplicates), right)))
+
+        case QueryWithGenerator(gen, StepTable(next)) => (duplicates, Seq((Vector(gen.duplicates), next)))
+
+        case StepTable(next) => (duplicates, Seq((Vector.empty[Duplicate], next)))
+
+        case _ => (duplicates, Seq.empty)
       }
 
-      logger.debug(s"collecting $generators")
+      if (dups.filter(_.size > 0).nonEmpty) logger.debug(s"collecting $dups")
 
-      val tqSym = sym -> getTable //should be == sym
-
-      //unify generators and select only relevant
-      val m = gens.foldLeft1Opt(_ |+| _).map(gen => {
-        Map((sym, gen))
-      }).getOrElse(Map.empty[Sym, Generator])
+      //get biggest name conflict for each symbol
+      //might break, as multiple syms can belong to one generator, it should be a max
+      //of a generator mapping - actually right now should never be greater > 2 so no problem lol
+      implicit val vecOrder: scala.Ordering[Vector[Sym]] = new scala.Ordering[Vector[Sym]] {
+        override def compare(x: Vector[Sym], y: Vector[Sym]): Int = x.length compare y.length
+      }
+      val m = dups.map(_.mapValues(iter => Vector(iter)))
+                  .foldLeft1Opt(_ |+| _).map(_.mapValues(_.max))
+                  .filter(_.nonEmpty)
+                  .map(dup => Map((forTable(sym), dup))).getOrElse(Map.empty[Sym @@ ForTableQuery, Duplicate])
 
       sources.foldLeft(m.tell)((writer, genSource) => writer flatMap (_ => collectDuplicates(genSource)))
     }
-    case (generators, QueryWithGenerator(gen, StepTable(next))) => collectDuplicates((generators :+ gen, next))
+    case (duplicates, QueryWithGenerator(gen, StepTable(next))) => collectDuplicates((duplicates :+ gen.duplicates, next))
   }
 
-  class CompileDrill(projections: Map[Sym, Generator], var queryEnv: Map[Sym, LogicalOperator] = Map.empty) {
-    var fieldsEnv = Map.empty[Sym, Symbol]
+  class CompileDrill(duplicates: Map[Sym @@ ForTableQuery, Duplicate], var queryEnv: Map[Sym, LogicalOperator] = Map.empty) {
+    var fieldsEnv: Renamer = Map.empty
     def apply(root: Expression) = ???
 
 //    private def duplicateFields: Seq[()]
@@ -257,14 +182,54 @@ trait DrillCompiler extends BaseRelationalCompiler with Symbols with TableUtils 
     protected def compile(expr: Expression): LogicalOperator = expr match {
       case Some(sym) /> _ if queryEnv.contains(sym) => queryEnv(sym)
       case Some(sym) /> Query(q) =>
+        materializeProjections.applyOrElse(expr, (_: Expression) => ())
+
         val op = compileQuery(q)
 
-//        val projected = projections.get(sym).flatMap(gen => {
-//
-//        }).getOrElse(op)
 
         queryEnv += ((sym, op))
         op
+    }
+
+    def materializeProjections: Expression ==> Unit = {
+      case Some(joinSym@ForTable(sym)) /> (join@Join((gleft: Generator, left), (gright: Generator, right), _, _)) if duplicates.contains(sym) =>
+        //group by generator each sym belongs to
+        //there are only two generators
+        //each of them must have at least one sym from duplicates
+        //each sym must belong to either one or the other
+        val dups = duplicates(sym)
+        dups.mapValues(syms => Seq(gleft, gright).filter(gen => syms.any(sym => gen.contains(sym))))
+          .mapValues(gens => if (gens.length != 2) {
+          logger.error(s"duplicate syms belong just to $gens, while they should be in ($gleft, $gright)")
+          throw new IllegalArgumentException
+        })
+
+        val extra = dups.mapValues(syms => syms.all(sym => Seq(gleft, gright).exists(_.contains(sym)))).find(kv => !kv._2)
+        if (extra.isDefined) {
+          logger.error(s"got field ${extra.get._1} that doesn't belong to any source generator")
+          throw new IllegalArgumentException
+        }
+
+        //select all but one subquery
+        //always select right
+        val _ /> Query(subTable) = right
+
+        def rename(field: Symbol, sym: Sym): Symbol = {
+          //TODO something safer
+          Symbol(s"${field}___${sym.name}")
+        }
+        val fields = dups.toVector.map(kv => (kv._1, rename(kv._1, kv._2.head)))
+        fields.foreach { case (old, n) => fieldsEnv += (((right -> getTable, old), n)) }
+        //apply projections to those selections
+        val projection = Project(subTable, fields)
+
+        //update syms
+        //its dangerous to update something else than self (maps are indexed by syms)
+        //        subSym.replaceWith(projection)
+        val newJoin = join.copy(right = (gright, projection))
+        joinSym.replaceWith(newJoin)
+      //        newJoin
+      //kiama does not really rewrite syms un
     }
 
     def compileQuery(expr: Query): LogicalOperator = expr match {
@@ -274,6 +239,7 @@ trait DrillCompiler extends BaseRelationalCompiler with Symbols with TableUtils 
         val opts = mapper.readValue(json, classOf[JSONOptions])
         val scan = new Scan("dfs", opts)
         scan
+
 //      case t @ Transform(gen: Generator, table, select) =>
 //        val parent = compile(table)
 //        val transform = new DrillTransform()
@@ -300,7 +266,7 @@ trait DrillCompiler extends BaseRelationalCompiler with Symbols with TableUtils 
 
 }
 
-trait TableComprehensionRewriter extends LazyLogging with Symbols with TableUtils {
+trait TableComprehensionRewriter extends LazyLogging with Symbols with Queries {
   private def leafSyms: Expression => Set[Sym] = attr { tree =>
     tree match {
       case Expr(node) => node.children.map(c => c.asInstanceOf[Expression] -> leafSyms).foldLeft(Set.empty[Sym]) {_ ++ _}
