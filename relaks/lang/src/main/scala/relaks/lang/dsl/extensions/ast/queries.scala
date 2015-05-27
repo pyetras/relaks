@@ -44,7 +44,6 @@ sealed case class Transform(generator: GeneratorBase, table: Atom, select: Atom)
   override def stepTable: Option[Atom] = table.some
 }
 
-
 sealed case class Join(left: (GeneratorBase, Atom), right: (GeneratorBase, Atom), typ: JoinType, conditions: Option[(GeneratorBase, Atom)]) extends TableQuery {
   override def mainToString: String = withArgs(super.mainToString, (typ.toString +: conditions.toSeq.map(_._2.toString)):_*)
 
@@ -87,7 +86,7 @@ trait Queries extends Symbols {
   type SymTables = Map[Sym, Symbol]
 
   class Generator(val symsToFields: SymTables, syms: Option[Vector[Sym]] = None) extends GeneratorBase {
-    lazy private val symsVector = syms.getOrElse(symsToFields.keys.toVector)
+    lazy val symsVector = syms.getOrElse(symsToFields.keys.toVector)
 
     def unifyWith(other: Generator): Generator = new Generator(symsToFields ++ other.symsToFields)
 

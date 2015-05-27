@@ -2,8 +2,10 @@ package relaks.lang.dsl.extensions
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.typesafe.scalalogging.LazyLogging
+import org.apache.calcite.rel.core.JoinRelType
 import org.apache.drill.common.JSONOptions
-import org.apache.drill.common.logical.data.{LogicalOperator, Scan, Transform => DrillTransform}
+import org.apache.drill.common.expression.{LogicalExpression, FieldReference}
+import org.apache.drill.common.logical.data.{Transform => DrillTransform, Join => DrillJoin, NamedExpression, JoinCondition, LogicalOperator, Scan}
 import org.kiama.==>
 import org.kiama.attribution.Attribution.attr
 import org.kiama.rewriting.Rewriter.rule
@@ -57,7 +59,7 @@ trait TableOps extends Symbols with Queries {
   type Row2[A, B] = Rep[Tup[A :: B :: HNil]]
   type Row3[A, B, C] = Rep[Tup[A :: B :: C :: HNil]]
 
-  class ProjectedTableComprehensions[FieldsLen <: Nat](fieldsLength: Int, fields: Vector[Symbol], query: Atom) extends Rep[Table] {
+  class ProjectedTableComprehensions[FieldsLen <: Nat](fields: Vector[Symbol], query: Atom) extends Rep[Table] {
 
     override val tree: Expression = query
 
@@ -96,7 +98,7 @@ trait TableOps extends Symbols with Queries {
       new Rep[Table] {
         override val tree: Expression = filteredTable
       }
-      new ProjectedTableComprehensions[FieldsLen](fieldsLength, fields, filteredTable)
+      new ProjectedTableComprehensions[FieldsLen](fields, filteredTable)
     }
 
     //TODO: a filter version that does not cause projection
@@ -113,7 +115,7 @@ trait TableOps extends Symbols with Queries {
                                                       fieldsLength: ToInt[FieldsLen],
                                                       toVector: ToTraversable.Aux[P, Vector, Symbol]) = {
 
-      new ProjectedTableComprehensions[FieldsLen](fieldsLength(), toVector(fields), arg1.tree)
+      new ProjectedTableComprehensions[FieldsLen](toVector(fields), arg1.tree)
     }
   }
 
@@ -146,7 +148,8 @@ trait DrillCompiler extends BaseRelationalCompiler with Symbols with Queries wit
       //unpack next steps and optionally include filter duplicates for join query
       val (dups, sources): (Vector[Duplicate], Seq[(Vector[Duplicate], Atom)])= table match {
         case Join((lgen: Generator, left), (rgen: Generator, right), _, cond) =>
-          (duplicates ++ cond.map(_._1.asInstanceOf[Generator].duplicates).toVector, Seq((Vector(lgen.duplicates), left), (Vector(rgen.duplicates), right)))
+          (duplicates ++ cond.map(_._1.asInstanceOf[Generator].duplicates).toVector,
+            Seq((Vector(lgen.duplicates), left), (Vector(rgen.duplicates), right)))
 
         case QueryWithGenerator(gen, StepTable(next)) => (duplicates, Seq((Vector(gen.duplicates), next)))
 
@@ -155,7 +158,7 @@ trait DrillCompiler extends BaseRelationalCompiler with Symbols with Queries wit
         case _ => (duplicates, Seq.empty)
       }
 
-      if (dups.filter(_.size > 0).nonEmpty) logger.debug(s"collecting $dups")
+      if (dups.exists(_.nonEmpty)) logger.debug(s"collecting $dups")
 
       //get biggest name conflict for each symbol
       //might break, as multiple syms can belong to one generator, it should be a max
@@ -173,21 +176,28 @@ trait DrillCompiler extends BaseRelationalCompiler with Symbols with Queries wit
     case (duplicates, QueryWithGenerator(gen, StepTable(next))) => collectDuplicates((duplicates :+ gen.duplicates, next))
   }
 
-  class CompileDrill(duplicates: Map[Sym @@ ForTableQuery, Duplicate], var queryEnv: Map[Sym, LogicalOperator] = Map.empty) {
+  class CompileDrill(duplicates: Map[Sym @@ ForTableQuery, Duplicate], val queryEnv: Map[Sym, LogicalOperator] = Map.empty) {
     var fieldsEnv: Renamer = Map.empty
-    def apply(root: Expression) = ???
+    var emittedQueries: Map[Sym, LogicalOperator] = Map.empty
+
+    private def fromCache(sym: Sym) = queryEnv.get(sym).orElse(emittedQueries.get(sym))
+
+    def apply(root: Expression): Map[Sym, LogicalOperator] = {
+      compile(root)
+      emittedQueries
+    }
 
 //    private def duplicateFields: Seq[()]
 
     protected def compile(expr: Expression): LogicalOperator = expr match {
-      case Some(sym) /> _ if queryEnv.contains(sym) => queryEnv(sym)
+      case Some(sym) /> _ if fromCache(sym).isDefined =>
+        val op = fromCache(sym).get
+        emittedQueries += ((sym, op))
+        op
       case Some(sym) /> Query(q) =>
-        materializeProjections.applyOrElse(expr, (_: Expression) => ())
-
+//        materializeProjections.applyOrElse(expr, (_: Expression) => ()) // do this in a separate phase
         val op = compileQuery(q)
-
-
-        queryEnv += ((sym, op))
+        emittedQueries += ((sym, op))
         op
     }
 
@@ -219,7 +229,7 @@ trait DrillCompiler extends BaseRelationalCompiler with Symbols with Queries wit
           Symbol(s"${field}___${sym.name}")
         }
         val fields = dups.toVector.map(kv => (kv._1, rename(kv._1, kv._2.head)))
-        fields.foreach { case (old, n) => fieldsEnv += (((right -> getTable, old), n)) }
+        fields.foreach { case (old, n) => fieldsEnv += (((sym, old), n)) }
         //apply projections to those selections
         val projection = Project(subTable, fields)
 
@@ -227,30 +237,47 @@ trait DrillCompiler extends BaseRelationalCompiler with Symbols with Queries wit
         //its dangerous to update something else than self (maps are indexed by syms)
         //        subSym.replaceWith(projection)
         val newJoin = join.copy(right = (gright, projection))
-        joinSym.replaceWith(newJoin)
-      //        newJoin
-      //kiama does not really rewrite syms un
+        joinSym.replaceWith(newJoin) //see symbols -> sym constructor
     }
 
-    def compileQuery(expr: Query): LogicalOperator = expr match {
+    lazy val mapper = new ObjectMapper()
+
+    def compileQuery(q: Query): LogicalOperator = q match {
       case LoadTableFromFs(path) =>
-        val json = "{\"format\" : {\"type\" : \"parquet\"},\"files\" : [ \"file:/tmp/nation\" ]}"
-        val mapper = new ObjectMapper()
-        val opts = mapper.readValue(json, classOf[JSONOptions])
+        val optionsJson = "{\"format\" : {\"type\" : \"parquet\"},\"files\" : [ \"file:"  + path + "\" ]}"
+        val opts = mapper.readValue(optionsJson, classOf[JSONOptions])
         val scan = new Scan("dfs", opts)
         scan
+      case Join((_, left), (_, right), typ, conditions) =>
+        val leftOp = compile(left)
+        val rightOp = compile(right)
 
-//      case t @ Transform(gen: Generator, table, select) =>
-//        val parent = compile(table)
-//        val transform = new DrillTransform()
-//
-//        transform.setInput(parent)
-//
-//        drillTable
+        val joinT = typ match {
+          case CartesianJoin => JoinRelType.INNER
+          case InnerJoin => JoinRelType.INNER
+        }
 
+        new DrillJoin(leftOp, rightOp, Array.empty[JoinCondition], joinT)
+
+      case Transform(gen: Generator, source, _/>Pure(_/>(select: TupleConstructor))) =>
+        val sourceOp = compile(source)
+        val table = source -> getTable
+
+        val env = (sym: Sym) => fieldsEnv.getOrElse((table, gen.symsToFields(sym)), gen.symsToFields(sym)).toString()
+        val transforms = compilePureRow(select)(env).zip(select.names).map
+          { case (expr, name) => new NamedExpression(mapper.readValue(expr, classOf[LogicalExpression]), new FieldReference(name)) }
+
+        val transform = new DrillTransform(transforms.toArray)
+        transform.setInput(sourceOp)
+        transform
     }
 
-    def compileExpression(expr: Expression): String = ???
+    def compilePureRow(tup: TupleConstructor): ((Sym => String) => Vector[String]) = (env: Sym => String) =>
+      tup.tuple.map {
+        case _ /> link => ???
+        case s: Sym => env(s)
+      }
+
   }
 
 //  def compileLogical(expr: Atom) =

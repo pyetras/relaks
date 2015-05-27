@@ -2,9 +2,12 @@ package relaks.lang.dsl
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.typesafe.scalalogging.LazyLogging
-import org.scalatest.{BeforeAndAfterEach, FunSpec, Inside, Matchers}
+import org.apache.drill.common.logical.data.Scan
+import org.scalatest.enablers.Collecting
+import org.scalatest._
 import relaks.lang.ast._
 import relaks.lang.dsl.AST._
+import relaks.lang.dsl.extensions.ast.Filter
 import relaks.lang.dsl.extensions.ast._
 import relaks.lang.dsl.extensions.{DrillCompiler, TableComprehensionRewriter, TableExtensions}
 import shapeless._
@@ -12,7 +15,7 @@ import shapeless._
 /**
  * Created by Pietras on 22/05/15.
  */
-class TableTest extends FunSpec with Matchers with Inside with LazyLogging {
+class TableTest extends FunSpec with Matchers with Inside with LoneElement with LazyLogging {
 
   describe("table extensions") {
     describe("syntax for untyped tables") {
@@ -136,12 +139,13 @@ class TableTest extends FunSpec with Matchers with Inside with LazyLogging {
     }
     describe("drill compiler") {
       it("should compile a load table expression") {
-//        object Program extends TableExtensions with TableComprehensionRewriter with DrillCompiler
-//
-//        val table = Program.load("here")
-//        val mapper = new ObjectMapper()
-//        val obj = Program.compile(table.tree)
-//        println(mapper.writeValueAsString(obj))
+        object Program extends TableExtensions with TableComprehensionRewriter with DrillCompiler
+
+        val table = Program.load("here")
+        val compiler = new Program.CompileDrill(Map.empty)
+        val result = compiler(table.tree)
+
+        result.loneElement should matchPattern { case (_, _: Scan) => }
       }
 
       it("should generate projections") {
