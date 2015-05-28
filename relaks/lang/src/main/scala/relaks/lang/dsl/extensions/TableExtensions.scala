@@ -12,7 +12,7 @@ import org.apache.drill.common.expression.{SchemaPath, LogicalExpression, FieldR
 import org.apache.drill.common.logical.data.{Transform => DrillTransform, Join => DrillJoin, NamedExpression, JoinCondition, LogicalOperator, Scan}
 import org.kiama.==>
 import org.kiama.attribution.Attribution.attr
-import org.kiama.rewriting.Rewriter.rule
+import org.kiama.rewriting.Rewriter.{query, manybu, repeat, oncetd}
 import org.kiama.rewriting.{Rewriter, Strategy}
 import relaks.lang.ast._
 import relaks.lang.dsl.AST._
@@ -45,15 +45,8 @@ trait TableUtils extends Symbols with Queries {
     case StepTable(q) => q -> getTable
   }
 
-  def forTable(sym: Sym): Sym @@ ForTableQuery = ForTable.unapply(sym).get
-
-  object ForTable {
-    def unapply(sym: Sym) = sym match {
-      case Some(s) /> (_: TableQuery) => Tag[Sym, ForTableQuery](s).some
-      case _ => None
-    }
-  }
-
+  protected type Duplicate = Map[Symbol, Vector[Sym]]
+  protected type Renamer = Map[Sym @@ ForTableQuery, Map[Symbol, Symbol]]
 }
 
 trait TableOps extends Symbols with Queries {
@@ -142,119 +135,43 @@ trait BaseRelationalCompiler {
   var storedOutput: Set[Expression] = Set.empty
 }
 
-trait DrillCompiler extends BaseRelationalCompiler with Symbols with Queries with LazyLogging with TableUtils {
-  type Duplicate = Map[Symbol, Vector[Sym]]
-  type Renamer = Map[(Sym @@ ForTableQuery, Symbol), Symbol]
-
-  def collectDuplicates: (Vector[Duplicate], Atom) ==> Writer[Map[Sym @@ ForTableQuery, Duplicate], Unit] = {
-    case (duplicates, Some(sym) /> (table: TableQuery)) => {
-
-      //unpack next steps and optionally include filter duplicates for join query
-      val (dups, sources): (Vector[Duplicate], Seq[(Vector[Duplicate], Atom)])= table match {
-        case Join((lgen: Generator, left), (rgen: Generator, right), _, cond) =>
-          (duplicates ++ cond.map(_._1.asInstanceOf[Generator].duplicates).toVector,
-            Seq((Vector(lgen.duplicates), left), (Vector(rgen.duplicates), right)))
-
-        case QueryWithGenerator(gen, StepTable(next)) => (duplicates, Seq((Vector(gen.duplicates), next)))
-
-        case StepTable(next) => (duplicates, Seq((Vector.empty[Duplicate], next)))
-
-        case _ => (duplicates, Seq.empty)
-      }
-
-      if (dups.exists(_.nonEmpty)) logger.debug(s"collecting $dups")
-
-      //get biggest name conflict for each symbol
-      //might break, as multiple syms can belong to one generator, it should be a max
-      //of a generator mapping - actually right now should never be greater > 2 so no problem lol
-      implicit val vecOrder: scala.Ordering[Vector[Sym]] = new scala.Ordering[Vector[Sym]] {
-        override def compare(x: Vector[Sym], y: Vector[Sym]): Int = x.length compare y.length
-      }
-      val m = dups.map(_.mapValues(iter => Vector(iter)))
-                  .foldLeft1Opt(_ |+| _).map(_.mapValues(_.max))
-                  .filter(_.nonEmpty)
-                  .map(dup => Map((forTable(sym), dup))).getOrElse(Map.empty[Sym @@ ForTableQuery, Duplicate])
-
-      sources.foldLeft(m.tell)((writer, genSource) => writer flatMap (_ => collectDuplicates(genSource)))
-    }
-    case (duplicates, QueryWithGenerator(gen, StepTable(next))) => collectDuplicates((duplicates :+ gen.duplicates, next))
+trait DrillCompilers extends BaseRelationalCompiler with Symbols with Queries with LazyLogging with TableUtils {
+  private lazy val mapper = {
+    val m = new ObjectMapper
+    val deserModule: SimpleModule = new SimpleModule("LogicalExpressionDeserializationModule")
+      .addDeserializer(classOf[LogicalExpression], new LogicalExpression.De(null))
+      .addDeserializer(classOf[SchemaPath], new SchemaPath.De(null))
+    m.registerModule(deserModule)
+    m.enable(SerializationFeature.INDENT_OUTPUT)
+    m.configure(Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+    m.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true)
+    m.configure(Feature.ALLOW_COMMENTS, true)
+    m
   }
 
-  class CompileDrill(duplicates: Map[Sym @@ ForTableQuery, Duplicate], val queryEnv: Map[Sym, LogicalOperator] = Map.empty) {
-    var fieldsEnv: Renamer = Map.empty
-    var emittedQueries: Map[Sym, LogicalOperator] = Map.empty
-
+  sealed trait DrillCompilerBase {
+    protected val fieldsEnv: Renamer
+    protected var emittedQueries: Map[Sym, LogicalOperator] = Map.empty
+    protected val queryEnv: Map[Sym, LogicalOperator]
+  }
+  
+  trait DrillCompilerPart extends DrillCompilerBase {
     private def fromCache(sym: Sym) = queryEnv.get(sym).orElse(emittedQueries.get(sym))
 
-    def apply(root: Expression): Writer[Map[Sym, LogicalOperator], LogicalOperator] = {
-      val result = compile(root)
-      Writer(emittedQueries, result)
-    }
-
-//    private def duplicateFields: Seq[()]
-
-    protected def compile(expr: Expression): LogicalOperator = expr match {
+    def compileDrill(expr: Expression): LogicalOperator = expr match {
       case Some(sym) /> _ if fromCache(sym).isDefined =>
         val op = fromCache(sym).get
         emittedQueries += ((sym, op))
         op
       case Some(sym) /> Query(q) =>
-//        materializeProjections.applyOrElse(expr, (_: Expression) => ()) // do this in a separate phase
+        //        materializeProjections.applyOrElse(expr, (_: Expression) => ()) // do this in a separate phase
         val op = compileQuery(q)
         emittedQueries += ((sym, op))
         op
     }
 
-    def materializeProjections: Expression ==> Unit = {
-      case Some(joinSym@ForTable(sym)) /> (join@Join((gleft: Generator, left), (gright: Generator, right), _, _)) if duplicates.contains(sym) =>
-        //group by generator each sym belongs to
-        //there are only two generators
-        //each of them must have at least one sym from duplicates
-        //each sym must belong to either one or the other
-        val dups = duplicates(sym)
-        dups.mapValues(syms => Seq(gleft, gright).filter(gen => syms.any(sym => gen.contains(sym))))
-          .mapValues(gens => if (gens.length != 2) {
-          logger.error(s"duplicate syms belong just to $gens, while they should be in ($gleft, $gright)")
-          throw new IllegalArgumentException
-        })
-
-        val extra = dups.mapValues(syms => syms.all(sym => Seq(gleft, gright).exists(_.contains(sym)))).find(kv => !kv._2)
-        if (extra.isDefined) {
-          logger.error(s"got field ${extra.get._1} that doesn't belong to any source generator")
-          throw new IllegalArgumentException
-        }
-
-        //select all but one subquery
-        //always select right
-        val _ /> Query(subTable) = right
-
-        def rename(field: Symbol, sym: Sym): Symbol = {
-          //TODO something safer
-          Symbol(s"${field.name}___${sym.name}")
-        }
-        val fields = dups.toVector.map(kv => (kv._1, rename(kv._1, kv._2.head)))
-        fields.foreach { case (old, n) => fieldsEnv += (((sym, old), n)) }
-        //apply projections to those selections
-        val projection = Project(subTable, fields)
-
-        //update syms
-        //its dangerous to update something else than self (maps are indexed by syms)
-        //        subSym.replaceWith(projection)
-        val newJoin = join.copy(right = (gright, projection))
-        joinSym.replaceWith(newJoin) //see symbols -> sym constructor
-    }
-
-    lazy val mapper = {
-      val m = new ObjectMapper
-      val deserModule: SimpleModule = new SimpleModule("LogicalExpressionDeserializationModule")
-        .addDeserializer(classOf[LogicalExpression], new LogicalExpression.De(null))
-        .addDeserializer(classOf[SchemaPath], new SchemaPath.De(null))
-      m.registerModule(deserModule)
-      m.enable(SerializationFeature.INDENT_OUTPUT)
-      m.configure(Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-      m.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true)
-      m.configure(Feature.ALLOW_COMMENTS, true)
-      m
+    private def fieldName(table: Sym @@ ForTableQuery, trueName: Sym => Symbol)(sym: Sym) = {
+      fieldsEnv.get(table).flatMap(_.get(trueName(sym))).getOrElse(trueName(sym)).name
     }
 
     def compileQuery(q: Query): LogicalOperator = q match {
@@ -263,9 +180,10 @@ trait DrillCompiler extends BaseRelationalCompiler with Symbols with Queries wit
         val opts = mapper.readValue(optionsJson, classOf[JSONOptions])
         val scan = new Scan("dfs", opts)
         scan
+
       case Join((_, left), (_, right), typ, conditions) =>
-        val leftOp = compile(left)
-        val rightOp = compile(right)
+        val leftOp = compileDrill(left)
+        val rightOp = compileDrill(right)
 
         val joinT = typ match {
           case CartesianJoin => JoinRelType.INNER
@@ -275,12 +193,12 @@ trait DrillCompiler extends BaseRelationalCompiler with Symbols with Queries wit
         new DrillJoin(leftOp, rightOp, Array.empty[JoinCondition], joinT)
 
       case Transform(gen: Generator, source, _/>Pure(_/>(select: TupleConstructor))) =>
-        val sourceOp = compile(source)
+        val sourceOp = compileDrill(source)
         val table = source -> getTable
 
-        val env = (sym: Sym) => fieldsEnv.getOrElse((table, gen.symsToFields(sym)), gen.symsToFields(sym)).name
+        val env = fieldName(table, gen.symsToFields) _
         val transforms = compilePureRow(select)(env).zip(select.names).map
-          { case (expr, name) => new NamedExpression(mapper.readValue(expr, classOf[LogicalExpression]), new FieldReference(name)) }
+        { case (expr, name) => new NamedExpression(mapper.readValue(expr, classOf[LogicalExpression]), new FieldReference(name)) }
 
         val transform = new DrillTransform(transforms.toArray)
         transform.setInput(sourceOp)
@@ -292,23 +210,18 @@ trait DrillCompiler extends BaseRelationalCompiler with Symbols with Queries wit
         case _ /> link => ???
         case s: Sym => s""""`${env(s)}`""""
       }
-
   }
 
-//  def compileLogical(expr: Atom) =
-//    expr match {
-//      case Some(sym) /> _ if symtab.contains(sym) => (symtab, symtable => symtable(sym))
-//      case Some(sym) /> (q: Query) =>
-//        compileQuery(q).flatMap(nodef => {
-//          val (node, f) = nodef
-//          SymState (newsymtab => (newsymtab + (sym -> node), f))
-//        }).apply(symtab)
-//    }
-//  }
+  class CompileDrill(override val fieldsEnv: Renamer, override val queryEnv: Map[Sym, LogicalOperator] = Map.empty) extends DrillCompilerPart {
+    def apply(root: Expression): Writer[Map[Sym, LogicalOperator], LogicalOperator] = {
+      val result = compileDrill(root)
+      Writer(emittedQueries, result)
+    }
+  }
 
 }
 
-trait TableComprehensionRewriter extends LazyLogging with Symbols with Queries {
+trait TableCompilerPhases extends LazyLogging with Symbols with Queries with TableUtils {
   private def leafSyms: Expression => Set[Sym] = attr { tree =>
     tree match {
       case Expr(node) => node.children.map(c => c.asInstanceOf[Expression] -> leafSyms).foldLeft(Set.empty[Sym]) {_ ++ _}
@@ -350,12 +263,112 @@ trait TableComprehensionRewriter extends LazyLogging with Symbols with Queries {
     }
   }
 
+  def collectDuplicates: (Atom) ==> Writer[Map[Sym @@ ForTableQuery, Duplicate], Unit] = {
+
+    def collectDuplicatesHlp: (Vector[Duplicate], Atom) ==> Writer[Map[Sym @@ ForTableQuery, Duplicate], Unit] = {
+      case (duplicates, Some(sym) /> (table: TableQuery)) => {
+
+        //unpack next steps and optionally include filter duplicates for join query
+        val (dups, sources): (Vector[Duplicate], Seq[(Vector[Duplicate], Atom)]) = table match {
+          case Join((lgen: Generator, left), (rgen: Generator, right), _, cond) =>
+            (duplicates ++ cond.map(_._1.asInstanceOf[Generator].duplicates).toVector,
+              Seq((Vector(lgen.duplicates), left), (Vector(rgen.duplicates), right)))
+
+          case QueryWithGenerator(gen, StepTable(next)) => (duplicates, Seq((Vector(gen.duplicates), next)))
+
+          case StepTable(next) => (duplicates, Seq((Vector.empty[Duplicate], next)))
+
+          case _ => (duplicates, Seq.empty)
+        }
+
+        if (dups.exists(_.nonEmpty)) logger.debug(s"collecting $dups")
+
+        //get biggest name conflict for each symbol
+        //might break, as multiple syms can belong to one generator, it should be a max
+        //of a generator mapping - actually right now should never be greater > 2 so no problem lol
+        implicit val vecOrder: scala.Ordering[Vector[Sym]] = new scala.Ordering[Vector[Sym]] {
+          override def compare(x: Vector[Sym], y: Vector[Sym]): Int = x.length compare y.length
+        }
+        val m = dups.map(_.mapValues(iter => Vector(iter)))
+          .foldLeft1Opt(_ |+| _).map(_.mapValues(_.max))
+          .filter(_.nonEmpty)
+          .map(dup => Map((forTable(sym), dup))).getOrElse(Map.empty[Sym @@ ForTableQuery, Duplicate])
+
+        sources.foldLeft(m.tell)((writer, genSource) => writer flatMap (_ => collectDuplicatesHlp(genSource)))
+      }
+      case (duplicates, QueryWithGenerator(gen, StepTable(next))) => collectDuplicatesHlp((duplicates :+ gen.duplicates, next))
+    }
+
+    { case a: Atom if collectDuplicatesHlp.isDefinedAt((Vector.empty, a)) => collectDuplicatesHlp((Vector.empty, a)) }
+  }
+
+  //Map[(Sym @@ ForTableQuery, Symbol), Symbol]
+  def renameFields(duplicates: Map[Sym @@ ForTableQuery, Duplicate]): Renamer = {
+    duplicates.flatMap {
+      case (sym, dups) =>
+        def rename(field: Symbol, sym: Sym): Symbol = {
+          //TODO something safer
+          Symbol(s"${field.name}___${sym.name}")
+        }
+        val fields = dups.toVector.map(kv => (kv._1, rename(kv._1, kv._2.head)))
+        Map((sym, fields.toMap))
+    }
+  }
+
+  def validateDuplicates(duplicates: Map[Sym @@ ForTableQuery, Duplicate]): ValidationNel[String, Unit] = {
+    duplicates.foldLeft(().successNel[String])((acc, symDups) => (Tag.unwrap(symDups._1), symDups._2) match {
+      case (Some(ForTable(sym)) /> (join@Join((gleft: Generator, _), (gright: Generator, _), _, _)), dups) =>
+      //group by generator each sym belongs to
+      //there are only two generators
+      //each of them must have at least one sym from duplicates
+      val dups = duplicates(sym)
+      val containsFromBothValidation = dups.mapValues(syms => Seq(gleft, gright).filter(gen => syms.any(sym => gen.contains(sym))))
+        .find(kgens => kgens._2.length != 2)
+        .map(kgens => s"duplicate syms belong just to ${kgens._2}, while they should be in ($gleft, $gright)".failureNel[Unit])
+        .getOrElse(().successNel[String])
+
+      //each sym must belong to either one or the other
+      val extra = dups.mapValues(syms => syms.all(sym => Seq(gleft, gright).exists(_.contains(sym)))).find(kv => !kv._2)
+      val extraSymsValidation = extra.map(e => s"got field ${e._1} that doesn't belong to any source generator".failureNel)
+                                     .getOrElse(().successNel)
+
+      acc *> containsFromBothValidation *> extraSymsValidation
+    })
+  }
+
+  //TODO: make this safe to apply repeatedly
+  def materializeProjections(fieldsEnv: Renamer) =
+    manybu(query[Expression](materializeProjections_(fieldsEnv))) andThen (_.map(_.asInstanceOf[Expression]))
+  private def materializeProjections_(fieldsEnv: Renamer): Expression ==> Unit = {
+    case Some(joinSym@ForTable(sym)) /> (join@Join(_, (gright: Generator, right), _, _)) if fieldsEnv.contains(sym) =>
+      //select all but one subquery
+      //always select right
+      val _ /> Query(subTable) = right
+
+      def rename(field: Symbol, sym: Sym): Symbol = {
+        //TODO something safer
+        Symbol(s"${field.name}___${sym.name}")
+      }
+      val fields = fieldsEnv(sym).toVector
+
+      //apply projections to those selections
+      val projection = Project(subTable, fields)
+
+      //update syms
+      //its dangerous to update something else than self (maps are indexed by syms)
+      //        subSym.replaceWith(projection)
+      val newJoin = join.copy(right = (gright, projection))
+      joinSym.replaceWith(newJoin) //see symbols -> sym constructor
+  }
+
+
   /**
    * Merges nested expressions into joins
    * TODO change argument to atom
    * @return
    */
-  def unnestTransforms: Expression ==> Unit = {
+  val fuseTransforms = repeat(oncetd(query[Expression](unnestTransforms_))) andThen (_.map(_.asInstanceOf[Expression]))
+  private def unnestTransforms_ : Expression ==> Unit = {
     //nested transformation whose result is a pure expression
     case Some(sym) /> Transform(gPar: Generator, parTable,
     _ /> Transform(gChild: Generator, childTable, _ /> (select@Pure(_)))) =>
@@ -385,5 +398,15 @@ trait TableComprehensionRewriter extends LazyLogging with Symbols with Queries {
 
       sym.replaceWith(Transform(generator, join, select))
   }
+
+  private def forTable(sym: Sym): Sym @@ ForTableQuery = ForTable.unapply(sym).get
+
+  private object ForTable {
+    def unapply(sym: Sym) = sym match {
+      case Some(s) /> (_: TableQuery) => Tag[Sym, ForTableQuery](s).some
+      case _ => None
+    }
+  }
+
 
 }
