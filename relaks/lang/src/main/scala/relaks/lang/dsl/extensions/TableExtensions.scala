@@ -1,10 +1,14 @@
 package relaks.lang.dsl.extensions
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.core.JsonGenerator
+import com.fasterxml.jackson.core.JsonParser.Feature
+import com.fasterxml.jackson.databind.{SerializationFeature, ObjectMapper}
+import com.fasterxml.jackson.databind.module.SimpleModule
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.calcite.rel.core.JoinRelType
 import org.apache.drill.common.JSONOptions
-import org.apache.drill.common.expression.{LogicalExpression, FieldReference}
+import org.apache.drill.common.config.DrillConfig
+import org.apache.drill.common.expression.{SchemaPath, LogicalExpression, FieldReference}
 import org.apache.drill.common.logical.data.{Transform => DrillTransform, Join => DrillJoin, NamedExpression, JoinCondition, LogicalOperator, Scan}
 import org.kiama.==>
 import org.kiama.attribution.Attribution.attr
@@ -182,9 +186,9 @@ trait DrillCompiler extends BaseRelationalCompiler with Symbols with Queries wit
 
     private def fromCache(sym: Sym) = queryEnv.get(sym).orElse(emittedQueries.get(sym))
 
-    def apply(root: Expression): Map[Sym, LogicalOperator] = {
-      compile(root)
-      emittedQueries
+    def apply(root: Expression): Writer[Map[Sym, LogicalOperator], LogicalOperator] = {
+      val result = compile(root)
+      Writer(emittedQueries, result)
     }
 
 //    private def duplicateFields: Seq[()]
@@ -226,7 +230,7 @@ trait DrillCompiler extends BaseRelationalCompiler with Symbols with Queries wit
 
         def rename(field: Symbol, sym: Sym): Symbol = {
           //TODO something safer
-          Symbol(s"${field}___${sym.name}")
+          Symbol(s"${field.name}___${sym.name}")
         }
         val fields = dups.toVector.map(kv => (kv._1, rename(kv._1, kv._2.head)))
         fields.foreach { case (old, n) => fieldsEnv += (((sym, old), n)) }
@@ -240,7 +244,18 @@ trait DrillCompiler extends BaseRelationalCompiler with Symbols with Queries wit
         joinSym.replaceWith(newJoin) //see symbols -> sym constructor
     }
 
-    lazy val mapper = new ObjectMapper()
+    lazy val mapper = {
+      val m = new ObjectMapper
+      val deserModule: SimpleModule = new SimpleModule("LogicalExpressionDeserializationModule")
+        .addDeserializer(classOf[LogicalExpression], new LogicalExpression.De(null))
+        .addDeserializer(classOf[SchemaPath], new SchemaPath.De(null))
+      m.registerModule(deserModule)
+      m.enable(SerializationFeature.INDENT_OUTPUT)
+      m.configure(Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+      m.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true)
+      m.configure(Feature.ALLOW_COMMENTS, true)
+      m
+    }
 
     def compileQuery(q: Query): LogicalOperator = q match {
       case LoadTableFromFs(path) =>
@@ -263,7 +278,7 @@ trait DrillCompiler extends BaseRelationalCompiler with Symbols with Queries wit
         val sourceOp = compile(source)
         val table = source -> getTable
 
-        val env = (sym: Sym) => fieldsEnv.getOrElse((table, gen.symsToFields(sym)), gen.symsToFields(sym)).toString()
+        val env = (sym: Sym) => fieldsEnv.getOrElse((table, gen.symsToFields(sym)), gen.symsToFields(sym)).name
         val transforms = compilePureRow(select)(env).zip(select.names).map
           { case (expr, name) => new NamedExpression(mapper.readValue(expr, classOf[LogicalExpression]), new FieldReference(name)) }
 
@@ -275,7 +290,7 @@ trait DrillCompiler extends BaseRelationalCompiler with Symbols with Queries wit
     def compilePureRow(tup: TupleConstructor): ((Sym => String) => Vector[String]) = (env: Sym => String) =>
       tup.tuple.map {
         case _ /> link => ???
-        case s: Sym => env(s)
+        case s: Sym => s""""`${env(s)}`""""
       }
 
   }

@@ -2,7 +2,7 @@ package relaks.lang.dsl
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.typesafe.scalalogging.LazyLogging
-import org.apache.drill.common.logical.data.Scan
+import org.apache.drill.common.logical.data.{Transform => DrillTransform, LogicalOperator, Scan}
 import org.scalatest.enablers.Collecting
 import org.scalatest._
 import relaks.lang.ast._
@@ -141,11 +141,27 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
       it("should compile a load table expression") {
         object Program extends TableExtensions with TableComprehensionRewriter with DrillCompiler
 
-        val table = Program.load("here")
+        val table = Program.load("hello")
         val compiler = new Program.CompileDrill(Map.empty)
-        val result = compiler(table.tree)
-
+        val result = compiler(table.tree).written.asInstanceOf[Map[Program.Sym, LogicalOperator]] //cast needed by lone element
         result.loneElement should matchPattern { case (_, _: Scan) => }
+      }
+
+      it("should compile a simple transform") {
+        object Program extends DSL with TableExtensions with TableComprehensionRewriter with DrillCompiler
+        import Program._
+
+        val a = Program.load("hello")
+        val res = for {
+          as: Row2[Int, Int] <- a(('ax, 'ay))
+        } yield (as(0), as(1))
+
+        val compiler = new CompileDrill(Map.empty)
+        val result = compiler(res.tree).written
+
+        result.values.toSeq should have length 2
+        result.values.exists(_.isInstanceOf[DrillTransform]) should be(true)
+        result.values.exists(_.isInstanceOf[Scan]) should be(true)
       }
 
       it("should generate projections") {
