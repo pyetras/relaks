@@ -119,7 +119,7 @@ trait TableOps extends Symbols with Queries {
   implicit def addTableOps(t: Rep[Table]): TableOperations = new TableOperations(t)
 }
 
-trait TableIO extends Symbols with BaseRelationalCompiler {
+trait TableIO extends Symbols with BaseRelationalCompilers {
   def load(path: String): Rep[Table] = new Rep[Table] {
     override val tree: Atom = LoadTableFromFs(path)(new UntypedTableType)
   }
@@ -131,11 +131,75 @@ trait TableIO extends Symbols with BaseRelationalCompiler {
   def store[T <: Table](table: Rep[T]): Unit = storedOutput += table.tree
 }
 
-trait BaseRelationalCompiler {
+trait BaseRelationalCompilers extends Symbols with Queries with TableUtils {
   var storedOutput: Set[Expression] = Set.empty
+
+  sealed trait RelationalCompilerPartBase {
+    protected val fieldsEnv: Renamer
+    protected def fieldName(table: Sym @@ ForTableQuery, trueName: Sym => Symbol)(sym: Sym) = {
+      fieldsEnv.get(table).flatMap(_.get(trueName(sym))).getOrElse(trueName(sym)).name
+    }
+
+    type NodeType
+    protected var emittedQueries: Map[Sym, NodeType] = Map.empty
+    protected val queryEnv: Map[Sym, NodeType]
+    protected def fromCache(sym: Sym) = queryEnv.get(sym).orElse(emittedQueries.get(sym))
+
+    final protected def compileTable(expr: Expression): NodeType = expr match {
+      case Some(sym) /> _ if fromCache(sym).isDefined =>
+        val op = fromCache(sym).get
+        emittedQueries += ((sym, op))
+        op
+      case Some(sym) /> Query(q) =>
+        val op = compileQuery(q)
+        emittedQueries += ((sym, op))
+        op
+    }
+
+    def compileQuery(q: Query): NodeType
+  }
+
+  abstract class CompileRelational extends RelationalCompilerPartBase {
+    def apply(root: Expression): Writer[Map[Sym, NodeType], NodeType] = {
+      val result = compileTable(root)
+      Writer(emittedQueries, result)
+    }
+  }
 }
 
-trait DrillCompilers extends BaseRelationalCompiler with Symbols with Queries with LazyLogging with TableUtils {
+trait SQLCompilers extends BaseRelationalCompilers {
+  trait SQLCompilerPart extends RelationalCompilerPartBase {
+    override type NodeType = String
+
+    override def compileQuery(q: Query): NodeType = q match {
+      case LoadTableFromFs(path) =>
+        s"select * from $path"
+      case Join((_, left), (_, right), typ, conditions) =>
+        s"select * from (${compileTable(left)}) join (${compileTable(right)})"
+      case Transform(gen: Generator, source, _/>Pure(_/>(select: TupleConstructor))) =>
+        val sourceOp = compileTable(source)
+        val table = source -> getTable
+
+        val env = fieldName(table, gen.symsToFields) _
+        val transforms = compilePureRow(select)(env).zip(select.names).map
+        { case (expr, name) => s"$expr as $name" }
+
+        s"select ${transforms.mkString(", ")} from ($sourceOp)"
+    }
+
+    private def compilePureRow(tup: TupleConstructor): ((Sym => String) => Vector[String]) = (env: Sym => String) =>
+      tup.tuple.map {
+        case _ /> link => ???
+        case s: Sym => s"""`${env(s)}`"""
+      }
+  }
+
+  class CompileSQL(override val fieldsEnv: Renamer, override val queryEnv: Map[Sym, String] = Map.empty)
+    extends CompileRelational with SQLCompilerPart
+
+}
+
+trait DrillCompilers extends BaseRelationalCompilers with Symbols with Queries with LazyLogging with TableUtils {
   private lazy val mapper = {
     val m = new ObjectMapper
     val deserModule: SimpleModule = new SimpleModule("LogicalExpressionDeserializationModule")
@@ -149,32 +213,10 @@ trait DrillCompilers extends BaseRelationalCompiler with Symbols with Queries wi
     m
   }
 
-  sealed trait DrillCompilerBase {
-    protected val fieldsEnv: Renamer
-    protected var emittedQueries: Map[Sym, LogicalOperator] = Map.empty
-    protected val queryEnv: Map[Sym, LogicalOperator]
-  }
-  
-  trait DrillCompilerPart extends DrillCompilerBase {
-    private def fromCache(sym: Sym) = queryEnv.get(sym).orElse(emittedQueries.get(sym))
+  trait DrillCompilerPart extends RelationalCompilerPartBase {
+    override type NodeType = LogicalOperator
 
-    def compileDrill(expr: Expression): LogicalOperator = expr match {
-      case Some(sym) /> _ if fromCache(sym).isDefined =>
-        val op = fromCache(sym).get
-        emittedQueries += ((sym, op))
-        op
-      case Some(sym) /> Query(q) =>
-        //        materializeProjections.applyOrElse(expr, (_: Expression) => ()) // do this in a separate phase
-        val op = compileQuery(q)
-        emittedQueries += ((sym, op))
-        op
-    }
-
-    private def fieldName(table: Sym @@ ForTableQuery, trueName: Sym => Symbol)(sym: Sym) = {
-      fieldsEnv.get(table).flatMap(_.get(trueName(sym))).getOrElse(trueName(sym)).name
-    }
-
-    def compileQuery(q: Query): LogicalOperator = q match {
+    override def compileQuery(q: Query): LogicalOperator = q match {
       case LoadTableFromFs(path) =>
         val optionsJson = "{\"format\" : {\"type\" : \"parquet\"},\"files\" : [ \"file:"  + path + "\" ]}"
         val opts = mapper.readValue(optionsJson, classOf[JSONOptions])
@@ -182,8 +224,8 @@ trait DrillCompilers extends BaseRelationalCompiler with Symbols with Queries wi
         scan
 
       case Join((_, left), (_, right), typ, conditions) =>
-        val leftOp = compileDrill(left)
-        val rightOp = compileDrill(right)
+        val leftOp = compileTable(left)
+        val rightOp = compileTable(right)
 
         val joinT = typ match {
           case CartesianJoin => JoinRelType.INNER
@@ -193,7 +235,7 @@ trait DrillCompilers extends BaseRelationalCompiler with Symbols with Queries wi
         new DrillJoin(leftOp, rightOp, Array.empty[JoinCondition], joinT)
 
       case Transform(gen: Generator, source, _/>Pure(_/>(select: TupleConstructor))) =>
-        val sourceOp = compileDrill(source)
+        val sourceOp = compileTable(source)
         val table = source -> getTable
 
         val env = fieldName(table, gen.symsToFields) _
@@ -205,19 +247,15 @@ trait DrillCompilers extends BaseRelationalCompiler with Symbols with Queries wi
         transform
     }
 
-    def compilePureRow(tup: TupleConstructor): ((Sym => String) => Vector[String]) = (env: Sym => String) =>
+    private def compilePureRow(tup: TupleConstructor): ((Sym => String) => Vector[String]) = (env: Sym => String) =>
       tup.tuple.map {
         case _ /> link => ???
         case s: Sym => s""""`${env(s)}`""""
       }
   }
-
-  class CompileDrill(override val fieldsEnv: Renamer, override val queryEnv: Map[Sym, LogicalOperator] = Map.empty) extends DrillCompilerPart {
-    def apply(root: Expression): Writer[Map[Sym, LogicalOperator], LogicalOperator] = {
-      val result = compileDrill(root)
-      Writer(emittedQueries, result)
-    }
-  }
+  
+  class CompileDrill(override val fieldsEnv: Renamer, override val queryEnv: Map[Sym, LogicalOperator] = Map.empty)
+    extends CompileRelational with DrillCompilerPart
 
 }
 
@@ -263,7 +301,7 @@ trait TableCompilerPhases extends LazyLogging with Symbols with Queries with Tab
     }
   }
 
-  def collectDuplicates: (Atom) ==> Writer[Map[Sym @@ ForTableQuery, Duplicate], Unit] = {
+  def collectDuplicates: (Atom) ==> Map[Sym @@ ForTableQuery, Duplicate] = {
 
     def collectDuplicatesHlp: (Vector[Duplicate], Atom) ==> Writer[Map[Sym @@ ForTableQuery, Duplicate], Unit] = {
       case (duplicates, Some(sym) /> (table: TableQuery)) => {
@@ -299,7 +337,7 @@ trait TableCompilerPhases extends LazyLogging with Symbols with Queries with Tab
       case (duplicates, QueryWithGenerator(gen, StepTable(next))) => collectDuplicatesHlp((duplicates :+ gen.duplicates, next))
     }
 
-    { case a: Atom if collectDuplicatesHlp.isDefinedAt((Vector.empty, a)) => collectDuplicatesHlp((Vector.empty, a)) }
+    { case a: Atom if collectDuplicatesHlp.isDefinedAt((Vector.empty, a)) => collectDuplicatesHlp((Vector.empty, a)).written }
   }
 
   //Map[(Sym @@ ForTableQuery, Symbol), Symbol]
@@ -408,5 +446,16 @@ trait TableCompilerPhases extends LazyLogging with Symbols with Queries with Tab
     }
   }
 
+  object CompileRelational {
+    def analyzeRewriteTree(expression: Expression): ValidationNel[String, Writer[Renamer, Expression]] = {
+      val transformed = fuseTransforms(expression).getOrElse(expression)
+      val duplicates = collectDuplicates(transformed)
+
+      for {
+        fields <- validateDuplicates(duplicates)
+        renamer = renameFields(duplicates)
+      } yield Writer(renamer, materializeProjections(renamer)(transformed).getOrElse(transformed))
+    }
+  }
 
 }

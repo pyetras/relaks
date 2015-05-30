@@ -78,7 +78,11 @@ object Const {
 sealed case class ListConstructor(lst: Seq[Expression]) extends Expression
 
 sealed case class TupleConstructor(tuple: Vector[Expression]) extends Expression {
-  val names = tuple.indices.map(i => s"x$i")
+  val names = tuple.indices.map(i => s"x$i").toVector
+
+  def withNames(nms: Vector[String]) = new TupleConstructor(tuple) {
+    override val names = nms
+  }
 }
 
 sealed trait NondetGenerator extends Expression

@@ -2,14 +2,14 @@ package relaks.lang.dsl
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.typesafe.scalalogging.LazyLogging
-import org.apache.drill.common.logical.data.{Transform => DrillTransform, LogicalOperator, Scan}
+import org.apache.drill.common.logical.data.{Transform => DrillTransform, LogicalOperator, Scan, Join => DrillJoin}
 import org.scalatest.enablers.Collecting
 import org.scalatest._
 import relaks.lang.ast._
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl.extensions.ast.Filter
 import relaks.lang.dsl.extensions.ast._
-import relaks.lang.dsl.extensions.{DrillCompilers, TableCompilerPhases, TableExtensions}
+import relaks.lang.dsl.extensions.{SQLCompilers, DrillCompilers, TableCompilerPhases, TableExtensions}
 import shapeless._
 
 /**
@@ -132,6 +132,35 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         val transformed = fuseTransforms(res.tree).get
         transformed should matchPattern { case _/>Transform(_, _/>Join(_, (_, _/>Join(_, _, InnerJoin, _)), InnerJoin, _), _/>(_: Pure)) => }
       }
+      it("should generate projections") {
+        object Program extends DSL with TableExtensions with TableCompilerPhases with DrillCompilers
+        import Program._
+        val a = load("hello")
+        val b = load("world")
+        val c = load("!!!")
+
+        val res = for {
+          as: Row2[Int, Int] <- a(('ax, 'ay))
+          bs: Row2[Int, Int] <- b(('ax, 'by))
+          cs: Row2[Int, Int] <- c(('ax, 'lol2))
+        } yield (as(0), as(1), bs(0), bs(1), cs(0), cs(1))
+
+
+        val transformed = fuseTransforms(res.tree).get
+
+        val original = transformed.verboseString.split("\n").map(_.trim)
+
+        val duplicates = collectDuplicates(transformed)
+        val fields = validateDuplicates(duplicates).map(_ => renameFields(duplicates)).toOption.get
+        val projected = materializeProjections(fields)(transformed).get
+
+        val result = projected.verboseString.split("\n").map(_.trim)
+        val diff = result diff original
+
+        diff should have size 2
+        (original diff result) should have size 0
+        all (diff) should startWith("Transform")
+      }
     }
     describe("drill compiler") {
       it("should compile a load table expression") {
@@ -160,35 +189,47 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         result.values.exists(_.isInstanceOf[Scan]) should be(true)
       }
 
-      it("should generate projections") {
+      it("should compile a join") {
         object Program extends DSL with TableExtensions with TableCompilerPhases with DrillCompilers
         import Program._
         val a = load("hello")
         val b = load("world")
-        val c = load("!!!")
+
+        val res = for {
+          as: Row2[Int, Int] <- a(('ax, 'ay))
+          bs: Row2[Int, Int] <- b(('bx, 'by))
+        } yield (as(0), as(1), bs(0), bs(1))
+
+        val (fields, projected) = CompileRelational.analyzeRewriteTree(res.tree).toOption.get.run
+
+        val compiler = new CompileDrill(fields)
+        val result = compiler(projected).written
+
+        result.values.exists(_.isInstanceOf[DrillJoin]) should be(true)
+      }
+
+    }
+
+    describe("sql compiler") {
+      it("should compile a join") {
+        object Program extends DSL with TableExtensions with TableCompilerPhases with SQLCompilers
+        import Program._
+        val a = load("hello")
+        val b = load("world")
 
         val res = for {
           as: Row2[Int, Int] <- a(('ax, 'ay))
           bs: Row2[Int, Int] <- b(('ax, 'by))
-          cs: Row2[Int, Int] <- c(('ax, 'lol2))
-        } yield (as(0), as(1), bs(0), bs(1), cs(0), cs(1))
+        } yield (as(0), as(1), bs(0), bs(1))
 
+        val (fields, projected) = CompileRelational.analyzeRewriteTree(res.tree).toOption.get.run
 
-        val transformed = fuseTransforms(res.tree).get
+        val compiler = new CompileSQL(fields)
+        val result = compiler(projected).value
 
-        val original = transformed.verboseString.split("\n").map(_.trim)
-
-        val duplicates = collectDuplicates(transformed).written
-        val fields = validateDuplicates(duplicates).map(_ => renameFields(duplicates)).toOption.get
-        val projected = materializeProjections(fields)(transformed).get
-
-        val result = projected.verboseString.split("\n").map(_.trim)
-        val diff = result diff original
-
-        diff should have size 2
-        (original diff result) should have size 0
-        all (diff) should startWith("Transform")
+        println(result)
       }
+
     }
   }
 }
