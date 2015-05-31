@@ -60,7 +60,7 @@ trait Symbols extends LazyLogging { self =>
     def replaceWith(expr: Expression): Sym = { //TODO: make this dependent on context
       assert(isDefined(this))
       saveDefinition(this, expr)
-      Sym(name) //returns new sym to reset kiama's attribution
+      Sym(name) //returns new sym to reset kiama's attribution TODO: kiama does an equality check, so the tree is actually not modified
     }
 
     private def toString_(that: Expression => String) = if (isDefined(this)) s"↗${that(findDefinition(this).get)}" else "↗?"

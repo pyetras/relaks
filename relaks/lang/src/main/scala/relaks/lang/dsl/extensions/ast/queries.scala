@@ -24,7 +24,7 @@ sealed trait Query extends Expression with PrettyPrintable {
 
 sealed trait TableQuery extends Query
 trait GeneratorBase {
-//  def unifyWith(other: GeneratorBase): GeneratorBase
+//  def fuseWith(other: GeneratorBase): GeneratorBase
 }
 
 sealed trait SingleSourceTransformation extends Query {
@@ -79,18 +79,22 @@ trait Queries extends Symbols {
   object Project {
     def apply(table: Atom, map: Vector[(Symbol, Symbol)]): Transform = {
       val generator = Generator.fromFields(map.map(_._1))
-      Transform(generator, table, RowRep(generator.toTuple[HNil]).tree)
+      val names = map.map(_._2.name)
+      Transform(generator, table, RowRep(generator.toTupleWithNames[HNil](names)).tree)
     }
   }
 
   type SymTables = Map[Sym, Symbol]
+  private val dups = (col: SymTables) => col.groupBy(_._2).mapValues(_.keys.toVector).filter(_._2.size > 1)
 
   class Generator(val symsToFields: SymTables, syms: Option[Vector[Sym]] = None) extends GeneratorBase {
+    assert(dups(symsToFields).isEmpty, "generator contains duplicated fields")
+
     lazy val symsVector = syms.getOrElse(symsToFields.keys.toVector)
 
-    def unifyWith(other: Generator): Generator = new Generator(symsToFields ++ other.symsToFields)
+    private def fuseWith(other: Generator): Generator = new Generator(symsToFields ++ other.symsToFields)
 
-    def duplicates: Map[Symbol, Vector[Sym]] = symsToFields.groupBy(_._2).mapValues(_.keys.toVector).filter(_._2.size > 1)
+    lazy val duplicates: Map[Symbol, Vector[Sym]] = symsToFields.groupBy(_._2).mapValues(_.keys.toVector).filter(_._2.size > 1)
 
     def contains(sym: Sym) = symsToFields.contains(sym)
 
@@ -100,12 +104,20 @@ trait Queries extends Symbols {
       }
     }
 
+    def toTupleWithNames[F <: HList](names: Vector[String]): Rep[Tup[F]] = {
+      new Rep[Tup[F]] {
+        override val tree: TTree = TupleConstructor(symsVector).withNames(names)
+      }
+    }
+
+    def update(updt: Map[Symbol, Symbol]) = new Generator(symsToFields.mapValues(field => updt.getOrElse(field, field)))
+
     override def toString: String = s"Generator[${symsToFields.values.mkString(", ")}]"
   }
 
-  implicit val generatorSemigroup: Semigroup[Generator] = new Semigroup[Generator] {
-    override def append(f1: Generator, f2: => Generator): Generator = f1.unifyWith(f2)
-  }
+//  implicit val generatorSemigroup: Semigroup[Generator] = new Semigroup[Generator] {
+//    override def append(f1: Generator, f2: => Generator): Generator = f1.fuseWith(f2)
+//  }
 
   object Generator {
     def apply(syms: Vector[Sym], fields: Vector[Symbol]) = {
@@ -113,6 +125,51 @@ trait Queries extends Symbols {
     }
     def fromFields(fields: Vector[Symbol]) = apply(fields.indices.map(_ => fresh).toVector, fields)
     def unapply(generator: Generator): Option[(Iterable[Sym], Iterable[Symbol])] = generator.symsToFields.unzip.some
+
+    /**
+     * fuse two generators from different tables into the same table
+     *
+     * @param leftTable
+     * @param leftGen
+     * @param rightTable
+     * @param rightGen
+     * @return ((update, right table), generator)
+     */
+    def fuse(leftTable: Query, leftGen: Generator, rightTable: Query, rightGen: Generator): ((Map[Symbol, Symbol], Query), Generator) = {
+      val sum = leftGen.symsToFields ++ rightGen.symsToFields
+      val duplicates = dups(sum)
+
+      def rename(field: Symbol, sym: Sym): Symbol = {
+        //TODO something safer
+        Symbol(s"${field.name}___${sym.name}")
+      }
+      val update = duplicates.mapValues(_.filter(sym => rightGen.contains(sym)))
+        .flatMap { case (field, syms) => syms.map(sym => (sym, rename(field, sym))) }
+
+      (if (update.nonEmpty) {
+        //generate projection for right table
+        val fields: Map[Symbol, Symbol] = rightGen.symsToFields
+          .filter(symField => update.contains(symField._1))
+          .map(symField => (symField._2, update(symField._1)))
+        val projection = Project(rightTable, fields.toVector)
+        (fields, projection)
+      } else {
+        (Map.empty, rightTable)
+      }, new Generator(sum ++ update))
+    }
+
+
+    /**
+     * merges two generators from the same table
+     * if there are syms referring to fields with repeated names it chooses just one
+     *
+     * @param leftGen
+     * @param rightGen
+     * @return
+     */
+    def merge(leftGen: Generator, rightGen: Generator): Generator = {                                                              //this should always be of size == 1
+      new Generator((leftGen.symsToFields ++ rightGen.symsToFields).groupBy(_._2).mapValues(_.keys.head).groupBy(_._2).mapValues(_.keys.head))
+    }
   }
 
   object GenPlusFilter {
