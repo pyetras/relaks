@@ -24,7 +24,7 @@ sealed trait Query extends Expression with PrettyPrintable {
 
 sealed trait TableQuery extends Query
 trait GeneratorBase {
-//  def fuseWith(other: GeneratorBase): GeneratorBase
+  //  def fuseWith(other: GeneratorBase): GeneratorBase
 }
 
 sealed trait SingleSourceTransformation extends Query {
@@ -115,9 +115,9 @@ trait Queries extends Symbols {
     override def toString: String = s"Generator[${symsToFields.values.mkString(", ")}]"
   }
 
-//  implicit val generatorSemigroup: Semigroup[Generator] = new Semigroup[Generator] {
-//    override def append(f1: Generator, f2: => Generator): Generator = f1.fuseWith(f2)
-//  }
+  //  implicit val generatorSemigroup: Semigroup[Generator] = new Semigroup[Generator] {
+  //    override def append(f1: Generator, f2: => Generator): Generator = f1.fuseWith(f2)
+  //  }
 
   object Generator {
     def apply(syms: Vector[Sym], fields: Vector[Symbol]) = {
