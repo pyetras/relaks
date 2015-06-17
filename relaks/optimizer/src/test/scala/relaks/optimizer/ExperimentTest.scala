@@ -1,13 +1,14 @@
 package relaks.optimizer
 
 import org.scalatest._
+import relaks.Integration
 
 /**
  * Created by Pietras on 07/05/15.
  */
 class ExperimentTest extends FunSpec with Matchers {
   describe("Experiment runner") {
-    it("should optimize branin using spearmint", new Tag("Slowpoke")) {
+    it("should optimize branin using spearmint", Integration) {
       def branin(x: Double, y: Double) = {
         val sq: (Double => Double) = math.pow(_, 2)
         sq(y - (5.1/(4*sq(math.Pi)))*sq(x) + (5/math.Pi)*x - 6) + 10*(1-(1./(8*math.Pi)))*math.cos(x) + 10

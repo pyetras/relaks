@@ -17,3 +17,5 @@ dependencyOverrides ++= Set(
 libraryDependencies += "org.apache.calcite" % "calcite-core" % "1.2.0-incubating"
 
 libraryDependencies += "org.scalikejdbc" %% "scalikejdbc" % "2.2.6"
+
+resolvers += "Concurrent Maven Repo" at "http://conjars.org/repo"

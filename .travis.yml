@@ -4,6 +4,8 @@ sudo: false
 cache:
   directories:
     - $HOME/.ivy2/cache
+    - $HOME/.m2
+    - $HOME/.downloads
 
     # At the moment, sbt 0.13.5 is preinstalled in Travis VM image,
     # which fortunately corresponds to current scalaz settings.
@@ -28,12 +30,10 @@ notifications:
     - p@pyetras.com
 
 before_script:
-  - wget https://github.com/pyetras/relaks/raw/master/lib/drill-1.1.0-SNAPHOT.tgz -O /tmp/drill.tar.gz
-  - mkdir -p $HOME/.m2/repository/org/apache/drill
-  - cd $HOME/.m2/repository/org/apache/drill && tar xzf /tmp/drill.tar.gz
+  - ./lib/publish_drill.sh
 
 script:
-  - cd relaks && sbt ++$TRAVIS_SCALA_VERSION clean testOnly -- -l Slowpoke
+  - cd relaks && sbt ++$TRAVIS_SCALA_VERSION clean "test-only -- -l relaks.Integration"
 
   # Tricks to avoid unnecessary cache updates
   - find $HOME/.sbt -name "*.lock" | xargs rm
