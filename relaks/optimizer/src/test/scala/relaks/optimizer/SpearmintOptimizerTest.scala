@@ -110,7 +110,7 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
             Task {
               Process.eval {
                 Task.delay {
-                  Thread.sleep(100)
+                  Thread.sleep(500)
                   Spearmint.OptimizerResult(0, params)
                 }
               }
@@ -120,14 +120,14 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
       }
 
       val (task1, q1) = parallelTask()
-      //sanity check - it should take at least 100ms
+      //sanity check - it should take at least 500ms
       task1.runAsync(x => ())
-      a [TimeoutExceptionT] shouldBe thrownBy { q1.dequeue.take(1 + 1 + 2).run.runFor(99 milliseconds) }
+      a [TimeoutExceptionT] shouldBe thrownBy { q1.dequeue.take(1 + 1 + 2).run.runFor(400 milliseconds) }
 
       val (task2, q2) = parallelTask()
       task2.runAsync(x => ())
       //sequenced takes >= 200 ms
-      noException shouldBe thrownBy { q2.dequeue.take(1 + 1 + 2 + 2).run.runFor(199 milliseconds) }
+      noException shouldBe thrownBy { q2.dequeue.take(1 + 1 + 2 + 2).run.runFor(999 milliseconds) }
     }
     it("should dequeue updates first (when available)") {
       pending
