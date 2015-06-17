@@ -11,5 +11,9 @@ libraryDependencies += "org.scalaz" %% "scalaz-core" % scalazVersion
 libraryDependencies += "org.apache.drill" % "drill-common" % "1.1.0-SNAPSHOT"
 
 dependencyOverrides ++= Set(
-  "org.apache.calcite" % "calcite-core" % "1.1.0-drill-r7"
+  "org.apache.calcite" % "calcite-core" % "1.2.0-incubating"
 )
+
+libraryDependencies += "org.apache.calcite" % "calcite-core" % "1.2.0-incubating"
+
+libraryDependencies += "org.scalikejdbc" %% "scalikejdbc" % "2.2.6"
