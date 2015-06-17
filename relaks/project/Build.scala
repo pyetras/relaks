@@ -39,7 +39,11 @@ object BuildRelaks extends Build {
       "org.scala-lang" % "scala-reflect" % _scalaVersion,
       "com.chuusai" %% "shapeless" % "2.2.0-RC4",
       "org.scalatest" %% "scalatest" % "2.2.4" % "test"
+    ),
+    dependencyOverrides ++= Set(
+      "org.scala-lang.modules" %% "scala-xml" % "1.0.4"
     )
+
   )
 
   lazy val lang = project.in(file("lang")).settings(commonSettings:_*).dependsOn(optimizer, data)
