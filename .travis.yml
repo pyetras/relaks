@@ -27,6 +27,11 @@ notifications:
   email:
     - p@pyetras.com
 
+before_script:
+  - wget https://github.com/pyetras/relaks/raw/master/lib/drill-1.1.0-SNAPHOT.tgz -O /tmp/drill.tar.gz
+  - mkdir -p $HOME/.m2/repository/org/apache/drill
+  - cd $HOME/.m2/repository/org/apache/drill && tar xzf /tmp/drill.tar.gz
+
 script:
   - cd relaks && sbt ++$TRAVIS_SCALA_VERSION clean testOnly -- -l Slowpoke
 
