@@ -1,7 +1,5 @@
 package relaks.lang.ast
 
-import org.kiama.attribution.Attributable
-
 import scalaz.NonEmptyList
 
 /**
@@ -10,7 +8,7 @@ import scalaz.NonEmptyList
 private[this] object syntax extends ToTypedTreeOps with ScalaTypeImplis
 import syntax._
 
-sealed trait Tree extends Typed with Attributable {
+sealed trait Tree extends Typed with Product with Cloneable {
   def mainToString: String = this.getClass.getSimpleName
   protected def withArgs(main: String, args: String*) = s"${main}[${args.mkString(", ")}]"
   //    override def toString: String = mainToString //already overridden in Typed

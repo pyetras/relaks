@@ -7,6 +7,6 @@ import relaks.lang.dsl._
  */
 object TreeUtils {
   implicit class TreeOps(val tree: TTree) {
-    def assertInitialized(): Unit = assert(tree.index != -1)
+//    def assertInitialized(): Unit = assert(tree.index != -1)
   }
 }

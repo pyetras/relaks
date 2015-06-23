@@ -11,7 +11,6 @@ import org.apache.drill.common.config.DrillConfig
 import org.apache.drill.common.expression.{SchemaPath, LogicalExpression, FieldReference}
 import org.apache.drill.common.logical.data.{Transform => DrillTransform, Join => DrillJoin, NamedExpression, JoinCondition, LogicalOperator, Scan}
 import org.kiama.==>
-import org.kiama.attribution.Attribution.attr
 import org.kiama.rewriting.Rewriter.{query, manybu, repeat, oncetd}
 import org.kiama.rewriting.{Rewriter, Strategy}
 import relaks.lang.ast._
@@ -40,10 +39,10 @@ trait TableExtensions extends TableIO with TableOps with TableUtils {
 trait TableUtils extends Symbols with Queries {
   sealed trait ForTableQuery
 
-  protected val getTable: Atom => Sym @@ ForTableQuery = attr {
-    case Some(sym) /> (_: TableQuery) => Tag(sym)
-    case StepTable(q) => q -> getTable
-  }
+//  protected val getTable: Atom => Sym @@ ForTableQuery = attr {
+//    case Some(sym) /> (_: TableQuery) => Tag(sym)
+//    case StepTable(q) => q -> getTable
+//  }
 
   protected type Duplicate = Map[Symbol, Vector[Sym]]
   protected type Renamer = Map[Sym, Symbol]
@@ -254,12 +253,12 @@ trait DrillCompilers extends BaseRelationalCompilers with Symbols with Queries w
 }
 
 trait TableCompilerPhases extends LazyLogging with Symbols with Queries with TableUtils {
-  private def leafSyms: Expression => Set[Sym] = attr { tree =>
+  private def leafSyms: Expression => Set[Sym] = ??? /*attr { tree =>
     tree match {
       case Expr(node) => node.children.map(c => c.asInstanceOf[Expression] -> leafSyms).foldLeft(Set.empty[Sym]) {_ ++ _}
       case s: Sym => Set(s)
     }
-  }
+  }*/
 
 //  def doAnalyze_(tree: Expression): ValidationNel[String, Unit] = tree match {
 //    case Transform(Expr(TupleConstructor(in)), table, Expr(Pure(TupleConstructor(out)))) => //simple map comprehension - nothing to rewrite
@@ -275,25 +274,26 @@ trait TableCompilerPhases extends LazyLogging with Symbols with Queries with Tab
 //    case _ => ().successNel[String]
 //  }
 
-  private def closestFilter: Expression => Option[(Generator, Atom)] = attr { tree =>
+  //TODO attribution
+  private def closestFilter: Expression => Option[(Generator, Atom)] = ??? /*attr { tree =>
     tree match {
       case _/> Filter(gen: Generator, _, filter) => (gen, filter).some
       case _/> Join(_, _, InnerJoin, GenPlusFilter(gen, filter)) => (gen, filter).some
 //      case _/>Project(_/> table, _) => table -> closestFilter
       case _ => None
     }
-  }
+  }*/
 
-  private def tableSource: Expression => Option[Expression] = attr { tree =>
-    tree match {
-      case t: LoadTableFromFs => t.some
-      case t: Join => t.some
-      case t: Limit => t.some
-      case t: GroupBy => t.some
-      case Transform(_, _/> table, _) => table -> tableSource
-      case Filter(_, _/> table, _) => table -> tableSource
-    }
-  }
+//  private def tableSource: Expression => Option[Expression] = attr { tree =>
+//    tree match {
+//      case t: LoadTableFromFs => t.some
+//      case t: Join => t.some
+//      case t: Limit => t.some
+//      case t: GroupBy => t.some
+//      case Transform(_, _/> table, _) => table -> tableSource
+//      case Filter(_, _/> table, _) => table -> tableSource
+//    }
+//  }
 
 //  def collectDuplicates: (Atom) ==> Map[Sym @@ ForTableQuery, Duplicate] = {
 //
@@ -351,11 +351,13 @@ trait TableCompilerPhases extends LazyLogging with Symbols with Queries with Tab
       //TODO split filters
       //TODO remove old filter from tree
       //returns merged generator for the right table and some filter
-      val (gMerged, filter): (Generator, Option[(Generator, Atom)]) = (childTable -> closestFilter) map (filter => {
+      //TODO attribution
+      val (gMerged, filter): (Generator, Option[(Generator, Atom)]) = /*(childTable -> closestFilter)*/ (None:Option[(Generator, Atom)]) map (filter => {
         val (gFilter, sel) = filter
         logger.debug(s"Found a filter on child table: $sel")
-        val filterSyms = sel -> leafSyms
         val Generator(parSyms, _) = gPar
+        //TODO attribution
+        val filterSyms = parSyms.toSet//sel -> leafSyms
 
         if (filterSyms.intersect(parSyms.toSet).nonEmpty) {
           logger.debug("filter selector contains syms from both parent and child transformation")

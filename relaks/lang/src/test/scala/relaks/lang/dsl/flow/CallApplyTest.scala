@@ -8,7 +8,7 @@ import org.scalatest._
 class CallApplyTest extends FunSpec with Matchers {
   describe("CallApply macro") {
     case class Test(arg1: Int, arg2: String) {
-      def apply() = Map(arg2 -> arg1)
+      def apply(): RetType = Map(arg2 -> arg1)
     }
 
     type RetType = Map[String, Int]

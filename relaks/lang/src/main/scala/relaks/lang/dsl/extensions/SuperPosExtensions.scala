@@ -1,6 +1,6 @@
 package relaks.lang.dsl.extensions
 
-import org.kiama.attribution.Attribution._
+import org.kiama.attribution.Attribution
 import relaks.lang.ast._
 import relaks.lang.dsl._
 
@@ -25,7 +25,8 @@ trait SuperPosExtensions extends ListExtensions with Symbols with SuperPosGenera
 }
 
 trait SuperPosAnalysis extends Symbols with BaseCompiler {
-  protected val superPosDeps: Expression => Set[Sym] = {
+  //TODO attribution
+  protected val superPosDeps: Expression => Set[Sym] = ???/* {
     def followNode(node: Expression) =
       node.children.foldLeft(Set[Sym]())((acc, child) =>
         acc ++ (child.asInstanceOf[Expression] -> superPosDeps)
@@ -38,27 +39,28 @@ trait SuperPosAnalysis extends Symbols with BaseCompiler {
         case Expr(link) if !link.hasChildren => Set()
       }
     })
-  }
+  }*/
 
-  val isSuperPosed: Expression => Boolean = {
+  val isSuperPosed: Expression => Boolean = ??? /*{
     attr(node => {
 //      node.assertInitialized()
       (node -> superPosDeps).nonEmpty
     })
-  }
+  }*/
 
-  def showSpace(superPos: Expression): Map[Int, Any] = {
+  def showSpace(superPos: Expression): Map[Int, Any] = ??? /*{
     assert(superPos->isSuperPosed)
     (superPos->superPosDeps map {
       case sym @ Expr(NondetGeneratorList(Expr(lc @ ListConstructor(lst)))) => sym.asInstanceOf[Sym].name -> lc
       case sym @ Expr(NondetGeneratorList(Expr(ll @ Literal(x)))) => sym.asInstanceOf[Sym].name -> ll
       case sym @ Expr(NondetGeneratorRange(l, r)) => sym.asInstanceOf[Sym].name -> (l.value, r.value)
     }).toMap
-  }
+  }*/
 
   override protected def doAnalyze(root: Expression): ValidationNel[String, Unit] = root match {
     case n @ Once(atom) =>
-      (if(atom->isSuperPosed) ().successNel else "argument of `once` must be superposed".failureNel) *> super.doAnalyze(n)
+      //TODO attribution
+      (if(true/*atom->isSuperPosed*/) ().successNel else "argument of `once` must be superposed".failureNel) *> super.doAnalyze(n)
     case n @ _ => super.doAnalyze(n)
   }
 }

@@ -1,6 +1,6 @@
 package relaks.lang.dsl
 
-import org.kiama.attribution.Attribution._
+//TODO attribution
 import org.kiama.rewriting.Rewriter
 import relaks.lang.ast._
 import relaks.lang.dsl.extensions._
@@ -14,7 +14,7 @@ import scalaz.{Scalaz, ValidationNel}
 trait BaseCompiler {
   type Result
   final def analyze(root: Expression) = {
-    initTree(root)
+//    initTree(root)
     val strategy = Rewriter.collect[List, ValidationNel[String, Unit]] ({
       case (expr:Expression) => doAnalyze(expr)
     })
@@ -39,7 +39,7 @@ trait BaseContCompiler extends BaseCompiler with Symbols {
   }
 
   override def compile(expr: Expression): Cont = {
-    initTree(expr)
+//    initTree(expr)
     val cont: Any => Cont = (x:Any) => (s:State) => s + (-1 -> x)
     eval(expr, cont)
   }

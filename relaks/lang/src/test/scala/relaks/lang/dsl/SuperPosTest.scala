@@ -28,7 +28,8 @@ class SuperPosTest extends FunSpec with Matchers with Inside {
 
       override def compile(expr: Expression): Program.Result = ???
 
-      def superPosed(n: TTree) = n.asInstanceOf[Expression] -> isSuperPosed
+      //TODO attribution
+      def superPosed(n: TTree): Boolean = ??? //n.asInstanceOf[Expression] -> isSuperPosed
     }
 
     import Program._
