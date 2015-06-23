@@ -1,7 +1,7 @@
 package relaks.lang.dsl.extensions
 
 import org.kiama.attribution.Attribution
-import org.kiama.relation.{Tree => RelTree}
+import org.kiama.relation.GraphTree
 import relaks.lang.ast._
 import relaks.lang.dsl._
 
@@ -27,7 +27,7 @@ trait SuperPosExtensions extends ListExtensions with Symbols with SuperPosGenera
 
 trait SuperPosAnalysis extends Symbols with BaseCompiler {
 
-  class SuperPosed(tree: RelTree[Expression, Expression]) extends Attribution { self =>
+  class SuperPosed(tree: GraphTree) extends Attribution { self =>
     val superPosDeps: Expression => Set[Sym] = {
       attr {
         case Some(sym) /> (_: NondetGenerator) => Set(sym)
@@ -51,7 +51,7 @@ trait SuperPosAnalysis extends Symbols with BaseCompiler {
   override protected def doAnalyze(root: Expression): ValidationNel[String, Unit] = root match {
     case n @ Once(atom) =>
       //TODO cache attribution
-      val spd = new SuperPosed(new RelTree[Expression, Expression](root))
+      val spd = new SuperPosed(new GraphTree(root))
       (if(spd.isSuperPosed(atom)) ().successNel else "argument of `once` must be superposed".failureNel) *> super.doAnalyze(n)
     case n @ _ => super.doAnalyze(n)
   }

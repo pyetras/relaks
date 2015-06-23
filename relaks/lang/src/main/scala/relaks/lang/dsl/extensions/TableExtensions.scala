@@ -8,7 +8,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.apache.calcite.rel.core.JoinRelType
 import org.apache.drill.common.JSONOptions
 import org.kiama.attribution.Attribution
-import org.kiama.relation.{Tree => RelTree}
+import org.kiama.relation.GraphTree
 import org.apache.drill.common.expression.{SchemaPath, LogicalExpression, FieldReference}
 import org.apache.drill.common.logical.data.{Transform => DrillTransform, Join => DrillJoin, NamedExpression, JoinCondition, LogicalOperator, Scan}
 import org.kiama.==>
@@ -254,7 +254,7 @@ trait DrillCompilers extends BaseRelationalCompilers with Symbols with Queries w
 }
 
 trait TableCompilerPhases extends LazyLogging with Symbols with Queries with TableUtils {
-  class LeafSyms(tree: RelTree[Expression, Expression]) extends Attribution { self =>
+  class LeafSyms(tree: GraphTree) extends Attribution { self =>
     val leafSyms: Expression => Set[Sym] = attr {
       case Expr(node) => tree.child(node).map(self.leafSyms).foldLeft(Set.empty[Sym]) {_ ++ _}
       case s: Sym => Set(s)
@@ -358,7 +358,7 @@ trait TableCompilerPhases extends LazyLogging with Symbols with Queries with Tab
 
         val Generator(parSyms, _) = gPar
         //TODO cache attribution
-        val filterSyms = new LeafSyms(new RelTree[Expression, Expression](sel)).leafSyms(sel)
+        val filterSyms = new LeafSyms(new GraphTree(sel)).leafSyms(sel)
 
         if (filterSyms.intersect(parSyms.toSet).nonEmpty) {
           logger.debug("filter selector contains syms from both parent and child transformation")

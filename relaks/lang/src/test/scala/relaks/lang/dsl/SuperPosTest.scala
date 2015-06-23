@@ -5,7 +5,7 @@ import relaks.lang.ast._
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl.extensions._
 import shapeless._
-import org.kiama.relation.{Tree => RelTree}
+import org.kiama.relation.GraphTree
 
 import scalaz.{Failure, Success}
 
@@ -29,7 +29,7 @@ class SuperPosTest extends FunSpec with Matchers with Inside {
 
       override def compile(expr: Expression): Program.Result = ???
 
-      def superPosed(n: Expression): Boolean = new SuperPosed(new RelTree[Expression, Expression](n)).isSuperPosed(n)
+      def superPosed(n: Expression): Boolean = new SuperPosed(new GraphTree(n)).isSuperPosed(n)
     }
 
     import Program._
