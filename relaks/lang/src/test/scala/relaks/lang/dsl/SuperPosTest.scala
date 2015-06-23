@@ -22,6 +22,7 @@ class SuperPosTest extends FunSpec with Matchers with Inside {
     with NumericExtensions
     with ListExtensions
     with TupleExtensions
+    with NativeFunExtensions
     with SuperPosAnalysis {
       override type Result = Unit
 
@@ -127,6 +128,26 @@ class SuperPosTest extends FunSpec with Matchers with Inside {
       analyze(getB.tree)
       superPosed(getB.tree) should not be(true)
     }
+  }
+
+  it("should assign correct superPos attributes to native function calls") {
+    val (p, _, _) = prog()
+    import p._
+    def f(x: Double, y: Double) = x + y
+    val x: Rep[Double] = 1.0
+    val y: Rep[Double] = 2.0
+    val z1 = to (f _) apply (x, y)
+    analyze(z1.tree)
+    superPosed(z1.tree) should not be(true)
+
+    val a = choose from List(1.0, 2.0, 3.0)
+    val z2 = to (f _) apply (x, a)
+    analyze(z2.tree)
+    superPosed(z2.tree) should be(true)
+
+    val z3 = to (f _) apply (a, z1)
+    analyze(z3.tree)
+    superPosed(z3.tree) should be(true)
   }
 
   describe("SuperPos analyzer") {

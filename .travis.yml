@@ -4,8 +4,6 @@ sudo: false
 cache:
   directories:
     - $HOME/.ivy2/cache
-    - $HOME/.m2/repository
-    - $HOME/downloads
 
     # At the moment, sbt 0.13.5 is preinstalled in Travis VM image,
     # which fortunately corresponds to current scalaz settings.

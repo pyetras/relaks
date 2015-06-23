@@ -85,11 +85,11 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
       val Spearmint = new Spearmint
       var sp = Spearmint.getSpMock(2)
 
-      noException shouldBe thrownBy (sp.paramStream.take(2).run.runFor(10 milliseconds))
+      noException shouldBe thrownBy (sp.paramStream.take(2).run.runFor(100 milliseconds))
 
       sp = Spearmint.getSpMock(2)
 
-      a [TimeoutExceptionT] shouldBe thrownBy (sp.paramStream.take(3).run.runFor(100 milliseconds))
+      a [TimeoutExceptionT] shouldBe thrownBy (sp.paramStream.take(3).run.runFor(200 milliseconds))
 
       sp = Spearmint.getSpMock(2)
 

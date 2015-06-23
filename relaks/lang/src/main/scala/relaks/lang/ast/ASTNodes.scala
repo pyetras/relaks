@@ -98,6 +98,8 @@ sealed class ApplyNamed(fn: Expression, val names: List[Option[String]], args: E
   extends Apply(fn, args.toList) with NamedArgs {
 }
 
+sealed case class ApplyNative(fn: Any, argTuple: Expression) extends Expression
+
 trait NamedArgs { this: Apply =>
   val names: List[Option[String]]
 }

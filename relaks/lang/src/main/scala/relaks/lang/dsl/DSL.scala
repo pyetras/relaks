@@ -19,6 +19,7 @@ trait DSL
   with NumericExtensions
   with ListExtensions
   with TupleExtensions
+  with NativeFunExtensions
   with ContCompiler {
 
 }
