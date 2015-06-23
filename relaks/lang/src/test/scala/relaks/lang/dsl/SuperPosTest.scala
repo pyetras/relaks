@@ -5,6 +5,7 @@ import relaks.lang.ast._
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl.extensions._
 import shapeless._
+import org.kiama.relation.{Tree => RelTree}
 
 import scalaz.{Failure, Success}
 
@@ -28,8 +29,7 @@ class SuperPosTest extends FunSpec with Matchers with Inside {
 
       override def compile(expr: Expression): Program.Result = ???
 
-      //TODO attribution
-      def superPosed(n: TTree): Boolean = ??? //n.asInstanceOf[Expression] -> isSuperPosed
+      def superPosed(n: Expression): Boolean = new SuperPosed(new RelTree[Expression, Expression](n)).isSuperPosed(n)
     }
 
     import Program._

@@ -1,6 +1,7 @@
 package relaks.lang.dsl.extensions
 
 import org.kiama.attribution.Attribution
+import org.kiama.relation.{Tree => RelTree}
 import relaks.lang.ast._
 import relaks.lang.dsl._
 
@@ -25,29 +26,19 @@ trait SuperPosExtensions extends ListExtensions with Symbols with SuperPosGenera
 }
 
 trait SuperPosAnalysis extends Symbols with BaseCompiler {
-  //TODO attribution
-  protected val superPosDeps: Expression => Set[Sym] = ???/* {
-    def followNode(node: Expression) =
-      node.children.foldLeft(Set[Sym]())((acc, child) =>
-        acc ++ (child.asInstanceOf[Expression] -> superPosDeps)
-      )
-    attr ( node => {
-//      node.assertInitialized()
-      node match {
-        case Expr(_: NondetGenerator) => Set(node.asInstanceOf[Sym])
-        case Expr(link) if link.hasChildren => followNode(link)
-        case Expr(link) if !link.hasChildren => Set()
+
+  class SuperPosed(tree: RelTree[Expression, Expression]) extends Attribution { self =>
+    val superPosDeps: Expression => Set[Sym] = {
+      attr {
+        case Some(sym) /> (_: NondetGenerator) => Set(sym)
+        case _ /> (link) => tree.child(link).map(self.superPosDeps).foldLeft(Set.empty[Sym]){_ ++ _}
       }
-    })
-  }*/
+    }
 
-  val isSuperPosed: Expression => Boolean = ??? /*{
-    attr(node => {
-//      node.assertInitialized()
-      (node -> superPosDeps).nonEmpty
-    })
-  }*/
+    def isSuperPosed(expr: Expression) = self.superPosDeps(expr).nonEmpty
+  }
 
+  //TODO attribution
   def showSpace(superPos: Expression): Map[Int, Any] = ??? /*{
     assert(superPos->isSuperPosed)
     (superPos->superPosDeps map {
@@ -59,8 +50,9 @@ trait SuperPosAnalysis extends Symbols with BaseCompiler {
 
   override protected def doAnalyze(root: Expression): ValidationNel[String, Unit] = root match {
     case n @ Once(atom) =>
-      //TODO attribution
-      (if(true/*atom->isSuperPosed*/) ().successNel else "argument of `once` must be superposed".failureNel) *> super.doAnalyze(n)
+      //TODO cache attribution
+      val spd = new SuperPosed(new RelTree[Expression, Expression](root))
+      (if(spd.isSuperPosed(atom)) ().successNel else "argument of `once` must be superposed".failureNel) *> super.doAnalyze(n)
     case n @ _ => super.doAnalyze(n)
   }
 }
