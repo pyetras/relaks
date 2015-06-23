@@ -37,7 +37,7 @@ object BuildRelaks extends Build {
       "jline" % "jline" % "2.12.1",
 
       "org.scala-lang" % "scala-reflect" % _scalaVersion,
-      "com.chuusai" %% "shapeless" % "2.2.0-RC4",
+      "com.chuusai" %% "shapeless" % "2.2.3",
       "org.scalatest" %% "scalatest" % "2.2.4" % "test"
     ),
     dependencyOverrides ++= Set(
