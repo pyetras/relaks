@@ -4,6 +4,9 @@ import org.kiama.attribution.Attribution
 import org.kiama.relation.GraphTree
 import relaks.lang.ast._
 import relaks.lang.dsl._
+import relaks.lang.dsl.extensions.ast.OptimizerResultTable
+import shapeless.HList
+import shapeless.ops.hlist
 
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
@@ -13,14 +16,20 @@ import scalaz.{Scalaz, ValidationNel}
 /**
  * Created by Pietras on 13/04/15.
  */
-trait SuperPosExtensions extends ListExtensions with Symbols with SuperPosGenerators {
+trait SuperPosExtensions extends ListExtensions with Symbols with SuperPosGenerators with TableOps {
 
   def once[T](superPos: Rep[T]): Rep[T] = {
-//    assert(superPos.tree->isSuperPosed) //should happen after initialisation
-
     new Rep[T] {
       override val tree: Expression = Once(superPos.tree)(superPos.getTpe)
     }
+  }
+
+  def optimize[H <: HList](varTup: Rep[Tup[H]])(implicit lenEv: hlist.Length[H]) = {
+    val expr = OptimizerResultTable(varTup.tree)
+    val fields = varTup.tree match {
+      case _/>(t: TupleConstructor) => t.names.map(Symbol.apply)
+    }
+    new ProjectedTypedTableComprehensions[H](fields, expr)
   }
 
 }

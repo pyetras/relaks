@@ -20,6 +20,7 @@ trait DSL
   with ListExtensions
   with TupleExtensions
   with NativeFunExtensions
+  with TableExtensions
   with ContCompiler {
 
 }

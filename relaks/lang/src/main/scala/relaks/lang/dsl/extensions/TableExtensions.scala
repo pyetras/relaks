@@ -40,11 +40,6 @@ trait TableExtensions extends TableIO with TableOps with TableUtils {
 trait TableUtils extends Symbols with Queries {
   sealed trait ForTableQuery
 
-//  protected val getTable: Atom => Sym @@ ForTableQuery = attr {
-//    case Some(sym) /> (_: TableQuery) => Tag(sym)
-//    case StepTable(q) => q -> getTable
-//  }
-
   protected type Duplicate = Map[Symbol, Vector[Sym]]
   protected type Renamer = Map[Sym, Symbol]
 }
@@ -56,11 +51,15 @@ trait TableOps extends Symbols with Queries {
   type Row2[A, B] = Rep[Tup[A :: B :: HNil]]
   type Row3[A, B, C] = Rep[Tup[A :: B :: C :: HNil]]
 
-  class ProjectedTableComprehensions[FieldsLen <: Nat](fields: Vector[Symbol], query: Atom) extends Rep[Table] {
 
+  class ProjectedTableComprehensions[FieldsLen <: Nat](private[extensions] val fields: Vector[Symbol],
+                                                       private[extensions] val query: Atom)
+    extends Rep[Table] with TableComprehensions {
+
+    override type ComprehensionsMonad = ProjectedTableComprehensions[FieldsLen]
     override val tree: Expression = query
 
-    private def tupleGenerator[F <: HList](): (Generator, Rep[Tup[F]]) = {
+    private def tupleGenerator[F <: HList](filterFields: Vector[Symbol] = fields): (Generator, Rep[Tup[F]]) = {
       val gen = Generator.fromFields(fields)
       val tuple = gen.toTuple[F] //todo types
       (gen, tuple)
@@ -69,43 +68,95 @@ trait TableOps extends Symbols with Queries {
     def flatMap[F <: HList](f: Rep[Tup[F]] => Rep[Table])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]) = {
       val (gen, tuple) = tupleGenerator()
       val mapper = f(tuple)
-      new Rep[Table] {
-        override val tree: Atom = Transform(gen, query, mapper.tree)(new UntypedTableType)
-      }
+
+      //TODO this could return a typed table
+      val expr = Transform(gen, query, mapper.tree)(new UntypedTableType)
+      new ProjectedTableComprehensions[FieldsLen](fields, expr)
     }
 
     def map[F <: HList, T <: HList](f: Rep[Tup[F]] => Rep[Tup[T]])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]) = {
       flatMap((x:RowN[F]) => RowRep(f(x)))
     }
 
-    //todo: withfilter and filter should not force a projection,
-    // therefore additional class (TableMonadic, TableProjection and TableWithFilter) is required
     def withFilter(f: Rep[Tup[Nothing]] => Rep[Boolean]) = {
       val (generator, rep) = tupleGenerator()
       val cond = f(rep).tree
       cond match {
         case _/>Literal(true) => this //remove empty filters immediately, most likely occurs
                                    // with the cast matcher _.isInstanceOf in for comprehensions
-        case _ => filterHelper(generator, cond)
+        case _ => createFilterComprehension(generator, cond)
       }
     }
 
-    private def filterHelper(generator: Generator, cond: Expression): ProjectedTableComprehensions[FieldsLen] = {
+    private def createFilterComprehension(generator: Generator, cond: Expression): ProjectedTableComprehensions[FieldsLen] = {
       val filteredTable = Filter(generator, query, cond)
-      new Rep[Table] {
-        override val tree: Expression = filteredTable
-      }
       new ProjectedTableComprehensions[FieldsLen](fields, filteredTable)
     }
 
-    //TODO: a filter version that does not cause projection
-    def filter[F <: HList](f: Rep[Tup[F]] => Rep[Boolean])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]) = {
+    override protected[extensions] def filterImpl[F <: HList](f: Rep[Tup[F]] => Rep[Boolean], fields: Vector[Symbol]) = {
       val (generator, rep) = tupleGenerator()
       val cond = f(rep).tree
-      filterHelper(generator, cond)
+      createFilterComprehension(generator, cond)
+    }
+
+    def filter[F <: HList](f: Rep[Tup[F]] => Rep[Boolean])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]) = {
+      filterImpl(f, fields)
+    }
+
+    override protected[extensions] def orderImpl(fieldsVec: Vector[Symbol], expr: OrderBy): ProjectedTableComprehensions[FieldsLen] = {
+      new ProjectedTableComprehensions[FieldsLen](fieldsVec, expr)
     }
   }
-  
+
+  class ProjectedTypedTableComprehensions[H <: HList](fields: Vector[Symbol], query: Atom)
+                                                                (implicit val lenEnv: hlist.Length[H])
+    extends Rep[Table] with TableComprehensions {
+
+    override val tree: TTree = query
+
+    implicit val lenEnvAux = new hlist.Length[H] {
+      override type Out = lenEnv.Out
+      override def apply(): lenEnv.Out = lenEnv.apply()
+    }
+
+    lazy val untypedComprehension = new ProjectedTableComprehensions[lenEnv.Out](fields, query)
+
+    def flatMap(f: Rep[Tup[H]] => Rep[Table]) = fromUntypedTableComprehension(untypedComprehension.flatMap(f))
+    def map[T <: HList](f: Rep[Tup[H]] => Rep[Tup[T]]) = fromUntypedTableComprehension(untypedComprehension.map(f))
+    val withFilter = (untypedComprehension.withFilter _) andThen fromUntypedTableComprehension //TODO this does not enforce types
+    def filter(f: Rep[Tup[H]] => Rep[Boolean]) = fromUntypedTableComprehension(untypedComprehension.filter(f))
+
+    override type ComprehensionsMonad = ProjectedTypedTableComprehensions[H]
+
+    override protected def filterImpl[F <: HList](f: (Rep[Tup[F]]) => Rep[Boolean], fields: Vector[Symbol]) =
+      fromUntypedTableComprehension(untypedComprehension.filterImpl(f, fields))
+
+    override protected def orderImpl(fieldsVec: Vector[Symbol], expr: OrderBy) =
+      fromUntypedTableComprehension(untypedComprehension.orderImpl(fieldsVec, expr))
+
+    private def fromUntypedTableComprehension(comprehensions: ProjectedTableComprehensions[lenEnv.Out]) =
+      new ProjectedTypedTableComprehensions[H](comprehensions.fields, comprehensions.query)
+  }
+
+  trait TableComprehensions extends Rep[Table] {
+    type ComprehensionsMonad
+    protected def filterImpl[F <: HList](f: Rep[Tup[F]] => Rep[Boolean], fields: Vector[Symbol]): ComprehensionsMonad
+    def filter[P <: Product, FL <: Nat, F <: HList](fields: P)(f: Rep[Tup[F]] => Rep[Boolean])(implicit
+                                                                                               lenEv: tuple.Length.Aux[P, FL],
+                                                                                               lenEnv2: hlist.Length.Aux[F, FL],
+                                                                                               toVector: ToTraversable.Aux[P, Vector, Symbol]) =
+      filterImpl(f, toVector(fields))
+
+    protected def orderImpl(fieldsVec: Vector[Symbol], expr: OrderBy): ComprehensionsMonad
+
+    //TODO ordering
+    def orderBy[P <: Product](fields: P)(implicit toVector: ToTraversable.Aux[P, Vector, Symbol]) = {
+      val fieldsVec = toVector(fields)
+      val expr = OrderBy(tree, fieldsVec.map(FieldWithDirection(_, Asc)))(new UntypedTableType)
+      orderImpl(fieldsVec, expr)
+    }
+  }
+
   class TableOperations(arg1: Rep[Table]) {
     def apply[P <: Product, FieldsLen <: Nat](fields: P)(implicit /*tupEv: IsTuple[P],*/
                                                       lenEv: tuple.Length.Aux[P, FieldsLen],
@@ -283,58 +334,6 @@ trait TableCompilerPhases extends LazyLogging with Symbols with Queries with Tab
 //      ().successNel[String]
 //    case _ => ().successNel[String]
 //  }
-
-
-//  private def tableSource: Expression => Option[Expression] = attr { tree =>
-//    tree match {
-//      case t: LoadTableFromFs => t.some
-//      case t: Join => t.some
-//      case t: Limit => t.some
-//      case t: GroupBy => t.some
-//      case Transform(_, _/> table, _) => table -> tableSource
-//      case Filter(_, _/> table, _) => table -> tableSource
-//    }
-//  }
-
-//  def collectDuplicates: (Atom) ==> Map[Sym @@ ForTableQuery, Duplicate] = {
-//
-//    def collectDuplicatesHlp: (Vector[Duplicate], Atom) ==> Writer[Map[Sym @@ ForTableQuery, Duplicate], Unit] = {
-//      case (duplicates, Some(sym) /> (table: TableQuery)) => {
-//
-//        //unpack next steps and optionally include filter duplicates for join query
-//        val (dups, sources): (Vector[Duplicate], Seq[(Vector[Duplicate], Atom)]) = table match {
-//          case Join((lgen: Generator, left), (rgen: Generator, right), _, cond) =>
-//            (duplicates ++ cond.map(_._1.asInstanceOf[Generator].duplicates).toVector,
-//              Seq((Vector(lgen.duplicates), left), (Vector(rgen.duplicates), right)))
-//
-//          case QueryWithGenerator(gen, StepTable(next)) => (duplicates, Seq((Vector(gen.duplicates), next)))
-//
-//          case StepTable(next) => (duplicates, Seq((Vector.empty[Duplicate], next)))
-//
-//          case _ => (duplicates, Seq.empty)
-//        }
-//
-//        if (dups.exists(_.nonEmpty)) logger.debug(s"collecting $dups")
-//
-//        //get biggest name conflict for each symbol
-//        //might break, as multiple syms can belong to one generator, it should be a max
-//        //of a generator mapping - actually right now should never be greater > 2 so no problem lol
-//        implicit val vecOrder: scala.Ordering[Vector[Sym]] = new scala.Ordering[Vector[Sym]] {
-//          override def compare(x: Vector[Sym], y: Vector[Sym]): Int = x.length compare y.length
-//        }
-//        val m = dups.map(_.mapValues(iter => Vector(iter)))
-//          .foldLeft1Opt(_ |+| _).map(_.mapValues(_.max))
-//          .filter(_.nonEmpty)
-//          .map(dup => Map((forTable(sym), dup))).getOrElse(Map.empty[Sym @@ ForTableQuery, Duplicate])
-//
-//        sources.foldLeft(m.tell)((writer, genSource) => writer flatMap (_ => collectDuplicatesHlp(genSource)))
-//      }
-//      case (duplicates, QueryWithGenerator(gen, StepTable(next))) => collectDuplicatesHlp((duplicates :+ gen.duplicates, next))
-//    }
-//
-//    { case a: Atom if collectDuplicatesHlp.isDefinedAt((Vector.empty, a)) => collectDuplicatesHlp((Vector.empty, a)).written }
-//  }
-//
 
   /**
    * Merges nested expressions into joins

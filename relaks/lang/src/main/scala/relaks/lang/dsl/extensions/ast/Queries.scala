@@ -38,6 +38,14 @@ sealed case class LoadTableFromFs(path: String) extends TableQuery {
   override def sources: Seq[Atom] = Seq.empty
 }
 
+sealed case class OptimizerResultTable(argTuple: Expression) extends TableQuery {
+  override def mainToString: String = withArgs(super.mainToString, argTuple.toString)
+
+  override def stepTable: Option[Atom] = None
+
+  override def sources: Seq[Atom] = Seq.empty
+}
+
 sealed case class Transform(generator: GeneratorBase, table: Atom, select: Atom) extends Query with SingleSourceTransformation {
   override def mainToString: String = withArgs(super.mainToString, select.toString)
 
@@ -69,6 +77,20 @@ sealed case class Filter(generator: GeneratorBase, table: Atom, filter: Atom) ex
 }
 sealed case class GroupBy(generator: GeneratorBase, table: Atom, group: Atom) extends Query with SingleSourceTransformation {
   override def mainToString: String = withArgs(super.mainToString, group.toString)
+
+  override def stepTable: Option[Atom] = table.some
+}
+
+sealed trait OrderDirection
+object Asc extends OrderDirection
+object Desc extends OrderDirection
+
+final case class FieldWithDirection(field: Symbol, direction: OrderDirection) {
+  override def toString: String = s"${if (direction == Asc) "↑" else "↓"}$field"
+}
+
+sealed case class OrderBy(table: Atom, ordering: Vector[FieldWithDirection]) extends Query with SingleSourceTransformation {
+  override def mainToString: String = withArgs(super.mainToString, ordering.toString)
 
   override def stepTable: Option[Atom] = table.some
 }
@@ -114,10 +136,6 @@ trait Queries extends Symbols {
 
     override def toString: String = s"Generator[${symsToFields.values.mkString(", ")}]"
   }
-
-  //  implicit val generatorSemigroup: Semigroup[Generator] = new Semigroup[Generator] {
-  //    override def append(f1: Generator, f2: => Generator): Generator = f1.fuseWith(f2)
-  //  }
 
   object Generator {
     def apply(syms: Vector[Sym], fields: Vector[Symbol]) = {
