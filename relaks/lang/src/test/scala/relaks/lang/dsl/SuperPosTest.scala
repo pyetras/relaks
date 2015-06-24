@@ -128,34 +128,63 @@ class SuperPosTest extends FunSpec with Matchers with Inside {
       analyze(getB.tree)
       superPosed(getB.tree) should not be(true)
     }
+
+    it("should assign correct superPos attributes to native function calls") {
+      val (p, _, _) = prog()
+      import p._
+      def f(x: Double, y: Double) = x + y
+      val x: Rep[Double] = 1.0
+      val y: Rep[Double] = 2.0
+      val z1 = to (f _) apply (x, y)
+      analyze(z1.tree)
+      superPosed(z1.tree) should not be(true)
+
+      val a = choose from List(1.0, 2.0, 3.0)
+      val z2 = to (f _) apply (x, a)
+      analyze(z2.tree)
+      superPosed(z2.tree) should be(true)
+
+      val z3 = to (f _) apply (a, z1)
+      analyze(z3.tree)
+      superPosed(z3.tree) should be(true)
+    }
+
   }
+  describe("optimizer queries") {
+    def f(x: Int, y: Int) = x + y
 
-  it("should assign correct superPos attributes to native function calls") {
-    val (p, _, _) = prog()
-    import p._
-    def f(x: Double, y: Double) = x + y
-    val x: Rep[Double] = 1.0
-    val y: Rep[Double] = 2.0
-    val z1 = to (f _) apply (x, y)
-    analyze(z1.tree)
-    superPosed(z1.tree) should not be(true)
+    it("should return unsuperposed results") {
+      val (p, a, b) = prog()
+      import p._
+      val r = optimize (Tuple1(b)) map { row =>
+        Tuple1(a + row(0))
+      }
+      analyze(r.tree)
+      superPosed(r.tree) should not be (true)
+    }
 
-    val a = choose from List(1.0, 2.0, 3.0)
-    val z2 = to (f _) apply (x, a)
-    analyze(z2.tree)
-    superPosed(z2.tree) should be(true)
+    it("should return superposed results when the expression is superPosed") {
+      val (p, _, b) = prog()
+      import p._
+      val a = choose between 1 and 10
+      val r = optimize (Tuple1(b)) map { row =>
+        Tuple1(a + row(0))
+      }
+      analyze(r.tree)
+      superPosed(r.tree) should be (true)
+    }
 
-    val z3 = to (f _) apply (a, z1)
-    analyze(z3.tree)
-    superPosed(z3.tree) should be(true)
+    it("should not accept optimizer queries without stop conditions") { pending }
+    it("should not accept optimizer queries without sorting (target function)") { pending }
   }
 
   describe("SuperPos analyzer") {
-    it("should validate the `once` operator") {
+    it("should only accept superposed arguments to the `once` operator") {
       val (p, a, b) = prog()
       import p._
       analyze(once(a).tree) should matchPattern { case Failure(_) => }
       analyze(once(b).tree) should matchPattern { case Success(()) => }
     }
+    it("should only accept superposed arguments to the `generate` operator") { pending }
   }
 }

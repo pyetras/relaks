@@ -122,4 +122,13 @@ trait Symbols extends LazyLogging { self =>
     }
   }
 
+  object Fresh {
+    def unapply(expr: Expression): Option[Sym] = {
+      (Expr.unapply(expr), expr) match {
+        case (None, s:Sym) => s.some
+        case _ => None
+      }
+    }
+  }
+
 }

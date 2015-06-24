@@ -39,7 +39,9 @@ trait SuperPosAnalysis extends Symbols with BaseCompiler {
   class SuperPosed(tree: GraphTree) extends Attribution { self =>
     val superPosDeps: Expression => Set[Sym] = {
       attr {
+        case _ /> OptimizerResultTable(_) => Set.empty
         case Some(sym) /> (_: NondetGenerator) => Set(sym)
+        case Fresh(_) => Set.empty[Sym]
         case _ /> (link) => tree.child(link).map(self.superPosDeps).foldLeft(Set.empty[Sym]){_ ++ _}
       }
     }
