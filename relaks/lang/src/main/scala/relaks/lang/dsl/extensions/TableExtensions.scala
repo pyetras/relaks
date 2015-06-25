@@ -12,7 +12,6 @@ import org.kiama.relation.GraphTree
 import org.apache.drill.common.expression.{SchemaPath, LogicalExpression, FieldReference}
 import org.apache.drill.common.logical.data.{Transform => DrillTransform, Join => DrillJoin, NamedExpression, JoinCondition, LogicalOperator, Scan}
 import org.kiama.==>
-import org.kiama.rewriting.Rewriter.{query, manybu, repeat, oncetd}
 import org.kiama.rewriting.{Rewriter, Strategy}
 import relaks.lang.ast._
 import relaks.lang.dsl.AST._
@@ -38,10 +37,37 @@ trait TableExtensions extends TableIO with TableOps with TableUtils {
 }
 
 trait TableUtils extends Symbols with Queries {
-  sealed trait ForTableQuery
+//  sealed trait ForTableQuery
+//  private def forTable(sym: Sym): Sym @@ ForTableQuery = ForTable.unapply(sym).get
+//
+//  private object ForTable {
+//    def unapply(sym: Sym) = sym match {
+//      case Some(s) /> (_: SourceQuery) => Tag[Sym, ForTableQuery](s).some
+//      case _ => None
+//    }
+//  }
 
-  protected type Duplicate = Map[Symbol, Vector[Sym]]
-  protected type Renamer = Map[Sym, Symbol]
+  //note that it only works on syms
+  //it also does not extract nested comprehensions
+  object ComprehensionBuilder extends Attribution {
+    val comprehension: Expression => Option[Comprehension] = attr {
+      case Some(query) /> StepTable(next) =>
+        val _ /> inner = query
+        (next match {
+          case Some(q) /> SourceTable(_) => Comprehension(q).some
+          case _ => comprehension(next)
+        }).map { comprehension =>
+          inner match {
+            case (expr: Filter) => comprehension.copy(filter = expr +: comprehension.filter)
+            case (expr: Transform) => comprehension.copy(transform = expr +: comprehension.transform)
+            case (expr: Limit) => comprehension.copy(limit = expr +: comprehension.limit)
+            case (expr: GroupBy) => comprehension.copy(groupBy = expr +: comprehension.groupBy)
+            case (expr: OrderBy) => comprehension.copy(orderBy = expr +: comprehension.orderBy)
+          }
+        }
+      case _ => None
+    }
+  }
 }
 
 trait TableOps extends Symbols with Queries {
@@ -305,6 +331,8 @@ trait DrillCompilers extends BaseRelationalCompilers with Symbols with Queries w
 }
 
 trait TableCompilerPhases extends LazyLogging with Symbols with Queries with TableUtils {
+  import org.kiama.rewriting.Rewriter._
+
   class LeafSyms(tree: GraphTree) extends Attribution { self =>
     val leafSyms: Expression => Set[Sym] = attr {
       case Expr(node) => tree.child(node).map(self.leafSyms).foldLeft(Set.empty[Sym]) {_ ++ _}
@@ -340,8 +368,8 @@ trait TableCompilerPhases extends LazyLogging with Symbols with Queries with Tab
    * TODO change argument to atom
    * @return
    */
-  val fuseTransforms = repeat(oncetd(query[Expression](unnestTransforms_))) andThen (_.map(_.asInstanceOf[Expression]))
-  private def unnestTransforms_ : Expression ==> Unit = {
+  val fuseTransforms = repeat(oncetd(query[Expression](fuseTransformsImpl))) andThen (_.map(_.asInstanceOf[Expression]))
+  private def fuseTransformsImpl : Expression ==> Unit = {
     //nested transformation whose result is a pure expression
     case Some(sym) /> Transform(gPar: Generator, Some(parSym) /> Query(parTable),
     _ /> Transform(gChild: Generator, Some(childSym) /> Query(childTable), _ /> (select@Pure(_)))) =>
@@ -377,13 +405,42 @@ trait TableCompilerPhases extends LazyLogging with Symbols with Queries with Tab
       sym.replaceWith(Transform(generator, join, select))
   }
 
-  private def forTable(sym: Sym): Sym @@ ForTableQuery = ForTable.unapply(sym).get
 
-  private object ForTable {
-    def unapply(sym: Sym) = sym match {
-      case Some(s) /> (_: TableQuery) => Tag[Sym, ForTableQuery](s).some
-      case _ => None
+  def buildComprehensions = {
+    //all the complexity here comes from the fact, that for Comprehension subexpressions
+    //the strategy should traverse its inner expression (closure), but not the source
+    //expression. this could be simplified by modyfing Comprehension so that it does not
+    //link to the subexpressions' sources
+
+    def traverseInner(s: Strategy): Strategy = {
+      rulefs[Expression] {
+        case None /> (q @ InnerQuery(_)) =>
+          assert(q.productArity == 3, "kiama congruence constraint")
+          congruence(id, id, s)
+        case _ => s
+      }
     }
-  }
 
+    def skipComprehension(s: Strategy): Strategy = {
+      lazy val skip: Strategy =
+      rulefs[Expression] {
+        case (c: Comprehension) =>
+          assert(c.productArity == 6, "kiama congruence constraint")
+          val v = Vector(id, id, id, id, id, id)
+          //congruence(s <+ one(skip), id, id, id, id, id) <+ congruence(id, one(traverseInner(s)), id, id, id, id) <+ ...
+          v.indices.drop(1).foldLeft(congruence(s <+ one(skip), id, id, id, id, id)){(strategy, ix) =>
+            strategy <+ congruence(v.updated(ix, one(traverseInner(s))):_*)
+          }
+        case q @ _ => s <+ one(skip)
+      }
+      skip
+    }
+
+    def buildComprehensionsImpl: Expression ==> Atom = {
+      case Some(sym) /> _ if ComprehensionBuilder.comprehension(sym).nonEmpty =>
+        ComprehensionBuilder.comprehension(sym).get
+    }
+
+    repeat(skipComprehension(rule[Expression](buildComprehensionsImpl))) andThen (_.map(_.asInstanceOf[Expression]))
+  }
 }

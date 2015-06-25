@@ -132,8 +132,9 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         val transformed = fuseTransforms(res.tree).get
         transformed should matchPattern { case _/>Transform(_, _/>Join(_, (_, _/>Join(_, _, InnerJoin, _)), InnerJoin, _), _/>(_: Pure)) => }
       }
+
       it("should generate projections") {
-        object Program extends DSL with TableExtensions with TableCompilerPhases with DrillCompilers
+        object Program extends DSL with TableExtensions with TableCompilerPhases
         import Program._
         val a = load("hello")
         val b = load("world")
@@ -155,7 +156,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
 
         val fields = collectGenerators(transformed).map(_.symsToFields.values)
 
-        forAll (fields) { vals: Iterable[Symbol] => (vals.toSet.size) should equal (vals.size) }
+        forAll (fields) { vals: Iterable[Symbol] => (vals.toSet.size) should equal (vals.size) } //no duplicates
 
         inside (transformed) {
           case _/>Transform(_, _/>Join(_, (_, _/> Transform(gen: Generator, _, expr)), _, _), _) =>
@@ -166,6 +167,36 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
               case _/>Pure(_/>(t: TupleConstructor)) => atLeast(1, t.names) should startWith ("ax__")
             }
         }
+      }
+
+      it("should merge queries into Comprehension") {
+        object Program extends DSL with TableExtensions with TableCompilerPhases
+        import Program._
+        val a = load("hello")
+        val q = a(('ax, 'ay)) map { (xy: Row2[Int, Int]) =>
+          (xy(0), xy(1))
+        } orderBy Tuple1('x0)
+        val r = q.filter(Tuple1('x1))({(iter: Row[Int]) => iter(0) <= 10})
+
+        val transformed = buildComprehensions(r.tree).get
+
+        transformed should matchPattern { case _/> Comprehension(_, _ +: Nil, _ +: Nil, _, _ +: Nil, _) => }
+      }
+
+      it("should merge nested queries into Comprehension s") {
+        object Program extends DSL with TableExtensions with TableCompilerPhases
+        import Program._
+        val a = load("hello")
+        val b = load("world")
+        val r = a(('ax, 'ay)) flatMap { (xy: Row2[Int, Int]) =>
+          val qq = b(('ax, 'ay)) map { (xy2: Row2[Int, Int]) =>
+            (xy(0), xy2(0))
+          }
+          qq
+        } orderBy Tuple1('x0)
+        val transformed = buildComprehensions(r.tree).get
+
+        transformed should matchPattern { case _/> Comprehension(_, (_/>Transform(_, _, _/> (_: Comprehension))) +: Nil, _, _, _, _) => }
       }
     }
     describe("drill compiler") {

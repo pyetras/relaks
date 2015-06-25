@@ -7,6 +7,7 @@ import relaks.lang.dsl.utils.{TreePrettyPrintable, PrettyPrintable}
 import shapeless.{HNil, HList}
 import relaks.lang.dsl.AST.syntax._
 
+import scala.runtime.ScalaRunTime
 import scalaz.Reader
 import scalaz.Scalaz._
 import scalaz._
@@ -22,7 +23,7 @@ sealed trait Query extends Expression with PrettyPrintable {
 }
 
 
-sealed trait TableQuery extends Query
+sealed trait SourceQuery extends Query
 trait GeneratorBase {
   //  def fuseWith(other: GeneratorBase): GeneratorBase
 }
@@ -31,14 +32,14 @@ sealed trait SingleSourceTransformation extends Query {
   override def sources: Seq[Atom] = stepTable.toSeq
 }
 
-sealed case class LoadTableFromFs(path: String) extends TableQuery {
+sealed case class LoadTableFromFs(path: String) extends SourceQuery {
   override def mainToString: String = withArgs(super.mainToString, path)
 
   override def stepTable: Option[Atom] = None
   override def sources: Seq[Atom] = Seq.empty
 }
 
-sealed case class OptimizerResultTable(argTuple: Expression) extends TableQuery {
+sealed case class OptimizerResultTable(argTuple: Expression) extends SourceQuery {
   override def mainToString: String = withArgs(super.mainToString, argTuple.toString)
 
   override def stepTable: Option[Atom] = None
@@ -52,7 +53,7 @@ sealed case class Transform(generator: GeneratorBase, table: Atom, select: Atom)
   override def stepTable: Option[Atom] = table.some
 }
 
-sealed case class Join(left: (GeneratorBase, Atom), right: (GeneratorBase, Atom), typ: JoinType, conditions: Option[(GeneratorBase, Atom)]) extends TableQuery {
+sealed case class Join(left: (GeneratorBase, Atom), right: (GeneratorBase, Atom), typ: JoinType, conditions: Option[(GeneratorBase, Atom)]) extends SourceQuery {
   override def mainToString: String = withArgs(super.mainToString, (typ.toString +: conditions.toSeq.map(_._2.toString)):_*)
 
   override def stepTable: Option[Atom] = None
@@ -64,7 +65,7 @@ sealed trait JoinType {
 object CartesianJoin extends JoinType
 object InnerJoin extends JoinType
 
-sealed case class Limit(table: Atom, start: Atom, count: Atom) extends TableQuery {
+sealed case class Limit(table: Atom, start: Atom, count: Atom) extends SourceQuery {
   override def mainToString: String = withArgs(super.mainToString, count.toString)
 
   override def stepTable: Option[Atom] = None
@@ -96,6 +97,17 @@ sealed case class OrderBy(table: Atom, ordering: Vector[FieldWithDirection]) ext
 }
 
 sealed case class Pure(value: Atom) extends Expression
+
+sealed case class Comprehension(from: Atom,
+                                transform: Seq[Query] = Seq.empty,
+                                filter: Seq[Query] = Seq.empty,
+                                limit: Seq[Query] = Seq.empty,
+                                orderBy: Seq[Query] = Seq.empty,
+                                groupBy: Seq[Query] = Seq.empty) extends Expression {
+
+  override def mainToString: String = ScalaRunTime._toString(this)
+}
+
 
 trait Queries extends Symbols {
   object Project {
@@ -214,6 +226,23 @@ trait Queries extends Symbols {
     def unapply(expr: Expression): Option[Seq[Atom]] = expr match {
       case _/> Query(q) => q.sources.some
       case _ => Seq.empty[Atom].some
+    }
+  }
+
+  //if cannot get next table its a source
+  object SourceTable {
+    def unapply(expr: Expression): Option[Query] = expr match {
+      case Query(q) => if (StepTable.unapply(q).nonEmpty) None else q.some
+      case _ => None
+    }
+  }
+
+  object InnerQuery {
+    def unapply(expr: Expression): Option[Expression] = expr match {
+      case _/>Transform(_, _, select) => select.some
+      case _/>Filter(_, _, filter) => filter.some
+      case _/>GroupBy(_, _, group) => group.some
+      case _ => None
     }
   }
 

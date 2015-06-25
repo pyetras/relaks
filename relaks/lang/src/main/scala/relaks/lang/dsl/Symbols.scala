@@ -14,7 +14,7 @@ import scalaz.Scalaz._
 trait Symbols extends LazyLogging { self =>
 
   private var definitions = Map.empty[Sym, Assignment]
-  private var symCounter = 0
+  private var symCounter = -1
 
   private object NoOpExpr extends Expression with Leaf
 
@@ -25,13 +25,15 @@ trait Symbols extends LazyLogging { self =>
     //expr_ to dictionary
     val name = expr_ match {
       case NoOpExpr => name_
-      case _ => name_
+      case _ =>
+        symCounter += 1
+        symCounter
     }
 
     expr_ match {
       case NoOpExpr =>
-      case _ => //logger.debug(s"wazzup rewrite $expr_")
-//        saveDefinition(this, expr_)
+      case _ => logger.debug(s"rewrite $expr_ from $name_ to $name")
+        saveDefinition(this, expr_)
 //        replaceWith(expr_)
     }
 
@@ -74,9 +76,8 @@ trait Symbols extends LazyLogging { self =>
   }
 
   protected def fresh: Sym = {
-    val sym = Stream.from(symCounter).map((i) => Sym(i)) dropWhile definitions.contains
-    symCounter = sym.head.name + 1
-    sym.head
+    symCounter += 1
+    Sym(symCounter)
   }
 
   protected def freshRep[T](typ: TType): Rep[T] = new Rep[T] {
@@ -85,7 +86,6 @@ trait Symbols extends LazyLogging { self =>
 
   private def saveDefinition(sym: Sym, expression: Expression) : Assignment = {
     val ass = Assignment(sym, expression)(expression.tpe)
-//    initTree(ass) //TODO sure?
     definitions += ((sym, ass))
     ass
   }
