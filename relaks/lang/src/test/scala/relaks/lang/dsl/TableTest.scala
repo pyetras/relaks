@@ -15,7 +15,7 @@ import shapeless._
 /**
  * Created by Pietras on 22/05/15.
  */
-class TableTest extends FunSpec with Matchers with Inside with LoneElement with LazyLogging {
+class TableTest extends FunSpec with Matchers with Inside with LoneElement with Inspectors with LazyLogging {
 
   describe("table extensions") {
     describe("syntax for untyped tables") {
@@ -137,29 +137,35 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         import Program._
         val a = load("hello")
         val b = load("world")
-        val c = load("!!!")
 
         val res = for {
           as: Row2[Int, Int] <- a(('ax, 'ay))
           bs: Row2[Int, Int] <- b(('ax, 'by))
-          cs: Row2[Int, Int] <- c(('ax, 'lol2))
-        } yield (as(0), as(1), bs(0), bs(1), cs(0), cs(1))
+        } yield (as(0), as(1), bs(0), bs(1))
 
 
         val transformed = fuseTransforms(res.tree).get
+        println(transformed.verboseString)
 
-//        val original = transformed.verboseString.split("\n").map(_.trim)
-//
-//        val duplicates = collectDuplicates(transformed)
-//        val fields = validateDuplicates(duplicates).map(_ => renameFields(duplicates)).toOption.get
-//        val projected = materializeProjections(fields)(transformed).get
-//
-//        val result = projected.verboseString.split("\n").map(_.trim)
-//        val diff = result diff original
-//
-//        diff should have size 2
-//        (original diff result) should have size 0
-//        all (diff) should startWith("Transform")
+        def collectGenerators(expr: Expression): Seq[Generator] = {
+          val sources = Sources.unapply(expr)
+          val generator = QueryWithGenerator.unapply(expr).map(_._1).map(Seq(_)).getOrElse(Seq.empty[Generator])
+          sources.getOrElse(Seq.empty[Atom]).foldLeft(generator)((seq, source) => seq ++ collectGenerators(source))
+        }
+
+        val fields = collectGenerators(transformed).map(_.symsToFields.values)
+
+        forAll (fields) { vals: Iterable[Symbol] => (vals.toSet.size) should equal (vals.size) }
+
+        inside (transformed) {
+          case _/>Transform(_, _/>Join(_, (_, _/> Transform(gen: Generator, _, expr)), _, _), _) =>
+            //takes 'ax...
+            gen.symsToFields.values.loneElement should equal ('ax)
+            inside(expr) {
+              //and transforms it to 'ax__*
+              case _/>Pure(_/>(t: TupleConstructor)) => atLeast(1, t.names) should startWith ("ax__")
+            }
+        }
       }
     }
     describe("drill compiler") {
