@@ -28,7 +28,7 @@ notifications:
     - p@pyetras.com
 
 before_script:
-  - ./lib/publish_drill.sh
+  - ./lib/publish.sh
 
 script:
   - cd relaks && sbt ++$TRAVIS_SCALA_VERSION clean "test-only -- -l relaks.Integration"

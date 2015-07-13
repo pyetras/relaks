@@ -10,6 +10,8 @@ class Row(val values: Vector[Any], private val schema: Vector[(String, TType)]) 
 
   private val names: Map[String, Int] = schema.indices.map(i => schema(i)._1 -> i).toMap
 
+  lazy val colNames = schema.map(_._1)
+
   def apply(colname: String) = {
     values(names(colname))
   }

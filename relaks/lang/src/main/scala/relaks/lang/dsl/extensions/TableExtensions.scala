@@ -197,7 +197,9 @@ trait TableOps extends Symbols with Queries {
   implicit def addTableOps(t: Rep[Table]): TableOperations = new TableOperations(t)
 }
 
-trait TableIO extends Symbols with BaseRelationalCompilers {
+trait TableIO extends Symbols {
+  private[dsl] var storedOutput: Set[Expression] = Set.empty
+
   def load(path: String): Rep[Table] = new Rep[Table] {
     override val tree: Atom = LoadTableFromFs(path)(new UntypedTableType)
   }
@@ -210,7 +212,6 @@ trait TableIO extends Symbols with BaseRelationalCompilers {
 }
 
 trait BaseRelationalCompilers extends Symbols with Queries with TableUtils {
-  var storedOutput: Set[Expression] = Set.empty
 
   sealed trait RelationalCompilerPartBase {
 

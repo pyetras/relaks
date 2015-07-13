@@ -22,6 +22,19 @@ class InterpreterTest extends FunSpec with Matchers with Inside {
       stream.runLog.run should have length 2
     }
 
+    it("should print a stored table") {
+      object Program extends DSLInterpreter {
+        val b = choose between 1 and 3
+        val r = (optimize(Tuple1(b)) map { row =>
+          Tuple1(row(0))
+        }) orderBy Tuple1('x0)
+
+        store(r)
+      }
+
+      Program.dump()
+    }
+
   }
 
 }

@@ -18,4 +18,6 @@ libraryDependencies += "org.apache.calcite" % "calcite-core" % "1.2.0-incubating
 
 libraryDependencies += "org.scalikejdbc" %% "scalikejdbc" % "2.2.6"
 
+libraryDependencies += "com.bethecoder" % "ascii_table" % "1.0-SNAPSHOT"
+
 resolvers += "Concurrent Maven Repo" at "http://conjars.org/repo"

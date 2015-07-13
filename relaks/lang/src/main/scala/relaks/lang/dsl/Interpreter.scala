@@ -1,5 +1,6 @@
 package relaks.lang.dsl
 
+import com.bethecoder.ascii_table.ASCIITable
 import org.kiama.relation.GraphTree
 import relaks.lang.ast.{Literal, Expression}
 import relaks.lang.dsl.extensions._
@@ -20,6 +21,7 @@ trait Interpreter
   with SuperPosInterpreter
   with QueryInterpreter
   with GridOptimizer
+  with TableIO
   with TableCompilerPhases
   with TupleInterpreter {
   def eval(expr: Expression): Process[Task, impl.Row] = expr match {
@@ -59,6 +61,16 @@ trait Interpreter
         .pipe(loop)
         .observe(optimizer.update.contramap(_._2)) //pipe second element (OptimizerResult) to update sink
         .pipe(fst)
+  }
+
+  def dump(): Unit = {
+    for (expr <- storedOutput) {
+      val stream = eval(buildComprehensions(expr).get)
+      val rows = stream.runLog.run
+      if (rows.nonEmpty) {
+        ASCIITable.getInstance().printTable(rows.head.colNames.toArray, rows.map(_.values.map(_.toString).toArray).toArray)
+      }
+    }
   }
 }
 
