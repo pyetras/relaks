@@ -24,3 +24,17 @@ trait DSL
   with ContCompiler {
 
 }
+
+trait DSLInterpreter extends Symbols
+with SuperPosExtensions
+with AnyExtensions
+with BoolExtensions
+with OrderExtensions
+with NumericExtensions
+with ListExtensions
+with TupleExtensions
+with NativeFunExtensions
+with TableExtensions
+with Interpreter {
+
+}

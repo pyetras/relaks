@@ -33,7 +33,7 @@ object NondetParamExtensions {
       def toSpearmintJson = self.paramSpace.toSpearmintJson
     }
 
-    implicit class NondetParamTypeJsonOps(self: NondetParamType[Any]) {
+    implicit class NondetParamTypeJsonOps(self: NondetParam[Any]) {
 
       def toSpearmintJson: JObject = ("size" -> 1) ~ (self match {
         case ChooseOneOf(seq) =>
@@ -70,7 +70,7 @@ object NondetParamExtensions {
       }
     }
 
-    private def nondetParamDefToJObject[A](self: (String, NondetParamType[A])): JObject =
+    private def nondetParamDefToJObject[A](self: (String, NondetParam[A])): JObject =
       self._1 -> (("name" -> self._1) ~ self._2.toSpearmintJson)
   }
 }

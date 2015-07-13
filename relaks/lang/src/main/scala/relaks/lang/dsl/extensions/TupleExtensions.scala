@@ -5,6 +5,7 @@ import relaks.lang.ast._
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl._
 import relaks.lang.dsl.utils.{FillNat, TupleLU, UnliftType}
+import relaks.lang.impl.Row
 import shapeless._
 import shapeless.ops.hlist._
 import shapeless.ops.nat.ToInt
@@ -56,7 +57,7 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging {
 
   class TupleOperations[B1 <: HList](val arg1: Rep[Tup[B1]]) {
     lazy val (luType, productTypes) = arg1.getTpe match {
-      case t: TupType[B1] => (t.lowerBound, t.productTypes)
+      case t: TupType[B1] => (t.lowerBound, t.childrenTypes)
       case _ => (UnknownType, new Seq[TType]{
         override def length: Int = ???
         override def apply(idx: Int): TType = UnknownType
@@ -118,5 +119,14 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging {
       override val tree: Expression = TupleConstructor(replist.map(_.tree).toVector)(typ)
     }
   }
+}
+
+trait TupleInterpreter extends BaseExprInterpreter with Symbols {
+  def evalTupleExpression: PartialFunction[Expression, Row] = {
+    case _/>(tup: TupleConstructor) =>
+      new Row(tup.tuple.map(evalExpression), tup.names zip tup.tpe.asInstanceOf[TupType[_]].childrenTypes)
+  }
+
+  override def evalExpression(expr: Expression): Any = evalTupleExpression.applyOrElse(expr, super.evalExpression)
 }
 

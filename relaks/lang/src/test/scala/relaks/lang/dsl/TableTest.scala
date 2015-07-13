@@ -198,6 +198,20 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
 
         transformed should matchPattern { case _/> Comprehension(_, (_/>Transform(_, _, _/> (_: Comprehension))) +: Nil, _, _, _, _) => }
       }
+
+      it("should compute output schema for Comprehensions") {
+        object Program extends DSL with TableExtensions with TableCompilerPhases
+        import Program._
+        val a = load("hello")
+        val b = load("world")
+        val r = a(('ax, 'ay)) map { (xy: Row2[Int, Int]) =>
+          (xy(0), xy(1))
+        }
+
+        val Some(_ /> (comprehension: Comprehension)) = buildComprehensions(r.tree)
+        val Some(schema) = OutputSchema forComprehension comprehension
+        schema.map(_._1) should contain theSameElementsInOrderAs scala.List("x0", "x1")
+      }
     }
     describe("drill compiler") {
       it("should compile a load table expression") {

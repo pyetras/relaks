@@ -1,5 +1,7 @@
 package relaks.lang.ast
 
+import relaks.optimizer.NondetParam
+
 import scalaz.NonEmptyList
 
 /**
@@ -22,21 +24,13 @@ trait Leaf extends Product {
 
 sealed case class Program(stmts: Seq[Tree]) extends Tree
 
-sealed trait Statement extends Tree
-case class Assignment(left: Expression, right: Expression) extends Statement
-case class Generate(exprs: NonEmptyList[Expression]) extends Statement
-object NoOp extends Statement with Leaf
-
 trait Expression extends Tree
 
 trait Atom extends Expression
 
 case class Identifier(name: String) extends Atom
 
-trait Literal extends Atom with Leaf {
-  type ValueT
-  val value: Any
-
+class Literal(val value: Any) extends Atom with Leaf {
   override def mainToString = s"`${value.toString}`"
 
   override def equals(other: Any) = {
@@ -47,10 +41,7 @@ trait Literal extends Atom with Leaf {
   }
 }
 object Literal {
-  def apply[T](v: T)(implicit tpe: ArgType[T]): Literal = (new Literal {
-    override type ValueT = T
-    override val value = v
-  })(tpe)
+  def apply[T](v: T)(implicit tpe: ArgType[T]): Literal = (new Literal(v))(tpe)
 
   def unapply(literal: Literal) = Some(literal.value)
 }
@@ -61,13 +52,6 @@ object Literal {
 //      case _ => None
 //    }
 //  }
-
-object Const {
-  def apply[T](v: T) : Literal = new Literal {
-    override type ValueT = T
-    override val value: Any = v
-  }
-}
 
 //  object True extends Literal{(true)
 //  object False extends Literal(false)
@@ -83,7 +67,9 @@ sealed case class TupleConstructor(tuple: Vector[Expression]) extends Expression
   }
 }
 
-sealed trait NondetGenerator extends Expression
+sealed trait NondetGenerator extends Expression {
+  val name: String = "x"
+}
 sealed case class NondetGeneratorRange(from: Literal, to: Literal) extends NondetGenerator
 sealed case class NondetGeneratorList(s: Expression) extends NondetGenerator
 

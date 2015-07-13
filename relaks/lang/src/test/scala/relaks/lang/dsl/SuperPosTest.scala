@@ -7,6 +7,7 @@ import relaks.lang.dsl.extensions._
 import shapeless._
 import org.kiama.relation.GraphTree
 
+import scalaz.stream.process1
 import scalaz.{Failure, Success}
 
 /**
@@ -24,12 +25,6 @@ class SuperPosTest extends FunSpec with Matchers with Inside {
     with TupleExtensions
     with NativeFunExtensions
     with SuperPosAnalysis {
-      override type Result = Unit
-
-      override def run(res: Program.Result): Any = ???
-
-      override def compile(expr: Expression): Program.Result = ???
-
       def superPosed(n: Expression): Boolean = new SuperPosed(new GraphTree(n)).isSuperPosed(n)
     }
 

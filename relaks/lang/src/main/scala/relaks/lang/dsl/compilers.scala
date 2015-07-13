@@ -11,18 +11,8 @@ import scalaz.{Scalaz, ValidationNel}
 /**
  * Created by Pietras on 23/04/15.
  */
-trait BaseCompiler {
+trait BaseCompiler extends Analysis {
   type Result
-  final def analyze(root: Expression) = {
-//    initTree(root)
-    val strategy = Rewriter.collect[List, ValidationNel[String, Unit]] ({
-      case (expr:Expression) => doAnalyze(expr)
-    })
-
-    strategy(root).reduce { _ *> _}
-  }
-  protected def doAnalyze(root: Expression): ValidationNel[String, Unit] =
-    ().successNel[String]
 
   def compile(expr: Expression): Result
   def run(res: Result): Any
@@ -39,7 +29,6 @@ trait BaseContCompiler extends BaseCompiler with Symbols {
   }
 
   override def compile(expr: Expression): Cont = {
-//    initTree(expr)
     val cont: Any => Cont = (x:Any) => (s:State) => s + (-1 -> x)
     eval(expr, cont)
   }

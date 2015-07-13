@@ -15,12 +15,16 @@ import scalaz.syntax.Ops
  */
 
 sealed trait TType {
-  override def equals(other: Any) = ClassTag(other.getClass) == ClassTag(this.getClass)
+  def canEqual(other: Any) = ClassTag(other.getClass) == ClassTag(this.getClass)
+  val ct: ClassTag[_]
 }
 trait NumType
 
 sealed abstract class ArgType[T: ClassTag] extends TType { self =>
   override def toString = s"$containerName[$typeArgName]"
+
+  override val ct = implicitly[ClassTag[T]]
+
   def containerName: String = {
     def findNonAnon(kls: Class[_]) : String = {
       val name = kls.getSimpleName
@@ -30,6 +34,8 @@ sealed abstract class ArgType[T: ClassTag] extends TType { self =>
     findNonAnon(this.getClass)
   }
   def typeArgName: String = implicitly[ClassTag[T]].runtimeClass.getSimpleName
+
+  override def equals(obj: scala.Any): Boolean = canEqual(obj) && obj.asInstanceOf[ArgType[_]].ct == ct
 }
 
 
@@ -38,7 +44,9 @@ sealed abstract class UnliftedArgType[T: ClassTag] extends ArgType[T] {
 
 sealed trait CompoundType
 
-sealed class ListType[T: ClassTag] extends UnliftedArgType[List[T]] with CompoundType
+sealed class ListType[T: ArgType] extends UnliftedArgType[List[T]] with CompoundType {
+  val childType = implicitly[ArgType[T]]
+}
 
 final class Tup[+T <: HList]
 
@@ -46,7 +54,7 @@ sealed abstract class TupType[T <: HList : TypeTag] extends UnliftedArgType[Tup[
   type LUB
   val length: Int
   val lowerBound: ArgType[LUB]
-  val productTypes: Vector[TType]
+  val childrenTypes: Vector[TType]
   override def containerName = s"Tup$length"
   override def typeArgName = implicitly[TypeTag[T]].tpe.dealias.toString
 }
@@ -75,15 +83,25 @@ sealed class ScalaType[T: ClassTag] extends SimpleArgType[T]
 class ScalaNumType[T : ClassTag] extends ScalaType[T] with NumType
 
 object UnknownType extends TType {
+  override val ct: ClassTag[_] = null
+}
+
+object ScalaTypes {
+  val boolType = new ScalaType[Boolean]
+  val stringType = new ScalaType[String]
+  val intType = new ScalaNumType[Int]
+  val doubleType = new ScalaNumType[Double]
+  val nullType = new ScalaType[Null]
+  val longType = new ScalaType[Long]
 }
 
 trait ScalaTypeImplis {
-  implicit val boolType = new ScalaType[Boolean]
-  implicit val stringType = new ScalaType[String]
-  implicit val intType = new ScalaNumType[Int]
-  implicit val doubleType = new ScalaNumType[Double]
-  implicit val nullType = new ScalaType[Null]
-  implicit val longType = new ScalaType[Long]
+  implicit val boolType = ScalaTypes.boolType
+  implicit val stringType = ScalaTypes.stringType
+  implicit val intType = ScalaTypes.intType
+  implicit val doubleType = ScalaTypes.doubleType
+  implicit val nullType = ScalaTypes.nullType
+  implicit val longType = ScalaTypes.longType
 
   implicit def listType[T: ClassTag](implicit typ: ArgType[T]): ListType[T] = new ListType[T]
 
@@ -100,11 +118,12 @@ trait ScalaTypeImplis {
         override val length: Int = n
         override type LUB = LU
         override val lowerBound: ArgType[LU] = lut
-        override val productTypes: Vector[TType] = inner
+        override val childrenTypes: Vector[TType] = inner
       }
       typ
     }
   }
+
   implicit def tupleTypeConstructor[H <: HList : TypeTag, N <: Nat, LUB: ClassTag]
     (implicit len: Length.Aux[H, N],
      ti: ToInt[N],

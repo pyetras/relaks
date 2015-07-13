@@ -22,7 +22,7 @@ class TupleTest extends FunSpec with Matchers with Inside {
 
     it("should create correct element types") {
       val typ = tup.getTpe.asInstanceOf[TupType[TType]]
-      typ.productTypes should have length 4
+      typ.childrenTypes should have length 4
     }
 
 //    it("should superpos type if necessary") {

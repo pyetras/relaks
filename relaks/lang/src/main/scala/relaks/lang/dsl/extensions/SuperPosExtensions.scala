@@ -5,6 +5,7 @@ import org.kiama.relation.GraphTree
 import relaks.lang.ast._
 import relaks.lang.dsl._
 import relaks.lang.dsl.extensions.ast.OptimizerResultTable
+import relaks.optimizer.{ChooseOneOf, NondetParam, DiscreteRange, ContinuousRange}
 import shapeless.HList
 import shapeless.ops.hlist
 
@@ -12,6 +13,7 @@ import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scalaz.Scalaz._
 import scalaz.{Scalaz, ValidationNel}
+import relaks.lang.ast.ScalaType
 
 /**
  * Created by Pietras on 13/04/15.
@@ -34,7 +36,7 @@ trait SuperPosExtensions extends ListExtensions with Symbols with SuperPosGenera
 
 }
 
-trait SuperPosAnalysis extends Symbols with BaseCompiler {
+trait SuperPosAnalysis extends Symbols with Analysis {
 
   class SuperPosed(tree: GraphTree) extends Attribution { self =>
     val superPosDeps: Expression => Set[Sym] = {
@@ -115,7 +117,23 @@ private[extensions] class SuperPosMapper[B1, B2, BR] {
   }
 }
 
-trait SuperPosContCompiler extends BaseContCompiler with SuperPosExtensions with SuperPosAnalysis {
+trait SuperPosInterpreter extends SuperPosExtensions with SuperPosAnalysis { this: BaseExprInterpreter =>
+  def evalSuperPosGenerator(expr: Expression): NondetParam[_] = expr match {
+    case _/> NondetGeneratorRange(from, to) =>
+      val frm = evalExpression(from)
+      val t = evalExpression(to)
+
+      expr.tpe match {
+        case ScalaTypes.doubleType => new ContinuousRange(frm.asInstanceOf[Double], t.asInstanceOf[Double])
+        case ScalaTypes.intType => new DiscreteRange(frm.asInstanceOf[Int], t.asInstanceOf[Int])
+      }
+    case _/> NondetGeneratorList(list) =>
+      val lst = evalExpression(list)
+      new ChooseOneOf[Any](lst.asInstanceOf[Seq[_]])
+  }
+}
+
+trait SuperPosContCompiler extends BaseContCompiler with SuperPosExtensions with SuperPosAnalysis with Environments {
   override def eval(expr: Expression, cont: (Any) => Cont): Cont = expr match {
     case sym @ Expr(c:NondetGenerator) => (s: State) => cont(s(sym.asInstanceOf[Sym].name))(s)
 

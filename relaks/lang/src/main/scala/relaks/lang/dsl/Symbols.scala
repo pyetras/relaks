@@ -13,7 +13,7 @@ import scalaz.Scalaz._
  */
 trait Symbols extends LazyLogging { self =>
 
-  private var definitions = Map.empty[Sym, Assignment]
+  private var definitions = Map.empty[Sym, Expression]
   private var symCounter = -1
 
   private object NoOpExpr extends Expression with Leaf
@@ -75,26 +75,24 @@ trait Symbols extends LazyLogging { self =>
     def unapply(sym: Sym) = sym.name.some
   }
 
-  protected def fresh: Sym = {
+  protected final def fresh: Sym = {
     symCounter += 1
     Sym(symCounter)
   }
 
-  protected def freshRep[T](typ: TType): Rep[T] = new Rep[T] {
+  protected final def freshRep[T](typ: TType): Rep[T] = new Rep[T] {
     override val tree: Expression = fresh(typ)
   }
 
-  private def saveDefinition(sym: Sym, expression: Expression) : Assignment = {
-    val ass = Assignment(sym, expression)(expression.tpe)
-    definitions += ((sym, ass))
-    ass
+  private def saveDefinition(sym: Sym, expression: Expression) : Unit = {
+    definitions += ((sym, expression))
   }
 
-  private def isDefined(sym: Sym): Boolean = definitions.contains(sym)
+  private def isDefined(sym: Sym): Boolean = findDefinition(sym).isDefined
 
-  private def findDefinition(sym: Sym) : Option[Expression] = definitions.get(sym).map(_.right)
+  protected def findDefinition(sym: Sym) : Option[Expression] = definitions.get(sym)
 
-  implicit def toAtom(expression: Expression) : Atom = expression match {
+  implicit final def toAtom(expression: Expression) : Atom = expression match {
     case sym @ Sym(_) => sym
     case _ =>
       val sym = fresh(expression.tpe)

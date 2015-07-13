@@ -19,6 +19,7 @@ import relaks.lang.dsl.AST.syntax._
 import relaks.lang.dsl._
 import relaks.lang.dsl.extensions.ast._
 import relaks.lang.dsl.utils.TreePrettyPrintable
+import relaks.lang.impl.Row
 import shapeless._
 import shapeless.ops.nat.ToInt
 import shapeless.ops.tuple.ToTraversable
@@ -330,6 +331,20 @@ trait DrillCompilers extends BaseRelationalCompilers with Symbols with Queries w
 
 }
 
+trait QueryInterpreter extends BaseQueryInterpreter with Queries with BaseExprInterpreter {
+  override def evalQuery(inputRow: Row, q: Query): Row = q match {
+    case _/>Transform(gen: Generator, table, select) =>
+      push(gen.symsVector.zip(inputRow.values.map(new Literal(_))))
+      evalExpression(select).asInstanceOf[Row]
+    case _ => super.evalQuery(inputRow, q)
+  }
+
+  override def evalExpression(expr: Expression): Any = expr match {
+    case _/>Pure(e) => evalExpression(e)
+    case _ => super.evalExpression(expr)
+  }
+}
+
 trait TableCompilerPhases extends LazyLogging with Symbols with Queries with TableUtils {
   import org.kiama.rewriting.Rewriter._
 
@@ -345,6 +360,18 @@ trait TableCompilerPhases extends LazyLogging with Symbols with Queries with Tab
       case _ /> Filter(gen: Generator, _, filter) => (gen, filter).some
       case _ /> Join(_, _, InnerJoin, GenPlusFilter(gen, filter)) => (gen, filter).some
       //      case _/>Project(_/> table, _) => table -> closestFilter
+      case _ => None
+    }
+  }
+
+  object OutputSchema extends Attribution {
+    private val forTransform: Query => Vector[(String, TType)] = attr {
+      case Transform(_, _, _/>Pure(_/>(t: TupleConstructor))) => t.names.zip(t.tuple.map(_.tpe))
+    }
+
+    val forComprehension: Comprehension => Option[Vector[(String, TType)]] = attr {
+      case Comprehension(_/>(input: Comprehension), Nil, _, _, _, Nil) => this.forComprehension(input)
+      case Comprehension(input, transforms, _, _, _, Nil) => this.forTransform(transforms.last).some
       case _ => None
     }
   }
