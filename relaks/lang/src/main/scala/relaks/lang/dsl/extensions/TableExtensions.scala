@@ -92,17 +92,27 @@ trait TableOps extends Symbols with Queries {
       (gen, tuple)
     }
 
-    def flatMap[F <: HList](f: Rep[Tup[F]] => Rep[Table])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]) = {
+    def flatMap[F <: HList](f: Rep[Tup[F]] => Rep[Table])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]): Rep[Table] = {
       val (gen, tuple) = tupleGenerator()
       val mapper = f(tuple)
 
       //TODO this could return a typed table
       val expr = Transform(gen, query, mapper.tree)(new UntypedTableType)
-      new ProjectedTableComprehensions[FieldsLen](fields, expr)
+      new Rep[Table] {
+        override val tree: Atom = expr  //TODO this must be an atom for some reason (probably because of the lack of sym memoization)
+      }
     }
 
-    def map[F <: HList, T <: HList](f: Rep[Tup[F]] => Rep[Tup[T]])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]) = {
-      flatMap((x:RowN[F]) => RowRep(f(x)))
+    def map[F <: HList, T <: HList](f: Rep[Tup[F]] => Rep[Tup[T]])(implicit lenEv: hlist.Length.Aux[F, FieldsLen], lenOutEv: hlist.Length[T]) = {
+      val (gen, tuple) = tupleGenerator()
+      val result = f(tuple)
+      val mapper = RowRep(result)
+
+      val _/>TupleWithNames(_, names) = result.tree
+
+      //TODO this could return a typed table
+      val expr = Transform(gen, query, mapper.tree)(new UntypedTableType)
+      new ProjectedTypedTableComprehensions[T](names.map(Symbol.apply), expr)
     }
 
     def withFilter(f: Rep[Tup[Nothing]] => Rep[Boolean]) = {
@@ -148,8 +158,8 @@ trait TableOps extends Symbols with Queries {
 
     lazy val untypedComprehension = new ProjectedTableComprehensions[lenEnv.Out](fields, query)
 
-    def flatMap(f: Rep[Tup[H]] => Rep[Table]) = fromUntypedTableComprehension(untypedComprehension.flatMap(f))
-    def map[T <: HList](f: Rep[Tup[H]] => Rep[Tup[T]]) = fromUntypedTableComprehension(untypedComprehension.map(f))
+    def flatMap(f: Rep[Tup[H]] => Rep[Table]) = untypedComprehension.flatMap(f)
+    def map[T <: HList](f: Rep[Tup[H]] => Rep[Tup[T]])(implicit lenEnv: hlist.Length[T]) = untypedComprehension.map(f)
     val withFilter = (untypedComprehension.withFilter _) andThen fromUntypedTableComprehension //TODO this does not enforce types
     def filter(f: Rep[Tup[H]] => Rep[Boolean]) = fromUntypedTableComprehension(untypedComprehension.filter(f))
 
@@ -165,15 +175,9 @@ trait TableOps extends Symbols with Queries {
       new ProjectedTypedTableComprehensions[H](comprehensions.fields, comprehensions.query)
   }
 
-  trait TableComprehensions extends Rep[Table] {
+  trait OrderableTableComprehensions {
     type ComprehensionsMonad
-    protected def filterImpl[F <: HList](f: Rep[Tup[F]] => Rep[Boolean], fields: Vector[Symbol]): ComprehensionsMonad
-    def filter[P <: Product, FL <: Nat, F <: HList](fields: P)(f: Rep[Tup[F]] => Rep[Boolean])(implicit
-                                                                                               lenEv: tuple.Length.Aux[P, FL],
-                                                                                               lenEnv2: hlist.Length.Aux[F, FL],
-                                                                                               toVector: ToTraversable.Aux[P, Vector, Symbol]) =
-      filterImpl(f, toVector(fields))
-
+    val tree: Expression
     protected def orderImpl(fieldsVec: Vector[Symbol], expr: OrderBy): ComprehensionsMonad
 
     //TODO ordering
@@ -184,7 +188,18 @@ trait TableOps extends Symbols with Queries {
     }
   }
 
-  class TableOperations(arg1: Rep[Table]) {
+  trait TableComprehensions extends Rep[Table] with OrderableTableComprehensions {
+    type ComprehensionsMonad
+    protected def filterImpl[F <: HList](f: Rep[Tup[F]] => Rep[Boolean], fields: Vector[Symbol]): ComprehensionsMonad
+    def filter[P <: Product, FL <: Nat, F <: HList](fields: P)(f: Rep[Tup[F]] => Rep[Boolean])(implicit
+                                                                                               lenEv: tuple.Length.Aux[P, FL],
+                                                                                               lenEnv2: hlist.Length.Aux[F, FL],
+                                                                                               toVector: ToTraversable.Aux[P, Vector, Symbol]) =
+      filterImpl(f, toVector(fields))
+
+  }
+
+  class TableOperations(arg1: Rep[Table]) extends OrderableTableComprehensions {
     def apply[P <: Product, FieldsLen <: Nat](fields: P)(implicit /*tupEv: IsTuple[P],*/
                                                       lenEv: tuple.Length.Aux[P, FieldsLen],
                                                       fieldsLength: ToInt[FieldsLen],
@@ -192,6 +207,13 @@ trait TableOps extends Symbols with Queries {
 
       new ProjectedTableComprehensions[FieldsLen](toVector(fields), arg1.tree)
     }
+
+    override type ComprehensionsMonad = Rep[Table]
+    override protected def orderImpl(fieldsVec: Vector[Symbol], expr: OrderBy): ComprehensionsMonad = new Rep[Table] {
+      override val tree: Atom = expr
+    }
+
+    override val tree: Expression = arg1.tree
   }
 
   implicit def addTableOps(t: Rep[Table]): TableOperations = new TableOperations(t)

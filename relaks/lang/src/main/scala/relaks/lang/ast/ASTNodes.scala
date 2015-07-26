@@ -67,6 +67,13 @@ sealed case class TupleConstructor(tuple: Vector[Expression]) extends Expression
   }
 }
 
+object TupleWithNames {
+  def unapply(expr: Expression) = expr match {
+    case t: TupleConstructor => Some((t.tuple, t.names))
+    case _ => None
+  }
+}
+
 sealed trait NondetGenerator extends Expression {
   val name: String = "x"
 }

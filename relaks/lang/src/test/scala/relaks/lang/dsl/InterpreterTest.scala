@@ -13,6 +13,7 @@ class InterpreterTest extends FunSpec with Matchers with Inside {
       object Program extends DSLInterpreter
       import Program._
       val b = choose between 1 and 3
+//      val a = choose between 5 and 10
       val r = (optimize (Tuple1(b)) map { row =>
         Tuple1(row(0))
       }) orderBy Tuple1('x0)

@@ -197,7 +197,7 @@ trait Queries extends Symbols {
      * @param rightGen
      * @return
      */
-    def merge(leftGen: Generator, rightGen: Generator): Generator = {                                                              //this should always be of size == 1
+    def merge(leftGen: Generator, rightGen: Generator): Generator = {  //this should always be of size == 1
       new Generator((leftGen.symsToFields ++ rightGen.symsToFields).groupBy(_._2).mapValues(_.keys.head).groupBy(_._2).mapValues(_.keys.head))
     }
   }

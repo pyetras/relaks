@@ -89,8 +89,10 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         } yield (as(0), as(1), bs(0), bs(1), cs(0), cs(1))
 
 //        analyze(res.tree)
-        val transformed = fuseTransforms(res.tree).get.asInstanceOf[TTree]
+        println(res.tree.verboseString)
+        val transformed = fuseTransforms(res.tree).get
 //        analyze(transformed)
+        println(transformed.verboseString)
 
         transformed should matchPattern { case _/>Transform(_, _/>Join(_, (_ ,_/>Join(_, _, CartesianJoin, _)), CartesianJoin, _), _/>(_: Pure)) => }
       }
