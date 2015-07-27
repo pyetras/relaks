@@ -16,7 +16,7 @@ class InterpreterTest extends FunSpec with Matchers with Inside {
 //      val a = choose between 5 and 10
       val r = (optimize (Tuple1(b)) map { row =>
         Tuple1(row(0))
-      }) orderBy Tuple1('x0)
+      }) orderBy 'x0
 
 
       val stream = eval(buildComprehensions(r.tree).get)

@@ -181,10 +181,14 @@ trait TableOps extends Symbols with Queries {
     protected def orderImpl(fieldsVec: Vector[Symbol], expr: OrderBy): ComprehensionsMonad
 
     //TODO ordering
-    def orderBy[P <: Product](fields: P)(implicit toVector: ToTraversable.Aux[P, Vector, Symbol]) = {
+    def orderBy[P <: Product](fields: P)(implicit toVector: ToTraversable.Aux[P, Vector, Symbol]): ComprehensionsMonad = {
       val fieldsVec = toVector(fields)
       val expr = OrderBy(tree, fieldsVec.map(FieldWithDirection(_, Asc)))(new UntypedTableType)
       orderImpl(fieldsVec, expr)
+    }
+
+    def orderBy(field: Symbol): ComprehensionsMonad = {
+      orderBy(Tuple1(field))
     }
   }
 
