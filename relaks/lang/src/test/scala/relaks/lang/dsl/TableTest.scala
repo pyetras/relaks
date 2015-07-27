@@ -10,7 +10,12 @@ import relaks.lang.dsl.AST._
 import relaks.lang.dsl.extensions.ast.Filter
 import relaks.lang.dsl.extensions.ast._
 import relaks.lang.dsl.extensions.{SQLCompilers, DrillCompilers, TableCompilerPhases, TableExtensions}
+import relaks.lang.dsl.utils.TypedSymbols
 import shapeless._
+import shapeless.ops.hlist
+import shapeless.ops.nat.ToInt
+
+import scalaz.{Tag, @@}
 
 /**
  * Created by Pietras on 22/05/15.
@@ -23,7 +28,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         object Program extends DSL with TableExtensions
         import Program._
         val a = load("hello")
-        val res = a(('x, 'y)).map { (t: Row2[Int, Int]) =>
+        val res = a(('x.is[Int], 'y.is[Int])).map { (t: Row2[Int, Int]) =>
           (1, 2)
         }
         analyze(res.tree)
@@ -35,8 +40,8 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         import Program._
         val a = load("hello")
         val b = load("world")
-        val res = a(('x, 'y)).flatMap { (t: Row2[Int, Int]) =>
-          b(('xx, 'yy)).map { (u: Row2[String, String]) =>
+        val res = a(('x.is[Int], 'y.is[Int])).flatMap { (t: Row2[Int, Int]) =>
+          b(('xx.is[String], 'yy.is[String])).map { (u: Row2[String, String]) =>
             (t(0), u(0))
           }
         }
@@ -49,7 +54,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         object Program extends DSL with TableExtensions
         import Program._
         val a = load("hello")
-        val res = a(('x, 'y)).filter { (t: Row2[Int, Int]) =>
+        val res = a(('x.is[Int], 'y.is[Int])).filter { (t: Row2[Int, Int]) =>
           t(0) === 1
         }
 
@@ -63,7 +68,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         import Program._
         val a = load("hello")
         val res = for {
-          as: Row2[Int, Int] <- a(('x, 'y)) if as(0) === 1
+          as: Row2[Int, Int] <- a(('x.is[Int], 'y.is[Int])) if as(0) === 1
         } yield (as(0), 1)
 
         analyze(res.tree)
@@ -83,9 +88,9 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         val c = load("!!!")
 
         val res = for {
-          as: Row2[Int, Int] <- a(('ax, 'ay))
-          bs: Row2[Int, Int] <- b(('bx, 'by))
-          cs: Row2[Int, Int] <- c(('cx, 'cy))
+          as: Row2[Int, Int] <- a(('ax.is[Int], 'ay.is[Int]))
+          bs: Row2[Int, Int] <- b(('bx.is[Int], 'by.is[Int]))
+          cs: Row2[Int, Int] <- c(('cx.is[Int], 'cy.is[Int]))
         } yield (as(0), as(1), bs(0), bs(1), cs(0), cs(1))
 
 //        analyze(res.tree)
@@ -106,8 +111,8 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         val b = load("world")
 
         val res = for {
-          as: Row2[Int, Int] <- a(('ax, 'ay))
-          bs: Row2[Int, Int] <- b(('bx, 'by)) if as(0) === bs(0)
+          as: Row2[Int, Int] <- a(('ax.is[Int], 'ay.is[Int]))
+          bs: Row2[Int, Int] <- b(('bx.is[Int], 'by.is[Int])) if as(0) === bs(0)
         } yield (as(1), bs(1))
 
         analyze(res.tree)
@@ -125,9 +130,9 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         val c = load("!!!")
 
         val res = for {
-          as: Row2[Int, Int] <- a(('ax, 'ay))
-          bs: Row2[Int, Int] <- b(('bx, 'by))
-          cs: Row2[Int, Int] <- c(('cx, 'cy)) if as(0) === bs(0) && bs(0) === cs(0)
+          as: Row2[Int, Int] <- a(('ax.is[Int], 'ay.is[Int]))
+          bs: Row2[Int, Int] <- b(('bx.is[Int], 'by.is[Int]))
+          cs: Row2[Int, Int] <- c(('cx.is[Int], 'cy.is[Int])) if as(0) === bs(0) && bs(0) === cs(0)
         } yield (as(0), as(1), bs(0), bs(1), cs(0), cs(1))
 
         analyze(res.tree)
@@ -142,8 +147,8 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         val b = load("world")
 
         val res = for {
-          as: Row2[Int, Int] <- a(('ax, 'ay))
-          bs: Row2[Int, Int] <- b(('ax, 'by))
+          as: Row2[Int, Int] <- a(('ax.is[Int], 'ay.is[Int]))
+          bs: Row2[Int, Int] <- b(('ax.is[Int], 'by.is[Int]))
         } yield (as(0), as(1), bs(0), bs(1))
 
 
@@ -175,7 +180,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         object Program extends DSL with TableExtensions with TableCompilerPhases
         import Program._
         val a = load("hello")
-        val q = a(('ax, 'ay)) map { (xy: Row2[Int, Int]) =>
+        val q = a(('ax.is[Int], 'ay.is[Int])) map { (xy: Row2[Int, Int]) =>
           (xy(0), xy(1))
         } orderBy Tuple1('x0)
         val r = q.filter(Tuple1('x1))({(iter: Row[Int]) => iter(0) <= 10})
@@ -190,8 +195,8 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         import Program._
         val a = load("hello")
         val b = load("world")
-        val r = a(('ax, 'ay)) flatMap { (xy: Row2[Int, Int]) =>
-          val qq = b(('ax, 'ay)) map { (xy2: Row2[Int, Int]) =>
+        val r = a(('ax.is[Int], 'ay.is[Int])) flatMap { (xy: Row2[Int, Int]) =>
+          val qq = b(('ax.is[Int], 'ay.is[Int])) map { (xy2: Row2[Int, Int]) =>
             (xy(0), xy2(0))
           }
           qq
@@ -206,7 +211,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         import Program._
         val a = load("hello")
         val b = load("world")
-        val r = a(('ax, 'ay)) map { (xy: Row2[Int, Int]) =>
+        val r = a(('ax.is[Int], 'ay.is[Int])) map { (xy: Row2[Int, Int]) =>
           (xy(0), xy(1))
         }
 
@@ -231,7 +236,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
 
         val a = Program.load("hello")
         val res = for {
-          as: Row2[Int, Int] <- a(('ax, 'ay))
+          as: Row2[Int, Int] <- a(('ax.is[Int], 'ay.is[Int]))
         } yield (as(0), as(1))
 
         val compiler = new CompileDrill(Map.empty)
@@ -249,8 +254,8 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         val b = load("world")
 
         val res = for {
-          as: Row2[Int, Int] <- a(('ax, 'ay))
-          bs: Row2[Int, Int] <- b(('bx, 'by))
+          as: Row2[Int, Int] <- a(('ax.is[Int], 'ay.is[Int]))
+          bs: Row2[Int, Int] <- b(('bx.is[Int], 'by.is[Int]))
         } yield (as(0), as(1), bs(0), bs(1))
 
         val projected = fuseTransforms(res.tree).get
@@ -270,8 +275,8 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         val b = load("world")
 
         val res = for {
-          as: Row2[Int, Int] <- a(('ax, 'ay))
-          bs: Row2[Int, Int] <- b(('ax, 'ay))
+          as <- a(('ax.is[Int], 'ay.is[Int]))
+          bs <- b(('ax.is[Int], 'ay.is[Int]))
         } yield (as(0), as(1), bs(0), bs(1))
 
 //        val (fields, projected) = CompileRelational.analyzeRewriteTree(res.tree).toOption.get.run
@@ -283,5 +288,25 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
       }
 
     }
+  }
+  describe("symbol schema") {
+
+    object Program extends TypedSymbols
+    import Program._
+    import scalaz.{@@, Tag}
+    def f[L <: HList](p: L)(implicit schema: TypedSymbolSchema[L]) =
+      schema(p)
+
+    it("should construct a schema from a tuple") {
+      val s = 'hi.is[String] :: 'ho.is[Int] :: HNil
+
+      val schema: @@[Vector[Symbol], String :: Int :: HNil] = f(s)
+      Tag.unwrap(schema) should equal(Vector('hi, 'ho))
+    }
+//    it("should construct a loosely typed schema from a tuple without types") {
+//      val s = 'one :: 'two :: HNil
+//      val schema: @@[Vector[Symbol], Any :: Any :: HNil] = f(s)
+//      Tag.unwrap(schema) should equal(Vector('one, 'two))
+//    }
   }
 }

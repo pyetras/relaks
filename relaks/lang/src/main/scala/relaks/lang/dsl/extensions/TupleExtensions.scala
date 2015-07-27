@@ -15,6 +15,7 @@ import shapeless.ops.nat.ToInt
 import shapeless.syntax.std.tuple._
 
 import scala.language.{existentials, higherKinds, implicitConversions, reflectiveCalls}
+import scalaz.Tag
 
 
 /**
@@ -173,7 +174,7 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
                                              (implicit lttr: LabelledTupleToRep[R]): Rep[Tup[lttr.Out]] =
     lttr(p)
 
-  implicit def tupleWithLabelsToRep[P <: Product, L <: HList, R <: HList](tup: P)(implicit //ev1: IsTuple[P], TODO: ?
+  implicit def tupleWithLabelsToRep[P <: Product, L <: HList, R <: HList](tup: P)(implicit ev1: IsTuple[P],
                                                                      toHlist: Generic.Aux[P, L],
                                                                      evR: Mapper[isRecord.type, L],
                                                                      lttr: LabelledTupleToRep[L]): Rep[Tup[lttr.Out]] =
@@ -181,6 +182,7 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
 
   implicit def singleFieldToRep[K, V](field: FieldType[K, V])(implicit lttr: LabelledTupleToRep[FieldType[K, V] :: HNil]): Rep[Tup[lttr.Out]] =
     lttr(new LabelledTuple(field :: HNil))
+
 }
 
 trait TupleInterpreter extends BaseExprInterpreter with Symbols {

@@ -18,7 +18,7 @@ import relaks.lang.dsl.AST._
 import relaks.lang.dsl.AST.syntax._
 import relaks.lang.dsl._
 import relaks.lang.dsl.extensions.ast._
-import relaks.lang.dsl.utils.TreePrettyPrintable
+import relaks.lang.dsl.utils.{TypedSymbols, TreePrettyPrintable}
 import relaks.lang.impl.Row
 import shapeless._
 import shapeless.ops.nat.ToInt
@@ -71,7 +71,7 @@ trait TableUtils extends Symbols with Queries {
   }
 }
 
-trait TableOps extends Symbols with Queries {
+trait TableOps extends Symbols with Queries with TypedSymbols {
 
   type RowN[L <: HList] = Rep[Tup[L]]
   type Row[A] = Rep[Tup[A :: HNil]]
@@ -203,13 +203,50 @@ trait TableOps extends Symbols with Queries {
 
   }
 
-  class TableOperations(arg1: Rep[Table]) extends OrderableTableComprehensions {
-    def apply[P <: Product, FieldsLen <: Nat](fields: P)(implicit /*tupEv: IsTuple[P],*/
-                                                      lenEv: tuple.Length.Aux[P, FieldsLen],
-                                                      fieldsLength: ToInt[FieldsLen],
-                                                      toVector: ToTraversable.Aux[P, Vector, Symbol]) = {
+  //IntelliJ not working with magnet
+//  trait ProjectionMagnet[P <: Product] {
+//    type Out
+//    def apply(p: P, arg1: Rep[Table]): Out
+//  }
+//
+//  object ProjectionMagnet {
+//    type Aux[P <: Product, R] = ProjectionMagnet[P] { type Out = R }
+//    def apply[P <: Product](implicit factory: ProjectionMagnet[P]): Aux[P, factory.Out] = factory
+//
+//    implicit def typedProjection[P <: Product, FieldsLen <: Nat, L <: HList, S <: HList](implicit tupEv: IsTuple[P],
+//                                                                                         toHlist: Generic.Aux[P, L],
+//                                                                                         schema: TypedSymbolSchema.Aux[L, S],
+//                                                                                         lenEv: hlist.Length.Aux[S, FieldsLen],
+//                                                                                         fieldsLength: ToInt[FieldsLen]):
+//    Aux[P, ProjectedTypedTableComprehensions[S]] =
+//      new ProjectionMagnet[P] {
+//        override type Out = ProjectedTypedTableComprehensions[S]
+//        override def apply(p: P, arg1: Rep[Table]): Out = new ProjectedTypedTableComprehensions[S](Tag.unwrap(schema(toHlist.to(p))), arg1.tree)
+//      }
+//
+//    implicit def untypedProjection[P <: Product, FieldsLen <: Nat](implicit tupEv: IsTuple[P],
+//                                                                              lenEv: tuple.Length.Aux[P, FieldsLen],
+//                                                                              fieldsLength: ToInt[FieldsLen],
+//                                                                              toVector: ToTraversable.Aux[P, Vector, Symbol]): Aux[P, ProjectedTableComprehensions[FieldsLen]] =
+//
+//      new ProjectionMagnet[P] {
+//        override type Out = ProjectedTableComprehensions[FieldsLen]
+//        override def apply(p: P, arg1: Rep[Table]): Out = new ProjectedTableComprehensions[FieldsLen](toVector(p), arg1.tree)
+//      }
+//  }
 
-      new ProjectedTableComprehensions[FieldsLen](toVector(fields), arg1.tree)
+  class TableOperations(arg1: Rep[Table]) extends OrderableTableComprehensions {
+
+//    def apply[P <: Product](fields: P)(implicit factory: ProjectionMagnet[P]) = {
+//      factory(fields, arg1)
+//    }
+
+    def apply[P <: Product, FieldsLen <: Nat, L <: HList, S <: HList](fields: P)(implicit tupEv: IsTuple[P],
+                                                                      toHlist: Generic.Aux[P, L],
+                                                                      schema: TypedSymbolSchema.Aux[L, S],
+                                                                      lenEv: hlist.Length.Aux[S, FieldsLen],
+                                                                      fieldsLength: ToInt[FieldsLen]) = {
+      new ProjectedTypedTableComprehensions[S](Tag.unwrap(schema(toHlist.to(fields))), arg1.tree)
     }
 
     override type ComprehensionsMonad = Rep[Table]
@@ -221,6 +258,7 @@ trait TableOps extends Symbols with Queries {
   }
 
   implicit def addTableOps(t: Rep[Table]): TableOperations = new TableOperations(t)
+
 }
 
 trait TableIO extends Symbols {
