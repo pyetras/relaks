@@ -6,7 +6,7 @@ import relaks.lang.ast._
 /**
  * Created by Pietras on 17/04/15.
  */
-class TupleTest extends FunSpec with Matchers with Inside {
+class TupleTest extends FunSpec with Matchers with Inside with LoneElement {
   import AST._
   object Program extends DSL
   import Program._
@@ -56,6 +56,21 @@ class TupleTest extends FunSpec with Matchers with Inside {
       y shouldBe a [Rep[_]]
       y.getTpe should equal(boolType)
       """y * 1""" shouldNot compile
+    }
+
+    describe("with labels") {
+      it("should be created from single element with `as` syntax") {
+        val t1: Rep[Tup[_]] = 1 as "hello"
+        t1.tree.asInstanceOf[TupleConstructor].names.loneElement should equal("hello")
+        t1.tree.asInstanceOf[TupleConstructor].tuple should have length(1)
+      }
+
+      it("should be created from a tuple of elements with `as` syntax") {
+        val tup = (1 as "text", "string" as "int")
+        val t2: Rep[Tup[_]] = tup
+        t2.tree.asInstanceOf[TupleConstructor].names should be (Vector("text", "int"))
+        t2.tree.asInstanceOf[TupleConstructor].tuple should have length(2)
+      }
     }
 
   }

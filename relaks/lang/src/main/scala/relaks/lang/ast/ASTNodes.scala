@@ -59,11 +59,13 @@ object Literal {
 
 sealed case class ListConstructor(lst: Seq[Expression]) extends Expression
 
-sealed case class TupleConstructor(tuple: Vector[Expression]) extends Expression {
-  val names = tuple.indices.map(i => s"x$i").toVector
+sealed case class TupleConstructor(tuple: Vector[Expression], names: Vector[String]) extends Expression
 
-  def withNames(nms: Vector[String]) = new TupleConstructor(tuple) {
-    override val names = nms
+object TupleConstructor {
+  def apply(tuple: Vector[Expression]): TupleConstructor = TupleConstructor(tuple, tuple.indices.map(i => s"x$i").toVector)
+  def unapply(expr: Expression) = expr match {
+    case t: TupleConstructor => Some(t.tuple)
+    case _ => None
   }
 }
 

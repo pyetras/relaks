@@ -1,13 +1,16 @@
 package relaks.lang.dsl.extensions
 
 import com.typesafe.scalalogging.LazyLogging
+import relaks.data.LabelledTuples
 import relaks.lang.ast._
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl._
-import relaks.lang.dsl.utils.{FillNat, TupleLU, UnliftType}
+import relaks.lang.dsl.utils.{NamesToStrings, FillNat, TupleLU, UnliftType}
 import relaks.lang.impl.Row
 import shapeless._
+import shapeless.labelled.FieldType
 import shapeless.ops.hlist._
+import shapeless.ops.record
 import shapeless.ops.nat.ToInt
 import shapeless.syntax.std.tuple._
 
@@ -18,7 +21,7 @@ import scala.language.{existentials, higherKinds, implicitConversions, reflectiv
  * Created by Pietras on 16/04/15.
  */
 
-trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging {
+trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with LabelledTuples {
 
   object Tup {
 
@@ -104,21 +107,80 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging {
     implicit def unlifted[T: ArgType](implicit c: T => Rep[T]) = at[T](x => c(x))
   }
 
-  implicit def tupleToRep[P <: Product, H <: HList, R <: HList, LU, Mapped <: HList](p: P)
+  trait HListToNode[L <: HList] {
+    type Out <: HList
+    def apply(l: L): (Vector[Expression], TType)
+  }
+
+  object HListToNode {
+    type Aux[L <: HList, R <: HList] = HListToNode[L] { type Out = R }
+    def apply[L <: HList](implicit htn: HListToNode[L]): Aux[L, htn.Out] = htn
+
+    implicit def fromHlist[H <: HList, R <: HList, LU, Mapped <: HList](implicit ul: UnliftType.Aux[H, Rep, R],
+                                                                        evlu: TupleLU[R, LU],
+                                                                        typC: TupTypeConstructor[R],
+                                                                        mapper: Mapper.Aux[asRep.type, H, Mapped],
+                                                                        traversable: ToTraversable.Aux[Mapped, List, Rep[LU]]): Aux[H, R] =
+      new HListToNode[H] {
+        override type Out = R
+        override def apply(hlist: H): (Vector[Expression], TType) = {
+          val replist = hlist.map(asRep).toList[Rep[LU]] // <: List[Rep[Any]]
+          val typ = typC(replist.map(_.getTpe).toVector)
+          (replist.map(_.tree).toVector, typ)
+        }
+      }
+  }
+
+  implicit def tupleToRep[P <: Product, H <: HList, R <: HList](p: P)
                                                                (implicit ev: Generic.Aux[P, H],
-                                                                ul: UnliftType.Aux[H, Rep, R],
-                                                                evlu: TupleLU[R, LU],
-                                                                typC: TupTypeConstructor[R],
-                                                                tev: IsTuple[P],
-                                                                mapper: Mapper.Aux[asRep.type, H, Mapped],
-                                                                traversable: ToTraversable.Aux[Mapped, List, Rep[LU]]): Rep[Tup[R]] = {
+                                                                tev: IsTuple[P], toNode: HListToNode.Aux[H, R]): Rep[Tup[R]] = {
     val hlist = ev.to(p)
-    val replist = hlist.map(asRep).toList[Rep[LU]] // <: List[Rep[Any]]
-    val typ = typC(replist.map(_.getTpe).toVector)
+    val (exprs, typ) = toNode(hlist)
     new Rep[Tup[R]] {
-      override val tree: Expression = TupleConstructor(replist.map(_.tree).toVector)(typ)
+      override val tree: Expression = TupleConstructor(exprs)(typ)
     }
   }
+
+  trait LabelledTupleToRep[R <: HList] {
+    type Out <: HList
+    def apply(p: LabelledTuple[R]): Rep[Tup[Out]]
+  }
+
+  object LabelledTupleToRep {
+    type Aux[R <: HList, RR <: HList] = LabelledTupleToRep[R] {type Out = RR}
+
+    def apply[R <: HList](implicit lttr: LabelledTupleToRep[R]): Aux[R, lttr.Out] = lttr
+
+    implicit def labelledTupleToRep[R <: HList, H <: HList, ROut <: HList, Names <: HList](
+      implicit values: ops.record.Values.Aux[R, H],
+      names: ops.record.Keys.Aux[R, Names],
+      namesT: NamesToStrings[Names],
+      toNode: HListToNode.Aux[H, ROut]
+      ): Aux[R, ROut] = new LabelledTupleToRep[R] {
+      override type Out = ROut
+
+      override def apply(p: LabelledTuple[R]): Rep[Tup[Out]] = {
+        val hlist = values.apply(p.asHList)
+        val (exprs, typ) = toNode(hlist)
+        new Rep[Tup[Out]] {
+          override val tree: Expression = TupleConstructor(exprs, namesT(names()))(typ)
+        }
+      }
+    }
+  }
+
+  implicit def labelledTupleToRep[R <: HList](p: LabelledTuple[R])
+                                             (implicit lttr: LabelledTupleToRep[R]): Rep[Tup[lttr.Out]] =
+    lttr(p)
+
+  implicit def tupleWithLabelsToRep[P <: Product, L <: HList, R <: HList](tup: P)(implicit //ev1: IsTuple[P], TODO: ?
+                                                                     toHlist: Generic.Aux[P, L],
+                                                                     evR: Mapper[isRecord.type, L],
+                                                                     lttr: LabelledTupleToRep[L]): Rep[Tup[lttr.Out]] =
+    lttr(new LabelledTuple(toHlist.to(tup)))
+
+  implicit def singleFieldToRep[K, V](field: FieldType[K, V])(implicit lttr: LabelledTupleToRep[FieldType[K, V] :: HNil]): Rep[Tup[lttr.Out]] =
+    lttr(new LabelledTuple(field :: HNil))
 }
 
 trait TupleInterpreter extends BaseExprInterpreter with Symbols {

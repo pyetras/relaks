@@ -140,7 +140,7 @@ trait Queries extends Symbols {
 
     def toTupleWithNames[F <: HList](names: Vector[String]): Rep[Tup[F]] = {
       new Rep[Tup[F]] {
-        override val tree: TTree = TupleConstructor(symsVector).withNames(names)
+        override val tree: TTree = TupleConstructor(symsVector, names)
       }
     }
 
