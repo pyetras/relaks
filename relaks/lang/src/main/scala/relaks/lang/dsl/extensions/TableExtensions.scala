@@ -249,6 +249,9 @@ trait TableOps extends Symbols with Queries with TypedSymbols {
       new ProjectedTypedTableComprehensions[S](Tag.unwrap(schema(toHlist.to(fields))), arg1.tree)
     }
 
+    def apply[E](field: Symbol @@ E): ProjectedTypedTableComprehensions[E :: HNil] =
+      apply(Tuple1(field))
+
     override type ComprehensionsMonad = Rep[Table]
     override protected def orderImpl(fieldsVec: Vector[Symbol], expr: OrderBy): ComprehensionsMonad = new Rep[Table] {
       override val tree: Atom = expr
