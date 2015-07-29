@@ -31,7 +31,7 @@ before_script:
   - ./lib/publish.sh
 
 script:
-  - cd relaks && sbt ++$TRAVIS_SCALA_VERSION clean "test-only -- -l relaks.Integration"
+  - cd relaks && sbt ++$TRAVIS_SCALA_VERSION clean "test-only -- -l relaks.Integration -l relaks.Timed"
 
   # Tricks to avoid unnecessary cache updates
   - find $HOME/.sbt -name "*.lock" | xargs rm

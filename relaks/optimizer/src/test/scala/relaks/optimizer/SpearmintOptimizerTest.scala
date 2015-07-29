@@ -7,6 +7,7 @@ package relaks.optimizer
 import java.util.concurrent.{TimeoutException, ConcurrentLinkedQueue}
 
 import org.scalatest._
+import relaks.Timed
 
 import scalaz.{\/-, \/}
 import scalaz.concurrent.Task
@@ -59,7 +60,7 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
   }
 
   describe("Spearmint optimizer") {
-    it("should generate params when no updates have been applied") {
+    it("should generate params when no updates have been applied", Timed) {
       val Spearmint = new Spearmint
       val sp = Spearmint.getSpMock()
 
@@ -68,7 +69,7 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
 
     }
 
-    it("should update before generating when updates are pending") {
+    it("should update before generating when updates are pending", Timed) {
       val Spearmint = new Spearmint
       val sp = Spearmint.getSpMock()
 
@@ -79,7 +80,7 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
       Spearmint.dumpQueue should contain theSameElementsAs Seq("run spearmint", "apply update", "run spearmint")
     }
 
-    it("should allow only maxParallel evals and then block until update") {
+    it("should allow only maxParallel evals and then block until update", Timed) {
       import scala.concurrent.duration._
 
       val Spearmint = new Spearmint
@@ -100,7 +101,7 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
       }
     }
 
-    it("should allow runnning in parallel") {
+    it("should allow runnning in parallel", Timed) {
       def parallelTask() = {
         val Spearmint = new Spearmint
         val sp = Spearmint.getSpMock(2)
