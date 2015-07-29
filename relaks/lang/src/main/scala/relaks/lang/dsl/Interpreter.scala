@@ -25,8 +25,7 @@ trait Interpreter
   with TableCompilerPhases
   with TupleInterpreter {
   def eval(expr: Expression): Process[Task, impl.Row] = expr match {
-    case _/>(c @ Comprehension(_/>OptimizerResultTable(vars), transforms, filters, limits, orderbys, groupbys)) =>
-
+    case _/>(c @ Comprehension(_/>OptimizerResultTable(vars), transforms, filters, limits, orderbys, groupbys, sequence)) =>
       val superPosed = new SuperPosed(new GraphTree(vars))
       val paramSources = superPosed.superPosDeps(vars)
       val params = paramSources.toSeq.map(sym => sym -> evalSuperPosGenerator(sym))
@@ -36,13 +35,13 @@ trait Interpreter
 
       //find value to optimize on
       val Some(outputSchema) = OutputSchema.forComprehension(c)
-      val (orderby: OrderBy) +: Nil = orderbys
+      val (orderby: OrderBy) +: IndexedSeq() = orderbys
       val FieldWithDirection(name, Asc) = orderby.ordering.head
 
       val toMinimizeIx = outputSchema.map(_._1).indexOf(name.name)
       assert(toMinimizeIx >= 0, "Invalid optimization condition")
 
-      val (transform: Transform) +: Nil = transforms
+      val (transform: Transform) +: IndexedSeq() = transforms
 
       val loop: Process1[Params, (impl.Row, OptimizerResult)] = process1.lift { params =>
         push(params.map(nameVal => Sym(nameVal._1.drop(1).toInt) -> new Literal(nameVal._2))) //TODO types?

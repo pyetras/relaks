@@ -25,6 +25,7 @@ import shapeless.ops.nat.ToInt
 import shapeless.ops.tuple.ToTraversable
 import shapeless.ops.{hlist, tuple}
 
+import scala.collection.immutable.Stack
 import scala.collection.mutable
 import scala.language.{existentials, implicitConversions}
 import scalaz.Scalaz._
@@ -55,15 +56,15 @@ trait TableUtils extends Symbols with Queries {
       case Some(query) /> StepTable(next) =>
         val _ /> inner = query
         (next match {
-          case Some(q) /> SourceTable(_) => Comprehension(q).some
+          case Some(q) /> SourceTable(s) => Comprehension(q, sequence = Vector(s)).some
           case _ => comprehension(next)
         }).map { comprehension =>
           inner match {
-            case (expr: Filter) => comprehension.copy(filter = expr +: comprehension.filter)
-            case (expr: Transform) => comprehension.copy(transform = expr +: comprehension.transform)
-            case (expr: Limit) => comprehension.copy(limit = expr +: comprehension.limit)
-            case (expr: GroupBy) => comprehension.copy(groupBy = expr +: comprehension.groupBy)
-            case (expr: OrderBy) => comprehension.copy(orderBy = expr +: comprehension.orderBy)
+            case (expr: Filter) => comprehension.copy(filter = comprehension.filter :+ expr, sequence = comprehension.sequence :+ expr)
+            case (expr: Transform) => comprehension.copy(transform = comprehension.transform :+ expr, sequence = comprehension.sequence :+ expr)
+            case (expr: Limit) => comprehension.copy(limit = comprehension.limit :+ expr, sequence = comprehension.sequence :+ expr)
+            case (expr: GroupBy) => comprehension.copy(groupBy = comprehension.groupBy :+ expr, sequence = comprehension.sequence :+ expr)
+            case (expr: OrderBy) => comprehension.copy(orderBy = comprehension.orderBy :+ expr, sequence = comprehension.sequence :+ expr)
           }
         }
       case _ => None
@@ -438,8 +439,8 @@ trait TableCompilerPhases extends LazyLogging with Symbols with Queries with Tab
     }
 
     val forComprehension: Comprehension => Option[Vector[(String, TType)]] = attr {
-      case Comprehension(_/>(input: Comprehension), Nil, _, _, _, Nil) => this.forComprehension(input)
-      case Comprehension(input, transforms, _, _, _, Nil) => this.forTransform(transforms.last).some
+      case Comprehension(_/>(input: Comprehension), IndexedSeq(), _, _, _, IndexedSeq(), _) => this.forComprehension(input)
+      case Comprehension(input, transforms, _, _, _, IndexedSeq(), _) => this.forTransform(transforms.last).some
       case _ => None
     }
   }
@@ -520,10 +521,10 @@ trait TableCompilerPhases extends LazyLogging with Symbols with Queries with Tab
       lazy val skip: Strategy =
       rulefs[Expression] {
         case (c: Comprehension) =>
-          assert(c.productArity == 6, "kiama congruence constraint")
-          val v = Vector(id, id, id, id, id, id)
+          assert(c.productArity == 7, "kiama congruence constraint")
+          val v = Vector(id, id, id, id, id, id, id)
           //congruence(s <+ one(skip), id, id, id, id, id) <+ congruence(id, one(traverseInner(s)), id, id, id, id) <+ ...
-          v.indices.drop(1).foldLeft(congruence(s <+ one(skip), id, id, id, id, id)){(strategy, ix) =>
+          (1 until 6).foldLeft(congruence(s <+ one(skip), id, id, id, id, id, id)){(strategy, ix) =>
             strategy <+ congruence(v.updated(ix, one(traverseInner(s))):_*)
           }
         case q @ _ => s <+ one(skip)

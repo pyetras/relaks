@@ -7,6 +7,7 @@ import relaks.lang.dsl.utils.{TreePrettyPrintable, PrettyPrintable}
 import shapeless.{HNil, HList}
 import relaks.lang.dsl.AST.syntax._
 
+import scala.collection.immutable.Stack
 import scala.runtime.ScalaRunTime
 import scalaz.Reader
 import scalaz.Scalaz._
@@ -99,11 +100,12 @@ sealed case class OrderBy(table: Atom, ordering: Vector[FieldWithDirection]) ext
 sealed case class Pure(value: Atom) extends Expression
 
 sealed case class Comprehension(from: Atom,
-                                transform: Seq[Query] = Seq.empty,
-                                filter: Seq[Query] = Seq.empty,
-                                limit: Seq[Query] = Seq.empty,
-                                orderBy: Seq[Query] = Seq.empty,
-                                groupBy: Seq[Query] = Seq.empty) extends Expression {
+                                transform: Vector[Query] = Vector.empty,
+                                filter: Vector[Query] = Vector.empty,
+                                limit: Vector[Query] = Vector.empty,
+                                orderBy: Vector[Query] = Vector.empty,
+                                groupBy: Vector[Query] = Vector.empty,
+                                sequence: Vector[Query]) extends Expression {
 
   override def mainToString: String = ScalaRunTime._toString(this)
 }

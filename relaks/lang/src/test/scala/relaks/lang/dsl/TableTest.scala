@@ -187,7 +187,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
 
         val transformed = buildComprehensions(r.tree).get
 
-        transformed should matchPattern { case _/> Comprehension(_, _ +: Nil, _ +: Nil, _, _ +: Nil, _) => }
+        transformed should matchPattern { case _/> Comprehension(_, _ +: Seq(), _ +: Seq(), _, _ +: Seq(), _, Seq(_: LoadTableFromFs, _: Transform, _: OrderBy, _: Filter)) => }
       }
 
       it("should merge nested queries into Comprehension s") {
@@ -203,7 +203,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         } orderBy Tuple1('x0)
         val transformed = buildComprehensions(r.tree).get
 
-        transformed should matchPattern { case _/> Comprehension(_, (_/>Transform(_, _, _/> (_: Comprehension))) +: Nil, _, _, _, _) => }
+        transformed should matchPattern { case _/> Comprehension(_, (_/>Transform(_, _, _/> (_: Comprehension))) +: Seq(), _, _, _, _, _) => }
       }
 
       it("should compute output schema for Comprehensions") {
