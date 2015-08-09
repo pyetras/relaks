@@ -40,6 +40,11 @@ sealed case class LoadTableFromFs(path: String) extends SourceQuery {
   override def sources: Seq[Atom] = Seq.empty
 }
 
+sealed case class TableFromList(list: Expression) extends SourceQuery {
+  override def stepTable: Option[Atom] = None
+  override def sources: Seq[Atom] = Seq.empty
+}
+
 sealed case class OptimizerResultTable(argTuple: Expression) extends SourceQuery {
   override def mainToString: String = withArgs(super.mainToString, argTuple.toString)
 

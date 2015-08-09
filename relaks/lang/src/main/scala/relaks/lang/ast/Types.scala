@@ -16,14 +16,14 @@ import scalaz.syntax.Ops
 
 sealed trait TType {
   def canEqual(other: Any) = ClassTag(other.getClass) == ClassTag(this.getClass)
-  val ct: ClassTag[_]
+  def ct: ClassTag[_]
 }
 trait NumType
 
 sealed abstract class ArgType[T: ClassTag] extends TType { self =>
   override def toString = s"$containerName[$typeArgName]"
 
-  override val ct = implicitly[ClassTag[T]]
+  override lazy val ct = implicitly[ClassTag[T]]
 
   def containerName: String = {
     def findNonAnon(kls: Class[_]) : String = {
@@ -33,24 +33,24 @@ sealed abstract class ArgType[T: ClassTag] extends TType { self =>
     }
     findNonAnon(this.getClass)
   }
-  def typeArgName: String = implicitly[ClassTag[T]].runtimeClass.getSimpleName
+  def typeArgName: String = ct.runtimeClass.getSimpleName
 
   override def equals(obj: scala.Any): Boolean = canEqual(obj) && obj.asInstanceOf[ArgType[_]].ct == ct
 }
 
+sealed class NativeArgType[T: ClassTag] extends ArgType[T]
 
-sealed abstract class UnliftedArgType[T: ClassTag] extends ArgType[T] {
-}
+sealed abstract class LiftedArgType[T: ClassTag] extends ArgType[T] //represents types explicitly lifted to reps
 
 sealed trait CompoundType
 
-sealed class ListType[T: ArgType] extends UnliftedArgType[List[T]] with CompoundType {
+sealed class ListType[T: ArgType] extends LiftedArgType[List[T]] with CompoundType {
   val childType = implicitly[ArgType[T]]
 }
 
 final class Tup[+T <: HList]
 
-sealed abstract class TupType[T <: HList : TypeTag] extends UnliftedArgType[Tup[T]] with CompoundType {
+sealed abstract class TupType[T <: HList : TypeTag] extends LiftedArgType[Tup[T]] with CompoundType {
   type LUB
   val length: Int
   val lowerBound: ArgType[LUB]
@@ -63,20 +63,20 @@ sealed class Table
 sealed class NTable[N <: Nat] extends Table
 final class TypedTable[T <: HList] extends NTable[_1]
 
-sealed class UntypedTableType extends UnliftedArgType[Table] {
+sealed class UntypedTableType extends LiftedArgType[Table] {
   var constraints = Vector.empty[Any]
 
   override def toString: String = s"UTTable"
 }
 
-sealed abstract class TypedTableType[T <: HList : TypeTag] extends UnliftedArgType[TypedTable[T]] with CompoundType {
+sealed abstract class TypedTableType[T <: HList : TypeTag] extends LiftedArgType[TypedTable[T]] with CompoundType {
   val length: Int
   val colNames: Vector[String]
   override def containerName = s"Table$length"
   override def typeArgName = implicitly[TypeTag[T]].tpe.dealias.toString
 }
 
-sealed abstract class SimpleArgType[T: ClassTag] extends UnliftedArgType[T]
+sealed abstract class SimpleArgType[T: ClassTag] extends LiftedArgType[T]
 
 sealed class ScalaType[T: ClassTag] extends SimpleArgType[T]
 
@@ -93,6 +93,7 @@ object ScalaTypes {
   val doubleType = new ScalaNumType[Double]
   val nullType = new ScalaType[Null]
   val longType = new ScalaType[Long]
+  val anyType = new ScalaType[Any]
 }
 
 trait ScalaTypeImplis {
@@ -103,16 +104,17 @@ trait ScalaTypeImplis {
   implicit val nullType = ScalaTypes.nullType
   implicit val longType = ScalaTypes.longType
 
+  implicit def otherType[T: ClassTag](implicit lifted: LiftedArgType[T] = null): ArgType[T] = if (lifted != null) lifted else new NativeArgType[T]
+
   implicit def listType[T: ClassTag](implicit typ: ArgType[T]): ListType[T] = new ListType[T]
 
   abstract class TupTypeConstructor[T <: HList : TypeTag](n: Int) {
     type LU
-    val luCT: ClassTag[LU]
+    implicit val luCT: ClassTag[LU]
 
     def apply(inner: Vector[TType]): TType = {
 
-      implicit val ct = luCT
-      val lut = new UnliftedArgType[LU] {}//FIXME np listy beda kiepskie
+      val lut = new LiftedArgType[LU] {}//FIXME np listy beda kiepskie
 
       val typ = new TupType[T] {
         override val length: Int = n

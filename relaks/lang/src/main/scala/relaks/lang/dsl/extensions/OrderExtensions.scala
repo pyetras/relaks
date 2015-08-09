@@ -22,7 +22,7 @@ trait OrderExtensions extends ASTSyntax with BoolExtensions {
 
   }
 
-  implicit def addOrderOps[B1](operand: Rep[B1])(implicit ev2: UnliftedArgType[B1], o: Ordering[B1]) =
+  implicit def addOrderOps[B1](operand: Rep[B1])(implicit ev2: ArgType[B1], o: Ordering[B1]) =
     new OrderOperations[B1](operand)
 
 }

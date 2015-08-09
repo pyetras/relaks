@@ -34,8 +34,8 @@ class ListTest extends FunSpec with Matchers with Inside {
       """implicitly[List[String] => Rep[List[String]]]""" should compile
       """implicitly[List[Long] => Rep[List[Long]]]""" should compile
     }
-    it("should allow only homogenous elements") {
-      """List(true, 1)""" shouldNot compile
+    it("should allow non-lifted types") {
+      List(true, 1).getTpe shouldEqual (listType[Any])
     }
     describe("evaluation") { pending }
   }

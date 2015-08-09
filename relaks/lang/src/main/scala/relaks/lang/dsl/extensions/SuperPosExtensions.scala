@@ -91,7 +91,7 @@ sealed trait SuperPosGenerators extends ListExtensions with Symbols {
     }
   }
 
-  private implicit def superPosedToRep[B1](sp: SuperPosed[B1])(implicit tpe: UnliftedArgType[B1]): Rep[B1] = {
+  private implicit def superPosedToRep[B1](sp: SuperPosed[B1])(implicit tpe: ArgType[B1]): Rep[B1] = {
     val t: Atom = sp.toTree(sp.tpe)
     new Rep[B1] {
       override val tree: Expression = t
@@ -104,7 +104,7 @@ sealed trait SuperPosGenerators extends ListExtensions with Symbols {
       def and(t: T)(implicit typ: ScalaType[T]): Rep[T] = SuperPosRange(from, t)
     }
     def between[T: ClassTag](frm: T) = new Between[T] { val from = frm }
-    def from[T : UnliftedArgType : ClassTag](from: Rep[List[T]]): Rep[T] = SuperPosChoice(from) //FIXME: should accept superposed types
+    def from[T : ArgType : ClassTag](from: Rep[List[T]]): Rep[T] = SuperPosChoice(from) //FIXME: should accept superposed types
   }
 }
 

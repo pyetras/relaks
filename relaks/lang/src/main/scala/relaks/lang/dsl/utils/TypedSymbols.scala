@@ -38,5 +38,6 @@ trait TypedSymbols {
 
   implicit class TypedSymbol(sym: Symbol) {
     def is[T] = Tag.of[T](sym)
+    def ::[T] = is[T]
   }
 }

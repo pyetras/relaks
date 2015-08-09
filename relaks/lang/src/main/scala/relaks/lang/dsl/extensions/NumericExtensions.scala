@@ -25,7 +25,7 @@ trait NumericExtensions extends ASTSyntax with Symbols {
 
   }
 
-  implicit def addNumericOps[B1](operand: Rep[B1])(implicit ev: UnliftedArgType[B1] with NumType) =
+  implicit def addNumericOps[B1](operand: Rep[B1])(implicit ev: ArgType[B1] with NumType) =
     new NumericOperations[B1](operand)
 }
 
