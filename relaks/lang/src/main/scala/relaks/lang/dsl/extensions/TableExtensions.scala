@@ -148,7 +148,7 @@ trait TableOps extends Symbols with Queries with TypedSymbols {
 
   class ProjectedTypedTableComprehensions[H <: HList](fields: Vector[Symbol], query: Atom)
                                                                 (implicit val lenEnv: hlist.Length[H])
-    extends Rep[Table] with TableComprehensions {
+    extends Rep[TypedTable[Tup[H]]] with TableComprehensions {
 
     override val tree: TTree = query
 

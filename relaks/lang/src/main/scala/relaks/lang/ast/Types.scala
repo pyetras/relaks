@@ -60,8 +60,7 @@ sealed abstract class TupType[T <: HList : TypeTag] extends LiftedArgType[Tup[T]
 }
 
 sealed class Table
-sealed class NTable[N <: Nat] extends Table
-final class TypedTable[T <: HList] extends NTable[_1]
+final class TypedTable[T] extends Table
 
 sealed class UntypedTableType extends LiftedArgType[Table] {
   var constraints = Vector.empty[Any]
