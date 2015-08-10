@@ -1,7 +1,7 @@
 package relaks.lang.dsl
 
 import org.scalatest.{Inside, Matchers, FunSpec}
-import relaks.lang.ast.{TupleConstructor, ApplyNative}
+import relaks.lang.ast.{ScalaTypes, TupleConstructor, ApplyNative}
 
 /**
  * Created by Pietras on 23/06/15.
@@ -27,6 +27,7 @@ class NativeFunTest extends FunSpec with Matchers with Inside {
       val z = to (branin _) apply (x, a)
 
       z.tree should matchPattern  {case ApplyNative(branin, _/>(_: TupleConstructor)) => }
+      z.getTpe should equal (ScalaTypes.doubleType) //test if it doesn't return NativeType (unlifted) by any chance
     }
   }
 }
