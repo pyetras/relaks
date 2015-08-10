@@ -20,4 +20,8 @@ libraryDependencies += "org.scalikejdbc" %% "scalikejdbc" % "2.2.6"
 
 libraryDependencies += "com.bethecoder" % "ascii_table" % "1.0-SNAPSHOT"
 
+libraryDependencies += "org.scalanlp" %% "breeze" % "0.12-SNAPSHOT"
+
+libraryDependencies += "org.scalanlp" %% "breeze-natives" % "0.12-SNAPSHOT"
+
 resolvers += "Concurrent Maven Repo" at "http://conjars.org/repo"
