@@ -3,15 +3,32 @@ package relaks.lang.dsl.extensions
 import relaks.lang.ast._
 import relaks.lang.dsl.AST.ASTSyntax
 import relaks.lang.dsl.Rep
-import shapeless.HList
+import relaks.lang.impl.TableImpl
+import shapeless.ops.hlist.Mapper
+import shapeless.{HNil, ::, Poly1, HList}
 import shapeless.ops.function.FnToProduct
 import shapeless.syntax.std.function._
 /**
  * Created by Pietras on 23/06/15.
  */
 trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
-  class CallWord[H <: HList, T](f: H => Rep[T], typ: TType) {
-    def apply(args: Rep[Tup[H]]): Rep[T] = new Rep[T] {
+
+  object translate extends Poly1 {
+    class HasTranslation[T, X]
+    class HasIdentityTranslation[T] extends HasTranslation[T, T]
+    implicit def idTranslation[T]: HasIdentityTranslation[T] = new HasIdentityTranslation[T]
+
+    def defineTranslation[B, A] = new Case[A] {
+      override type Result = B
+      override val value: (::[A, HNil]) => Result = x => null.asInstanceOf[B]
+    }
+
+    implicit val tableTranslation = defineTranslation[Table, TableImpl]
+    implicit def translate[T, X](implicit translation: HasTranslation[T, X]) = at[T](x => null.asInstanceOf[X] : X)
+  }
+
+  class CallWord[H <: HList, T, Arg <: HList](f: H => Rep[T], typ: TType)(implicit mapper: Mapper.Aux[translate.type, H, Arg]) {
+    def apply[AC <: Arg](args: Rep[Tup[AC]]): Rep[T] = new Rep[T] {
       override val tree: Expression = ApplyNative(f, args.tree)(typ)
     }
   }
@@ -44,6 +61,6 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
       }
   }
 
-  def to[F, H <: HList, R](f: F)(implicit fnToProduct: FnToProduct.Aux[F, H => R], converter: Converter[R]) =
+  def to[F, H <: HList, R, Arg <: HList](f: F)(implicit fnToProduct: FnToProduct.Aux[F, H => R], converter: Converter[R], mapper: Mapper.Aux[translate.type, H, Arg]) =
     new CallWord((x: H) => converter.apply(f.toProduct(x)), converter.typ)
 }

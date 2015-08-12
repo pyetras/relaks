@@ -1,7 +1,8 @@
 package relaks.lang.dsl
 
 import org.scalatest.{Inside, Matchers, FunSpec}
-import relaks.lang.ast.{ScalaTypes, TupleConstructor, ApplyNative}
+import relaks.lang.ast.{ScalaTypes, TupleConstructor, ApplyNative, Table}
+import relaks.lang.impl.TableImpl
 
 /**
  * Created by Pietras on 23/06/15.
@@ -28,6 +29,25 @@ class NativeFunTest extends FunSpec with Matchers with Inside {
 
       z.tree should matchPattern  {case ApplyNative(branin, _/>(_: TupleConstructor)) => }
       z.getTpe should equal (ScalaTypes.doubleType) //test if it doesn't return NativeType (unlifted) by any chance
+    }
+
+    it("should construct a covariant call") {
+      object Program extends DSL
+      import Program._
+
+      class A
+      class B extends A
+
+      def f(a: A) = null
+      val z = to (f _) apply Tuple1((new B).asRep)
+      z.tree should matchPattern { case ApplyNative(f, _ ) => }
+    }
+
+    it("should translate Table type") {
+      object Program extends DSL
+
+      def f(a: TableImpl) = null
+      """import Program._; to (f _) apply Tuple1(null.asInstanceOf[Table].asRep)""" should compile
     }
   }
 }
