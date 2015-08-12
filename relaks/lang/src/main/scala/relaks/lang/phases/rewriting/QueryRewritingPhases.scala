@@ -7,7 +7,7 @@ import org.kiama.relation.GraphTree
 import relaks.lang.ast._
 import relaks.lang.dsl.extensions.TableUtils
 import relaks.lang.dsl.extensions.ast._
-import relaks.lang.dsl.extensions.ast.logical.{LoadComprehension, QueryOp, SelectComprehension}
+import relaks.lang.dsl.extensions.ast.logical.{Comprehension, LoadComprehension, QueryOp, SelectComprehension}
 import scalaz.Scalaz
 import Scalaz._
 
@@ -57,12 +57,11 @@ trait QueryRewritingPhases extends LazyLogging with Symbols with Queries with Ta
     import QueryOp._
     private val forTransform: Transform => Vector[(String, TType)] = attr {
       case Transform(_, _/>Pure(_/>(t: TupleConstructor))) => t.names.zip(t.tuple.map(_.tpe))
+      case Transform(_, _/> (c: Comprehension)) => forComprehension(c)
     }
 
-    val forComprehension: SelectComprehension => Option[Vector[(String, TType)]] = attr {
-//      case SelectComprehension(_/>(input: SelectComprehension), IndexedSeq(), _, _, _, IndexedSeq(), _) => this.forComprehension(input)
-      case SelectComprehension(input, transforms, _, _, _, _) => this.forTransform(transforms.last).some
-      case _ => None
+    val forComprehension: Comprehension => Vector[(String, TType)] = attr {
+      case SelectComprehension(input, transforms, _, _, _, _) => this.forTransform(transforms.last)
     }
   }
 

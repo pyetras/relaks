@@ -38,7 +38,7 @@ trait Interpreter
       val optimizer = new GrOptimizer(paramsSpace, StrategyMinimize)
 
       //find value to optimize on
-      val Some(outputSchema) = OutputSchema.forComprehension(c)
+      val outputSchema = OutputSchema.forComprehension(c)
       val (orderby: OrderBy) +: IndexedSeq() = orderbys
       val FieldWithDirection(name, Asc) = orderby.ordering.head
 

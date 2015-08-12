@@ -220,7 +220,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         }
 
         val Some(_ /> (comprehension: SelectComprehension)) = buildComprehensions(r.tree)
-        val Some(schema) = OutputSchema forComprehension comprehension
+        val schema = OutputSchema forComprehension comprehension
         schema.map(_._1) should contain theSameElementsInOrderAs scala.List("x0", "x1")
       }
     }
