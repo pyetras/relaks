@@ -53,24 +53,6 @@ trait TableUtils extends Symbols with Queries {
 
   //note that it only works on syms
   //it also does not extract nested comprehensions
-  object ComprehensionBuilder extends Attribution {
-    val comprehension: Expression => Option[SelectComprehension] = attr {
-      case Some(query) /> StepTable(nextSym) =>
-        val _ /> next = query
-        for {
-          select <- nextSym match {
-            case Some(q) /> (source: SourceQuery) => SelectComprehension(LoadComprehension(source)).some
-            case _ => comprehension(nextSym)
-          }
-          updatedSelect <- next match {
-//            case l: Limit => QueryOp.unapply(l).map(op => select.appendAndCommit(op))
-            case QueryOp(queryOp) => select.append(queryOp).some
-            case gb: GroupBy => throw new NotImplementedError("GroupByComprehension not implemented")
-          }
-        } yield updatedSelect
-      case _ => None
-    }
-  }
 }
 
 trait TableOps extends Symbols with Queries with TypedSymbols {
