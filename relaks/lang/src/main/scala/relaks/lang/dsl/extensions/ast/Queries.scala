@@ -104,16 +104,7 @@ sealed case class OrderBy(table: Atom, ordering: Vector[FieldWithDirection]) ext
 
 sealed case class Pure(value: Atom) extends Expression
 
-sealed case class Comprehension(from: Atom,
-                                transform: Vector[Query] = Vector.empty,
-                                filter: Vector[Query] = Vector.empty,
-                                limit: Vector[Query] = Vector.empty,
-                                orderBy: Vector[Query] = Vector.empty,
-                                groupBy: Vector[Query] = Vector.empty,
-                                sequence: Vector[Query]) extends Expression {
 
-  override def mainToString: String = ScalaRunTime._toString(this)
-}
 
 
 trait Queries extends Symbols {

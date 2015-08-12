@@ -18,6 +18,7 @@ import relaks.lang.dsl.AST._
 import relaks.lang.dsl.AST.syntax._
 import relaks.lang.dsl._
 import relaks.lang.dsl.extensions.ast._
+import relaks.lang.dsl.extensions.ast.logical.{QueryOp, LoadComprehension, SelectComprehension}
 import relaks.lang.dsl.utils.{TypedSymbols, TreePrettyPrintable}
 import relaks.lang.impl.Row
 import shapeless._
@@ -52,21 +53,19 @@ trait TableUtils extends Symbols with Queries {
   //note that it only works on syms
   //it also does not extract nested comprehensions
   object ComprehensionBuilder extends Attribution {
-    val comprehension: Expression => Option[Comprehension] = attr {
+    val comprehension: Expression => Option[SelectComprehension] = attr {
       case Some(query) /> StepTable(next) =>
         val _ /> inner = query
-        (next match {
-          case Some(q) /> SourceTable(s) => Comprehension(q, sequence = Vector(s)).some
-          case _ => comprehension(next)
-        }).map { comprehension =>
-          inner match {
-            case (expr: Filter) => comprehension.copy(filter = comprehension.filter :+ expr, sequence = comprehension.sequence :+ expr)
-            case (expr: Transform) => comprehension.copy(transform = comprehension.transform :+ expr, sequence = comprehension.sequence :+ expr)
-            case (expr: Limit) => comprehension.copy(limit = comprehension.limit :+ expr, sequence = comprehension.sequence :+ expr)
-            case (expr: GroupBy) => comprehension.copy(groupBy = comprehension.groupBy :+ expr, sequence = comprehension.sequence :+ expr)
-            case (expr: OrderBy) => comprehension.copy(orderBy = comprehension.orderBy :+ expr, sequence = comprehension.sequence :+ expr)
+        for {
+          comprehension <- next match {
+            case Some(q) /> SourceTable(s) => s match {
+              case source: SourceQuery => SelectComprehension(LoadComprehension(source)).some
+              case _ => throw new NotImplementedError()
+            }
+            case _ => comprehension(next)
           }
-        }
+          op <- QueryOp.unapply(inner)
+        } yield comprehension.append(op)
       case _ => None
     }
   }
@@ -401,8 +400,9 @@ trait DrillCompilers extends BaseRelationalCompilers with Symbols with Queries w
 }
 
 trait QueryInterpreter extends BaseQueryInterpreter with Queries with BaseExprInterpreter {
-  override def evalQuery(inputRow: Row, q: Query): Row = q match {
-    case _/>Transform(gen: Generator, table, select) =>
+  import QueryOp._
+  override def evalQuery(inputRow: Row, q: QueryOp): Row = q match {
+    case Transform(gen: Generator, select) =>
       push(gen.symsVector.zip(inputRow.values.map(new Literal(_))))
       evalExpression(select).asInstanceOf[Row]
     case _ => super.evalQuery(inputRow, q)
@@ -434,13 +434,14 @@ trait TableCompilerPhases extends LazyLogging with Symbols with Queries with Tab
   }
 
   object OutputSchema extends Attribution {
-    private val forTransform: Query => Vector[(String, TType)] = attr {
-      case Transform(_, _, _/>Pure(_/>(t: TupleConstructor))) => t.names.zip(t.tuple.map(_.tpe))
+    import QueryOp._
+    private val forTransform: Transform => Vector[(String, TType)] = attr {
+      case Transform(_, _/>Pure(_/>(t: TupleConstructor))) => t.names.zip(t.tuple.map(_.tpe))
     }
 
-    val forComprehension: Comprehension => Option[Vector[(String, TType)]] = attr {
-      case Comprehension(_/>(input: Comprehension), IndexedSeq(), _, _, _, IndexedSeq(), _) => this.forComprehension(input)
-      case Comprehension(input, transforms, _, _, _, IndexedSeq(), _) => this.forTransform(transforms.last).some
+    val forComprehension: SelectComprehension => Option[Vector[(String, TType)]] = attr {
+//      case SelectComprehension(_/>(input: SelectComprehension), IndexedSeq(), _, _, _, IndexedSeq(), _) => this.forComprehension(input)
+      case SelectComprehension(input, transforms, _, _, _, _) => this.forTransform(transforms.last).some
       case _ => None
     }
   }
@@ -503,40 +504,11 @@ trait TableCompilerPhases extends LazyLogging with Symbols with Queries with Tab
 
 
   def buildComprehensions = {
-    //all the complexity here comes from the fact, that for Comprehension subexpressions
-    //the strategy should traverse its inner expression (closure), but not the source
-    //expression. this could be simplified by modyfing Comprehension so that it does not
-    //link to the subexpressions' sources
-
-    def traverseInner(s: Strategy): Strategy = {
-      rulefs[Expression] {
-        case None /> (q @ InnerQuery(_)) =>
-          assert(q.productArity == 3, "kiama congruence constraint")
-          congruence(id, id, s)
-        case _ => s
-      }
-    }
-
-    def skipComprehension(s: Strategy): Strategy = {
-      lazy val skip: Strategy =
-      rulefs[Expression] {
-        case (c: Comprehension) =>
-          assert(c.productArity == 7, "kiama congruence constraint")
-          val v = Vector(id, id, id, id, id, id, id)
-          //congruence(s <+ one(skip), id, id, id, id, id) <+ congruence(id, one(traverseInner(s)), id, id, id, id) <+ ...
-          (1 until 6).foldLeft(congruence(s <+ one(skip), id, id, id, id, id, id)){(strategy, ix) =>
-            strategy <+ congruence(v.updated(ix, one(traverseInner(s))):_*)
-          }
-        case q @ _ => s <+ one(skip)
-      }
-      skip
-    }
-
     def buildComprehensionsImpl: Expression ==> Atom = {
       case Some(sym) /> _ if ComprehensionBuilder.comprehension(sym).nonEmpty =>
         ComprehensionBuilder.comprehension(sym).get
     }
 
-    repeat(skipComprehension(rule[Expression](buildComprehensionsImpl))) andThen (_.map(_.asInstanceOf[Expression]))
+    repeat(oncetd(rule[Expression](buildComprehensionsImpl))) andThen (_.map(_.asInstanceOf[Expression]))
   }
 }

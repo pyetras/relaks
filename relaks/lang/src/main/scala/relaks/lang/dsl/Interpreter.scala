@@ -5,6 +5,7 @@ import org.kiama.relation.GraphTree
 import relaks.lang.ast.{Literal, Expression}
 import relaks.lang.dsl.extensions._
 import relaks.lang.dsl.extensions.ast._
+import relaks.lang.dsl.extensions.ast.logical.{LoadComprehension, QueryOp, SelectComprehension}
 import relaks.lang.impl.Row
 import relaks.lang.impl
 import relaks.optimizer.GridOptimizer
@@ -25,7 +26,9 @@ trait Interpreter
   with TableCompilerPhases
   with TupleInterpreter {
   def eval(expr: Expression): Process[Task, impl.Row] = expr match {
-    case _/>(c @ Comprehension(_/>OptimizerResultTable(vars), transforms, filters, limits, orderbys, groupbys, sequence)) =>
+    case _/>(c @ SelectComprehension(LoadComprehension(OptimizerResultTable(vars)), transforms, filters, limits, orderbys, sequence)) =>
+      import QueryOp._
+
       val superPosed = new SuperPosed(new GraphTree(vars))
       val paramSources = superPosed.superPosDeps(vars)
       val params = paramSources.toSeq.map(sym => sym -> evalSuperPosGenerator(sym))
@@ -98,5 +101,6 @@ trait BaseExprInterpreter extends Environments with Symbols {
 }
 
 trait BaseQueryInterpreter extends Environments {
-  def evalQuery(inputRow: Row, q: Query): Row = throw new NotImplementedError(s"Evaluating query $q not implemented")
+  import QueryOp._
+  def evalQuery(inputRow: Row, q: QueryOp): Row = throw new NotImplementedError(s"Evaluating query $q not implemented")
 }

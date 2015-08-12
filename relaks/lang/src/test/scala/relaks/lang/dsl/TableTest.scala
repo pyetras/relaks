@@ -9,6 +9,7 @@ import relaks.lang.ast._
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl.extensions.ast.Filter
 import relaks.lang.dsl.extensions.ast._
+import relaks.lang.dsl.extensions.ast.logical.{ComprehensionPrinter, LoadComprehension, QueryOp, SelectComprehension}
 import relaks.lang.dsl.extensions.{SQLCompilers, DrillCompilers, TableCompilerPhases, TableExtensions}
 import relaks.lang.dsl.utils.TypedSymbols
 import shapeless._
@@ -187,7 +188,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
 
         val transformed = buildComprehensions(r.tree).get
 
-        transformed should matchPattern { case _/> Comprehension(_, _ +: Seq(), _ +: Seq(), _, _ +: Seq(), _, Seq(_: LoadTableFromFs, _: Transform, _: OrderBy, _: Filter)) => }
+        transformed should matchPattern { case _/> SelectComprehension(_, _ +: Seq(), _ +: Seq(), _, _ +: Seq(), Seq(_: QueryOp.Transform, _: QueryOp.OrderBy, _: QueryOp.Filter)) => }
       }
 
       it("should merge nested queries into Comprehension s") {
@@ -203,7 +204,10 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         } orderBy Tuple1('x0)
         val transformed = buildComprehensions(r.tree).get
 
-        transformed should matchPattern { case _/> Comprehension(_, (_/>Transform(_, _, _/> (_: Comprehension))) +: Seq(), _, _, _, _, _) => }
+        import QueryOp._
+        val _ /> (comprehension: SelectComprehension) = transformed
+//        println(ComprehensionPrinter(comprehension))
+        transformed should matchPattern { case _/> SelectComprehension(_: LoadComprehension, QueryOp.Transform(_, _/> (_: SelectComprehension)) +: Seq(), _, _, _, _) => }
       }
 
       it("should compute output schema for Comprehensions") {
@@ -215,7 +219,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
           (xy(0), xy(1))
         }
 
-        val Some(_ /> (comprehension: Comprehension)) = buildComprehensions(r.tree)
+        val Some(_ /> (comprehension: SelectComprehension)) = buildComprehensions(r.tree)
         val Some(schema) = OutputSchema forComprehension comprehension
         schema.map(_._1) should contain theSameElementsInOrderAs scala.List("x0", "x1")
       }
