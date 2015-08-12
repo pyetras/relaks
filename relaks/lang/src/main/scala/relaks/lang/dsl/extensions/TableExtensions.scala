@@ -51,8 +51,6 @@ trait TableUtils extends Symbols with Queries {
 //    }
 //  }
 
-  //note that it only works on syms
-  //it also does not extract nested comprehensions
 }
 
 trait TableOps extends Symbols with Queries with TypedSymbols {

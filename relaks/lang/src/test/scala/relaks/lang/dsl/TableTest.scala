@@ -8,7 +8,7 @@ import org.scalatest.{Matchers, Inside, LoneElement, Inspectors, FunSpec}
 import relaks.lang.ast._
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl.extensions.ast._
-import relaks.lang.dsl.extensions.ast.logical.{ComprehensionPrinter, LoadComprehension, QueryOp, SelectComprehension}
+import relaks.lang.dsl.extensions.ast.logical._
 import relaks.lang.dsl.extensions.{SQLCompilers, DrillCompilers, TableExtensions}
 import relaks.lang.phases.rewriting.QueryRewritingPhases
 import relaks.lang.dsl.utils.TypedSymbols
@@ -192,7 +192,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
       }
 
       it("should merge nested queries into Comprehension s") {
-        object Program extends DSL with TableExtensions with QueryRewritingPhases
+        object Program extends DSL with TableExtensions with QueryRewritingPhases with ComprehensionPrinters
         import Program._
         val a = load("hello")
         val b = load("world")
@@ -206,7 +206,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
 
         import QueryOp._
         val _ /> (comprehension: SelectComprehension) = transformed
-//        println(ComprehensionPrinter(comprehension))
+        println(ComprehensionPrinter(comprehension))
         transformed should matchPattern { case _/> SelectComprehension(_: LoadComprehension, QueryOp.Transform(_, _/> (_: SelectComprehension)) +: Seq(), _, _, _, _) => }
       }
 

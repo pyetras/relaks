@@ -15,16 +15,18 @@ import Scalaz._
  * Created by Pietras on 12.08.15.
  */
 trait QueryRewritingPhases extends LazyLogging with Symbols with Queries with TableUtils {
+  //note that it only works on syms
+  //it also does not extract nested comprehensions (should be applied multiple times)
   object ComprehensionBuilder extends Attribution {
     val comprehension: Expression => Option[SelectComprehension] = attr {
-      case Some(query) /> StepTable(nextSym) =>
-        val _ /> next = query
+      case Some(querySym) /> NextTable(nextSym) =>
+        val _ /> query = querySym
         for {
           select <- nextSym match {
             case Some(q) /> (source: SourceQuery) => SelectComprehension(LoadComprehension(source)).some
             case _ => comprehension(nextSym)
           }
-          updatedSelect <- next match {
+          updatedSelect <- query match {
             //            case l: Limit => QueryOp.unapply(l).map(op => select.appendAndCommit(op))
             case QueryOp(queryOp) => select.append(queryOp).some
             case gb: GroupBy => throw new NotImplementedError("GroupByComprehension not implemented")

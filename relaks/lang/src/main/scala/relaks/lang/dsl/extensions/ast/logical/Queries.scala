@@ -6,6 +6,7 @@ package relaks.lang.dsl.extensions.ast.logical
 
 import relaks.lang
 import relaks.lang.ast._
+import relaks.lang.dsl.extensions.ast.{Queries, Symbols}
 import scalaz.Scalaz
 import Scalaz._
 import org.kiama.output.PrettyPrinter
@@ -17,33 +18,6 @@ import scala.runtime.ScalaRunTime
  */
 sealed trait Comprehension extends Expression
 sealed case class LoadComprehension(loadExpression: SourceQuery) extends Comprehension
-
-object ComprehensionPrinter extends PrettyPrinter {
-
-  def apply(comprehension: Comprehension): String = pretty(cmpToDoc(comprehension)).layout
-
-  private def nonEmpty(s: Seq[_])(f: => Doc) = if (s.isEmpty) empty else f
-
-  private def genToDoc(gen: GeneratorBase) = value(gen) <+> "→ "
-
-  import QueryOp._
-  private def opToDoc(queryOp: QueryOp.QueryOp) = queryOp match {
-    case (op: Filter) => genToDoc(op.generator) <> value(op.filter)
-    case (op: Transform) => genToDoc(op.generator) <> value(op.select)
-    case (op: OrderBy) => list(op.ordering.toList, prefix = "")
-    case _ => value(queryOp)
-  }
-
-  private def cmpToDoc(comprehension: Comprehension): Doc = comprehension match {
-    case SelectComprehension(from, transform, filter, limit, orderBy, seq) =>
-      group("from" <@> nest(cmpToDoc(from))) <@>
-      group("select" <@> nest(group(vsep(transform.map(opToDoc))))) <>
-      nonEmpty(filter)(line <> group("where" <@> nest(group(vsep(filter.map(opToDoc)))))) <>
-      nonEmpty(orderBy)(line <> group("order by" <@> nest(group(vsep(orderBy.map(opToDoc)))))) <>
-      nonEmpty(limit)(line <> group("limit" <@> nest(group(vsep(limit.map(opToDoc))))))
-    case LoadComprehension(x) => value(x)
-  }
-}
 
 final case class SelectComprehension(from: Comprehension,
                                 transform: Vector[QueryOp.Transform] = Vector.empty,
@@ -79,6 +53,53 @@ object QueryOp {
     case (op: lang.ast.Transform) => Transform(op.generator, op.select).some
     case (op: lang.ast.Limit) => Limit(op.start, op.count).some
     case (op: lang.ast.OrderBy) => OrderBy(op.ordering).some
-
   }
+
+  private object Inner {
+    def unapply(queryOp: QueryOp) = queryOp match {
+      case Transform(_, select) => select.some
+      case Filter(_, filter) => filter.some
+      case _ => None
+    }
+  }
+}
+
+trait ComprehensionPrinters extends Symbols with Queries {
+
+  object ComprehensionPrinter extends PrettyPrinter {
+
+    def apply(comprehension: Comprehension): String = pretty(cmpToDoc(comprehension)).layout
+
+    private def nonEmpty(s: Seq[_])(f: => Doc) = if (s.isEmpty) empty else f
+
+    private def genToDoc(gen: GeneratorBase) = arguments(gen.asInstanceOf[Generator].fields.toList) <+> "→"
+
+    private def exprToDoc(expr: Atom) = expr match {
+      case _/>Pure(_/>(t: TupleConstructor)) => arguments(t.names)
+      case _/>(c: Comprehension) => cmpToDoc(c)
+      case _ =>value(expr)
+    }
+
+    import QueryOp._
+
+    private def opToDoc(queryOp: QueryOp.QueryOp) = queryOp match {
+      case (op: Filter) => group(genToDoc(op.generator) <> nestl(exprToDoc(op.filter)))
+      case (op: Transform) => group(genToDoc(op.generator) <> nestl(exprToDoc(op.select)))
+      case (op: OrderBy) => arguments(op.ordering.toList)
+      case _ => value(queryOp)
+    }
+
+    private def nestl(f: => Doc) = nest(line <> f)
+
+    private def cmpToDoc(comprehension: Comprehension): Doc = comprehension match {
+      case SelectComprehension(from, transform, filter, limit, orderBy, seq) =>
+        group("from" <> nestl(cmpToDoc(from))) <@>
+          group("select" <> nestl(group(vsep(transform.map(opToDoc))))) <>
+          nonEmpty(filter)(line <> group("where" <> nestl(group(vsep(filter.map(opToDoc)))))) <>
+          nonEmpty(orderBy)(line <> group("order by" <> nestl(group(vsep(orderBy.map(opToDoc)))))) <>
+          nonEmpty(limit)(line <> group("limit" <> nestl(group(vsep(limit.map(opToDoc))))))
+      case LoadComprehension(x) => value(x)
+    }
+  }
+
 }

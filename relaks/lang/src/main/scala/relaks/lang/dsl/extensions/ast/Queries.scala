@@ -31,6 +31,8 @@ trait Queries extends Symbols with ToTypedTreeOps {
 
     lazy val symsVector = syms.getOrElse(symsToFields.keys.toVector)
 
+    def fields = symsToFields.values
+
     private def fuseWith(other: Generator): Generator = new Generator(symsToFields ++ other.symsToFields)
 
     lazy val duplicates: Map[Symbol, Vector[Sym]] = symsToFields.groupBy(_._2).mapValues(_.keys.toVector).filter(_._2.size > 1)
@@ -120,7 +122,7 @@ trait Queries extends Symbols with ToTypedTreeOps {
     }
   }
 
-  object StepTable {
+  object NextTable {
     def unapply(expr: Expression): Option[Atom] = expr match {
       case _/> Query(q) => q.stepTable
       case _ => None
@@ -136,13 +138,10 @@ trait Queries extends Symbols with ToTypedTreeOps {
 
   //if cannot get next table its a source
   object SourceTable {
-    def unapply(expr: Expression): Option[Query] = expr match {
-      case Query(q) => if (StepTable.unapply(q).nonEmpty) None else q.some
-      case _ => None
-    }
+    def unapply(expr: Expression): Option[Query] = NextTable.unapply(expr).isEmpty ? none[Query] | Query.unapply(expr)
   }
 
-  object InnerQuery {
+  private object InnerQuery {
     def unapply(expr: Expression): Option[Expression] = expr match {
       case _/>Transform(_, _, select) => select.some
       case _/>Filter(_, _, filter) => filter.some
