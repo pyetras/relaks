@@ -3,7 +3,7 @@ package relaks.lang.dsl.extensions
 import relaks.lang.ast._
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl._
-import relaks.lang.dsl.extensions.ast.TableFromList
+import relaks.lang.dsl.extensions.ast.Symbols
 import shapeless.HNil
 
 import scala.language.implicitConversions

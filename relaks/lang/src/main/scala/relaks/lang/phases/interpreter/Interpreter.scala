@@ -1,13 +1,14 @@
-package relaks.lang.dsl
+package relaks.lang.phases.interpreter
 
 import com.bethecoder.ascii_table.ASCIITable
 import org.kiama.relation.GraphTree
-import relaks.lang.ast.{Literal, Expression}
+import relaks.lang.ast._
 import relaks.lang.dsl.extensions._
 import relaks.lang.dsl.extensions.ast._
 import relaks.lang.dsl.extensions.ast.logical.{LoadComprehension, QueryOp, SelectComprehension}
-import relaks.lang.impl.Row
 import relaks.lang.impl
+import relaks.lang.impl.Row
+import relaks.lang.phases.rewriting.QueryRewritingPhases
 import relaks.optimizer.GridOptimizer
 
 import scalaz.concurrent.Task
@@ -80,11 +81,11 @@ trait Environments extends Symbols {
   var history = List.empty[Map[Sym, Expression]]
   var cachedDefinitions = Map.empty[Sym, Expression]
 
-  private[dsl] def push(update: Iterable[(Sym, Expression)] = Map.empty) = {
+  private[interpreter] def push(update: Iterable[(Sym, Expression)] = Map.empty) = {
     history = cachedDefinitions :: history
     cachedDefinitions ++= update
   }
-  private[dsl] def pop() = {
+  private[interpreter] def pop() = {
     cachedDefinitions = history.head
     history = history.tail
   }

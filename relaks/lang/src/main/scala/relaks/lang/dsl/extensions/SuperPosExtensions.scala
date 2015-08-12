@@ -4,7 +4,9 @@ import org.kiama.attribution.Attribution
 import org.kiama.relation.GraphTree
 import relaks.lang.ast._
 import relaks.lang.dsl._
-import relaks.lang.dsl.extensions.ast.OptimizerResultTable
+import relaks.lang.dsl.extensions.ast.Symbols
+import relaks.lang.phases.analysis.Analysis
+import relaks.lang.phases.interpreter.{BaseExprInterpreter, Environments}
 import relaks.optimizer.{ChooseOneOf, NondetParam, DiscreteRange, ContinuousRange}
 import shapeless.HList
 import shapeless.ops.hlist

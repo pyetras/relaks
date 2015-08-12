@@ -5,8 +5,10 @@ import relaks.data.LabelledTuples
 import relaks.lang.ast._
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl._
+import relaks.lang.dsl.extensions.ast.Symbols
 import relaks.lang.dsl.utils.{NamesToStrings, FillNat, TupleLU, UnliftType}
 import relaks.lang.impl.Row
+import relaks.lang.phases.interpreter.BaseExprInterpreter
 import shapeless._
 import shapeless.labelled.FieldType
 import shapeless.ops.hlist._

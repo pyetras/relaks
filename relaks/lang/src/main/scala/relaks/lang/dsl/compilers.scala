@@ -4,6 +4,8 @@ package relaks.lang.dsl
 import org.kiama.rewriting.Rewriter
 import relaks.lang.ast._
 import relaks.lang.dsl.extensions._
+import relaks.lang.dsl.extensions.ast.Symbols
+import relaks.lang.phases.analysis.Analysis
 
 import scalaz.Scalaz._
 import scalaz.{Scalaz, ValidationNel}

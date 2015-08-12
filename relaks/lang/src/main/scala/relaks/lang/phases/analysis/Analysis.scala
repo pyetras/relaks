@@ -1,10 +1,10 @@
-package relaks.lang.dsl
+package relaks.lang.phases.analysis
 
 import org.kiama.rewriting.Rewriter
 import relaks.lang.ast.Expression
 
+import scalaz.Scalaz._
 import scalaz._
-import Scalaz._
 
 /**
  * Created by Pietras on 12/07/15.

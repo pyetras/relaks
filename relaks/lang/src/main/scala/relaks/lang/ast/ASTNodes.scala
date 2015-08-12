@@ -108,24 +108,3 @@ case class Select(lhs: Expression, rhs: Expression) extends Expression {
   }
 }
 sealed case class Operator(name: String) extends Expression
-
-sealed trait Latin extends Expression
-sealed trait InferredRelation
-object Inferred extends InferredRelation
-
-//  type Relation = Either[InferredRelation, Expression]
-//
-//  case class Foreach(rels: NonEmptyList[Relation], statements: NonEmptyList[Statement]) extends Latin
-//  case class Limit(rel: Relation, limiter: Expression) extends Latin
-//  case class Where(rel: Relation, condition: Expression) extends Latin
-//
-//  sealed trait OrderDirection
-//  object Asc extends OrderDirection
-//  object Desc extends OrderDirection
-//
-//  case class ColumnOrder(rel: Relation, directions: NonEmptyList[(Expression, OrderDirection)]) extends Latin
-//
-//  sealed trait SearchType
-//  case class Optimization(method: String = "spearmint") extends SearchType
-//  object Grid extends SearchType
-//  case class Search(rels: NonEmptyList[Expression], typ: SearchType, statements: NonEmptyList[Statement]) extends Latin

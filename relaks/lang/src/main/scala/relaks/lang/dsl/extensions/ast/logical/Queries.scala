@@ -4,10 +4,8 @@ package relaks.lang.dsl.extensions.ast.logical
  * Created by Pietras on 12.08.15.
  */
 
-import org.kiama.output.PrettyPrinterTypes.{Document, Width}
-import relaks.lang.ast.{Atom, Expression}
-import relaks.lang.dsl.extensions.ast
-import relaks.lang.dsl.extensions.ast.{FieldWithDirection, SourceQuery, GeneratorBase}
+import relaks.lang
+import relaks.lang.ast._
 import scalaz.Scalaz
 import Scalaz._
 import org.kiama.output.PrettyPrinter
@@ -77,10 +75,10 @@ object QueryOp {
   case class OrderBy(ordering: Vector[FieldWithDirection]) extends QueryOp
 
   def unapply(expr: Expression): Option[QueryOp] = expr match {
-    case (op: ast.Filter) => Filter(op.generator, op.filter).some
-    case (op: ast.Transform) => Transform(op.generator, op.select).some
-    case (op: ast.Limit) => Limit(op.start, op.count).some
-    case (op: ast.OrderBy) => OrderBy(op.ordering).some
+    case (op: lang.ast.Filter) => Filter(op.generator, op.filter).some
+    case (op: lang.ast.Transform) => Transform(op.generator, op.select).some
+    case (op: lang.ast.Limit) => Limit(op.start, op.count).some
+    case (op: lang.ast.OrderBy) => OrderBy(op.ordering).some
 
   }
 }

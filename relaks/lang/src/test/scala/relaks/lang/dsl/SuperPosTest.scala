@@ -4,6 +4,7 @@ import org.scalatest.{FunSpec, Inside, Matchers}
 import relaks.lang.ast._
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl.extensions._
+import relaks.lang.dsl.extensions.ast.Symbols
 import shapeless._
 import org.kiama.relation.GraphTree
 

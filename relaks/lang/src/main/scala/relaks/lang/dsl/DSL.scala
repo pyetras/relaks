@@ -2,6 +2,8 @@ package relaks.lang.dsl
 
 import relaks.lang.dsl.AST.ASTSyntax
 import relaks.lang.dsl.extensions._
+import relaks.lang.dsl.extensions.ast.Symbols
+import relaks.lang.phases.interpreter.Interpreter
 
 import scala.collection.mutable
 import scala.language.implicitConversions

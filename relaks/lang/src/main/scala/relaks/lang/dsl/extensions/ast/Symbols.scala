@@ -1,10 +1,10 @@
-package relaks.lang.dsl
+package relaks.lang.dsl.extensions.ast
 
 import com.typesafe.scalalogging.LazyLogging
 import relaks.lang.ast._
 import relaks.lang.dsl.AST.syntax._
+import relaks.lang.dsl.Rep
 
-import scala.collection.mutable
 import scala.language.implicitConversions
 import scalaz.Scalaz._
 

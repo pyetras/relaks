@@ -4,13 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.drill.common.logical.data.{Transform => DrillTransform, LogicalOperator, Scan, Join => DrillJoin}
 import org.scalatest.enablers.Collecting
-import org.scalatest._
+import org.scalatest.{Matchers, Inside, LoneElement, Inspectors, FunSpec}
 import relaks.lang.ast._
 import relaks.lang.dsl.AST._
-import relaks.lang.dsl.extensions.ast.Filter
 import relaks.lang.dsl.extensions.ast._
 import relaks.lang.dsl.extensions.ast.logical.{ComprehensionPrinter, LoadComprehension, QueryOp, SelectComprehension}
-import relaks.lang.dsl.extensions.{SQLCompilers, DrillCompilers, QueryRewritingPhases, TableExtensions}
+import relaks.lang.dsl.extensions.{SQLCompilers, DrillCompilers, TableExtensions}
+import relaks.lang.phases.rewriting.QueryRewritingPhases
 import relaks.lang.dsl.utils.TypedSymbols
 import shapeless._
 import shapeless.ops.hlist
