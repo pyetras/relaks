@@ -166,7 +166,7 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
     override type ComprehensionsMonad = TypedOptimizerComprehensions[H]
 
     def by(field: Symbol) =
-      typedComp.orderImpl(Vector(field), OrderBy(tree, Vector(FieldWithDirection(field, GroupBy.Asc)))(new UntypedTableType))
+      typedComp.orderImpl(Vector(field), OrderBy(tree, Vector(FieldWithDirection(field, GroupBy.Asc)), isExperimentTarget = true)(new UntypedTableType))
 
     private def fromTypedTableComprehension[T <: HList](t: ProjectedTypedTableComprehensions[T]) =
       new TypedOptimizerComprehensions[H](t.fields, t.query)
@@ -175,10 +175,10 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
 //    def flatMap(f: (Rep[Tup[H]]) => Rep[UntypedTable]): Rep[UntypedTable] = typedComp.flatMap(f)
     //TODO implement regular flatmap
     def flatMap[T <: HList](f: Rep[Tup[H]] => Rep[TypedTable[Tup[T]]])(implicit lenEnv: hlist.Length[T]) =
-      typedComp.flatMap(f)
+      fromTypedTableComprehension(typedComp.flatMap(f))
 
     def map[T <: HList](f: (Rep[Tup[H]]) => Rep[Tup[T]])(implicit lenEnv: hlist.Length[T]) =
-      typedComp.map(f)
+      fromTypedTableComprehension(typedComp.map(f))
 
 //    val withFilter: ((Rep[Tup[Nothing]]) => Rep[Boolean]) => ProjectedTypedTableComprehensions[H] = _
     //TODO implement withfilter
@@ -207,7 +207,7 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
     //TODO ordering
     def orderBy[P <: Product](fields: P)(implicit toVector: ToTraversable.Aux[P, Vector, Symbol]): ComprehensionsMonad = {
       val fieldsVec = toVector(fields)
-      val expr = OrderBy(tree, fieldsVec.map(FieldWithDirection(_, GroupBy.Asc)))(new UntypedTableType)
+      val expr = OrderBy(tree, fieldsVec.map(FieldWithDirection(_, GroupBy.Asc)), isExperimentTarget = true)(new UntypedTableType)
       orderImpl(fieldsVec, expr)
     }
 

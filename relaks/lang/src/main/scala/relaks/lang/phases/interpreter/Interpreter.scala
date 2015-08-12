@@ -39,7 +39,7 @@ trait Interpreter
 
       //find value to optimize on
       val outputSchema = OutputSchema.forComprehension(c)
-      val (orderby: OrderBy) +: IndexedSeq() = orderbys
+      val orderby = orderbys.find(ob => ob.isExperimentTarget).get
       val FieldWithDirection(name, GroupBy.Asc) = orderby.ordering.head
 
       val toMinimizeIx = outputSchema.map(_._1).indexOf(name.name)

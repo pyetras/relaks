@@ -33,7 +33,7 @@ trait SuperPosExtensions extends ListExtensions with Symbols with SuperPosGenera
     val fields = varTup.tree match {
       case _/>(t: TupleConstructor) => t.names.map(Symbol.apply)
     }
-    new ProjectedTypedTableComprehensions[H](fields, expr)
+    new TypedOptimizerComprehensions[H](fields, expr)
   }
 
 }

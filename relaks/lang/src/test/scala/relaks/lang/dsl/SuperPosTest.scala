@@ -172,6 +172,27 @@ class SuperPosTest extends FunSpec with Matchers with Inside {
 
     it("should not accept optimizer queries without stop conditions") { pending }
     it("should not accept optimizer queries without sorting (target function)") { pending }
+
+    it("should accept (and carry on) the `optimize by` syntax") {
+      val (p, _, b) = prog()
+      import p._
+
+      """
+      val r = (optimize(Tuple1(b)) map { row =>
+        Tuple1(row(0))
+      }) filter { row =>
+        row(0) > 1
+      } by('x0)
+      """ should compile
+
+      """
+      val r = (optimize(Tuple1(b)) map { row =>
+        Tuple1(row(0))
+      }) filter { row =>
+        row(0) > 1
+      } by('x0) by('x0)
+      """ shouldNot compile
+    }
   }
 
   describe("SuperPos analyzer") {
