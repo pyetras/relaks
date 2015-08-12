@@ -41,19 +41,18 @@ trait TableExtensions extends TableIO with TableOps with TableUtils {
 }
 
 trait TableUtils extends Symbols with Queries {
-//  sealed trait ForTableQuery
-//  private def forTable(sym: Sym): Sym @@ ForTableQuery = ForTable.unapply(sym).get
-//
-//  private object ForTable {
-//    def unapply(sym: Sym) = sym match {
-//      case Some(s) /> (_: SourceQuery) => Tag[Sym, ForTableQuery](s).some
-//      case _ => None
-//    }
-//  }
+
+  object outputNames extends Attribution {
+    val apply: Query => Vector[String] = attr {
+      case _ /> Transform(_, _, _ /> Pure(_ /> row)) => TupleWithNames.unapply(row).get._2
+      case _ /> Transform(_, _, Query(q)) => apply(q)
+      case NextQuery(next) => apply(next)
+    }
+  }
 
 }
 
-trait TableOps extends Symbols with Queries with TypedSymbols {
+trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
 
   type RowN[L <: HList] = Rep[Tup[L]]
   type Row[A] = Rep[Tup[A :: HNil]]
@@ -89,10 +88,10 @@ trait TableOps extends Symbols with Queries with TypedSymbols {
       }
     }
 
-    def flatMap[F <: HList, T <: HList, N <: Nat](f: Rep[Tup[F]] => Rep[TypedTable[Tup[T]]])(implicit lenEv: hlist.Length.Aux[F, FieldsLen], lenOutEv: hlist.Length.Aux[T, N], len: ToInt[N]) = {
+    def flatMap[F <: HList, T <: HList](f: Rep[Tup[F]] => Rep[TypedTable[Tup[T]]])(implicit lenEv: hlist.Length.Aux[F, FieldsLen], lenOutEv: hlist.Length[T]) = {
       val expr = flatMapImpl(f)
-      val names = (0 until len()).toVector.map(i => Symbol(s"x$i")) //this is an "inner" query, so names don't really matter
-      new ProjectedTypedTableComprehensions[T](names, expr(new UntypedTableType)) //TODO this could return a typed table
+      val names = outputNames.apply(expr)
+      new ProjectedTypedTableComprehensions[T](names.map(Symbol.apply), expr(new UntypedTableType)) //TODO this could return a typed table
     }
 
     def map[F <: HList, T <: HList](f: Rep[Tup[F]] => Rep[Tup[T]])(implicit lenEv: hlist.Length.Aux[F, FieldsLen], lenOutEv: hlist.Length[T]) = {
@@ -143,7 +142,7 @@ trait TableOps extends Symbols with Queries with TypedSymbols {
     lazy val untypedComprehension = new ProjectedTableComprehensions[lenEnv.Out](fields, query)
 
     def flatMap(f: Rep[Tup[H]] => Rep[UntypedTable]) = untypedComprehension.flatMap(f)
-    def flatMap[T <: HList, N <: Nat](f: Rep[Tup[H]] => Rep[TypedTable[Tup[T]]])(implicit lenEv: hlist.Length.Aux[T, N], len: ToInt[N]) = untypedComprehension.flatMap(f)
+    def flatMap[T <: HList](f: Rep[Tup[H]] => Rep[TypedTable[Tup[T]]])(implicit lenEnv: hlist.Length[T]) = untypedComprehension.flatMap(f)
     def map[T <: HList](f: Rep[Tup[H]] => Rep[Tup[T]])(implicit lenEnv: hlist.Length[T]) = untypedComprehension.map(f)
     val withFilter = (untypedComprehension.withFilter _) andThen fromUntypedTableComprehension //TODO this does not enforce types
     def filter(f: Rep[Tup[H]] => Rep[Boolean]) = fromUntypedTableComprehension(untypedComprehension.filter(f))
@@ -169,19 +168,17 @@ trait TableOps extends Symbols with Queries with TypedSymbols {
     def by(field: Symbol) =
       typedComp.orderImpl(Vector(field), OrderBy(tree, Vector(FieldWithDirection(field, GroupBy.Asc)))(new UntypedTableType))
 
-    //TODO this pattern is sehr bad
     private def fromTypedTableComprehension[T <: HList](t: ProjectedTypedTableComprehensions[T]) =
       new TypedOptimizerComprehensions[H](t.fields, t.query)
     lazy val typedComp = new ProjectedTypedTableComprehensions[H](fields, query)
 
 //    def flatMap(f: (Rep[Tup[H]]) => Rep[UntypedTable]): Rep[UntypedTable] = typedComp.flatMap(f)
     //TODO implement regular flatmap
-
-    def flatMap[T <: HList, N <: Nat](f: Rep[Tup[H]] => Rep[TypedTable[Tup[T]]])(implicit lenEv: hlist.Length.Aux[T, N], len: ToInt[N]) =
-      fromTypedTableComprehension(typedComp.flatMap(f))
+    def flatMap[T <: HList](f: Rep[Tup[H]] => Rep[TypedTable[Tup[T]]])(implicit lenEnv: hlist.Length[T]) =
+      typedComp.flatMap(f)
 
     def map[T <: HList](f: (Rep[Tup[H]]) => Rep[Tup[T]])(implicit lenEnv: hlist.Length[T]) =
-      fromTypedTableComprehension(typedComp.map(f))
+      typedComp.map(f)
 
 //    val withFilter: ((Rep[Tup[Nothing]]) => Rep[Boolean]) => ProjectedTypedTableComprehensions[H] = _
     //TODO implement withfilter

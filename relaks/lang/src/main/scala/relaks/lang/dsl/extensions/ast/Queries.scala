@@ -129,6 +129,16 @@ trait Queries extends Symbols with ToTypedTreeOps {
     }
   }
 
+  object NextQuery {
+    def unapply(expr: Expression): Option[Query] = expr match {
+      case Query(q) => for {
+        nextSym <- q.stepTable
+        next <- Expr.unapply(nextSym)
+      } yield next.asInstanceOf[Query]
+      case _ => None
+    }
+  }
+
   object Sources {
     def unapply(expr: Expression): Option[Seq[Atom]] = expr match {
       case _/> Query(q) => q.sources.some
