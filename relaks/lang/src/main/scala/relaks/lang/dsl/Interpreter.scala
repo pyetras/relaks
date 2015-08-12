@@ -23,7 +23,7 @@ trait Interpreter
   with QueryInterpreter
   with GridOptimizer
   with TableIO
-  with TableCompilerPhases
+  with QueryRewritingPhases
   with TupleInterpreter {
   def eval(expr: Expression): Process[Task, impl.Row] = expr match {
     case _/>(c @ SelectComprehension(LoadComprehension(OptimizerResultTable(vars)), transforms, filters, limits, orderbys, sequence)) =>

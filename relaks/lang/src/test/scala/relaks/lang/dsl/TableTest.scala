@@ -10,7 +10,7 @@ import relaks.lang.dsl.AST._
 import relaks.lang.dsl.extensions.ast.Filter
 import relaks.lang.dsl.extensions.ast._
 import relaks.lang.dsl.extensions.ast.logical.{ComprehensionPrinter, LoadComprehension, QueryOp, SelectComprehension}
-import relaks.lang.dsl.extensions.{SQLCompilers, DrillCompilers, TableCompilerPhases, TableExtensions}
+import relaks.lang.dsl.extensions.{SQLCompilers, DrillCompilers, QueryRewritingPhases, TableExtensions}
 import relaks.lang.dsl.utils.TypedSymbols
 import shapeless._
 import shapeless.ops.hlist
@@ -80,7 +80,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
     }
     describe("ast rewriter") {
       it("should unnest nested comprehensions into joins") {
-        object Program extends DSL with TableExtensions with TableCompilerPhases
+        object Program extends DSL with TableExtensions with QueryRewritingPhases
         import Program._
         import org.kiama.rewriting.Rewriter._
 
@@ -104,7 +104,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
       }
 
       it("should unnest nested comprehensions with filters into non-cartesian joins") {
-        object Program extends DSL with TableExtensions with TableCompilerPhases
+        object Program extends DSL with TableExtensions with QueryRewritingPhases
         import Program._
         import org.kiama.rewriting.Rewriter._
 
@@ -122,7 +122,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
       }
 
       it("should unnest multiple comprehensions with filters into non-cartesian joins") {
-        object Program extends DSL with TableExtensions with TableCompilerPhases
+        object Program extends DSL with TableExtensions with QueryRewritingPhases
         import Program._
         import org.kiama.rewriting.Rewriter._
 
@@ -142,7 +142,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
       }
 
       it("should generate projections") {
-        object Program extends DSL with TableExtensions with TableCompilerPhases
+        object Program extends DSL with TableExtensions with QueryRewritingPhases
         import Program._
         val a = load("hello")
         val b = load("world")
@@ -178,7 +178,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
       }
 
       it("should merge queries into Comprehension") {
-        object Program extends DSL with TableExtensions with TableCompilerPhases
+        object Program extends DSL with TableExtensions with QueryRewritingPhases
         import Program._
         val a = load("hello")
         val q = a(('ax.is[Int], 'ay.is[Int])) map { (xy: Row2[Int, Int]) =>
@@ -192,7 +192,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
       }
 
       it("should merge nested queries into Comprehension s") {
-        object Program extends DSL with TableExtensions with TableCompilerPhases
+        object Program extends DSL with TableExtensions with QueryRewritingPhases
         import Program._
         val a = load("hello")
         val b = load("world")
@@ -211,7 +211,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
       }
 
       it("should compute output schema for Comprehensions") {
-        object Program extends DSL with TableExtensions with TableCompilerPhases
+        object Program extends DSL with TableExtensions with QueryRewritingPhases
         import Program._
         val a = load("hello")
         val b = load("world")
@@ -226,7 +226,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
     }
     describe("drill compiler") {
       it("should compile a load table expression") {
-        object Program extends TableExtensions with TableCompilerPhases with DrillCompilers
+        object Program extends TableExtensions with QueryRewritingPhases with DrillCompilers
 
         val table = Program.load("hello")
         val compiler = new Program.CompileDrill(Map.empty)
@@ -235,7 +235,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
       }
 
       it("should compile a simple transform") {
-        object Program extends DSL with TableExtensions with TableCompilerPhases with DrillCompilers
+        object Program extends DSL with TableExtensions with QueryRewritingPhases with DrillCompilers
         import Program._
 
         val a = Program.load("hello")
@@ -252,7 +252,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
       }
 
       it("should compile a join") {
-        object Program extends DSL with TableExtensions with TableCompilerPhases with DrillCompilers
+        object Program extends DSL with TableExtensions with QueryRewritingPhases with DrillCompilers
         import Program._
         val a = load("hello")
         val b = load("world")
@@ -273,7 +273,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
 
     describe("sql compiler") {
       it("should compile a join") {
-        object Program extends DSL with TableExtensions with TableCompilerPhases with SQLCompilers
+        object Program extends DSL with TableExtensions with QueryRewritingPhases with SQLCompilers
         import Program._
         val a = load("hello")
         val b = load("world")

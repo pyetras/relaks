@@ -54,18 +54,19 @@ trait TableUtils extends Symbols with Queries {
   //it also does not extract nested comprehensions
   object ComprehensionBuilder extends Attribution {
     val comprehension: Expression => Option[SelectComprehension] = attr {
-      case Some(query) /> StepTable(next) =>
-        val _ /> inner = query
+      case Some(query) /> StepTable(nextSym) =>
+        val _ /> next = query
         for {
-          comprehension <- next match {
-            case Some(q) /> SourceTable(s) => s match {
-              case source: SourceQuery => SelectComprehension(LoadComprehension(source)).some
-              case _ => throw new NotImplementedError()
-            }
-            case _ => comprehension(next)
+          select <- nextSym match {
+            case Some(q) /> (source: SourceQuery) => SelectComprehension(LoadComprehension(source)).some
+            case _ => comprehension(nextSym)
           }
-          op <- QueryOp.unapply(inner)
-        } yield comprehension.append(op)
+          updatedSelect <- next match {
+//            case l: Limit => QueryOp.unapply(l).map(op => select.appendAndCommit(op))
+            case QueryOp(queryOp) => select.append(queryOp).some
+            case gb: GroupBy => throw new NotImplementedError("GroupByComprehension not implemented")
+          }
+        } yield updatedSelect
       case _ => None
     }
   }
@@ -414,7 +415,7 @@ trait QueryInterpreter extends BaseQueryInterpreter with Queries with BaseExprIn
   }
 }
 
-trait TableCompilerPhases extends LazyLogging with Symbols with Queries with TableUtils {
+trait QueryRewritingPhases extends LazyLogging with Symbols with Queries with TableUtils {
   import org.kiama.rewriting.Rewriter._
 
   class LeafSyms(tree: GraphTree) extends Attribution { self =>

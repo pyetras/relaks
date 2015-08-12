@@ -62,6 +62,8 @@ final case class SelectComprehension(from: Comprehension,
     case (op: OrderBy) => this.copy(orderBy = this.orderBy :+ op, sequence = this.sequence :+ op)
   }
 
+  def appendAndCommit(queryOp: QueryOp): SelectComprehension = SelectComprehension(append(queryOp))
+
   override def mainToString: String = ScalaRunTime._toString(this)
 
 }
