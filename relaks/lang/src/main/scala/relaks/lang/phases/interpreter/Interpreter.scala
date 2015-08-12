@@ -40,7 +40,7 @@ trait Interpreter
       //find value to optimize on
       val outputSchema = OutputSchema.forComprehension(c)
       val (orderby: OrderBy) +: IndexedSeq() = orderbys
-      val FieldWithDirection(name, Asc) = orderby.ordering.head
+      val FieldWithDirection(name, GroupBy.Asc) = orderby.ordering.head
 
       val toMinimizeIx = outputSchema.map(_._1).indexOf(name.name)
       assert(toMinimizeIx >= 0, "Invalid optimization condition")

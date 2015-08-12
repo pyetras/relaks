@@ -79,15 +79,19 @@ sealed case class GroupBy(generator: GeneratorBase, table: Atom, group: Atom) ex
   override def stepTable: Option[Atom] = table.some
 }
 
-sealed trait OrderDirection
-object Asc extends OrderDirection
-object Desc extends OrderDirection
-
-final case class FieldWithDirection(field: Symbol, direction: OrderDirection) {
-  override def toString: String = s"${if (direction == Asc) "↑" else "↓"}$field"
+object GroupBy {
+  sealed trait OrderDirection
+  object Asc extends OrderDirection
+  object Desc extends OrderDirection
 }
 
-sealed case class OrderBy(table: Atom, ordering: Vector[FieldWithDirection]) extends Query with SingleSourceTransformation {
+
+final case class FieldWithDirection(field: Symbol, direction: GroupBy.OrderDirection) {
+  override def toString: String = s"${if (direction == GroupBy.Asc) "↑" else "↓"}$field"
+}
+
+sealed case class OrderBy(table: Atom, ordering: Vector[FieldWithDirection], isExperimentTarget: Boolean = false)
+  extends Query with SingleSourceTransformation {
   override def mainToString: String = withArgs(super.mainToString, ordering.toString)
 
   override def stepTable: Option[Atom] = table.some

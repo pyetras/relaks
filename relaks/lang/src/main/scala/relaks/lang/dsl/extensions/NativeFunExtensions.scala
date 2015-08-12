@@ -23,7 +23,7 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
       override val value: (::[A, HNil]) => Result = x => null.asInstanceOf[B]
     }
 
-    implicit val tableTranslation = defineTranslation[Table, TableImpl]
+    implicit val tableTranslation = defineTranslation[UntypedTable, TableImpl]
     implicit def translate[T, X](implicit translation: HasTranslation[T, X]) = at[T](x => null.asInstanceOf[X] : X)
   }
 

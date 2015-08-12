@@ -4,7 +4,7 @@ import breeze.linalg.{norm, sum, zipValues, Vector}
 import breeze.math.Ring
 import breeze.numerics._
 import org.scalatest.{Inside, Matchers, FunSpec}
-import relaks.lang.ast.{Tup, Table}
+import relaks.lang.ast.{Tup, UntypedTable}
 import relaks.lib.mtree.{MTree, DistanceFunction}
 import shapeless.{::, HNil}
 
@@ -38,12 +38,12 @@ class KNNTest extends FunSpec with Matchers with Inside {
         }
       }
 
-      def makeTree(dist: DistanceFunction[Vector[Double]], train: Table) = {
+      def makeTree(dist: DistanceFunction[Vector[Double]], train: UntypedTable) = {
         val tree = new MTree(dist, null)
         tree
       }
 
-      def knn(k: Int, tree: MTree[Vector[Double]], test: Table) = {
+      def knn(k: Int, tree: MTree[Vector[Double]], test: UntypedTable) = {
 
       }
 

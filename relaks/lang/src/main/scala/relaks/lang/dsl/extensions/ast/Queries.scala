@@ -183,7 +183,7 @@ trait Queries extends Symbols with ToTypedTreeOps {
   }
 
   object RowRep {
-    def apply[T <: HList](t: Rep[Tup[T]]) = new Rep[Table] {
+    def apply[T <: HList](t: Rep[Tup[T]]): Rep[TypedTable[Tup[T]]] = new Rep[TypedTable[Tup[T]]] {
       override val tree: Expression = Pure(t.tree)(new UntypedTableType)
     }
   }

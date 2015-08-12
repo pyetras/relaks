@@ -46,13 +46,13 @@ object QueryOp {
   case class Transform(generator: GeneratorBase, select: Atom) extends QueryOp
   case class Filter(generator: GeneratorBase, filter: Atom) extends QueryOp
   case class Limit(start: Atom, count: Atom) extends QueryOp
-  case class OrderBy(ordering: Vector[FieldWithDirection]) extends QueryOp
+  case class OrderBy(ordering: Vector[FieldWithDirection], isExperimentTarget: Boolean) extends QueryOp
 
   def unapply(expr: Expression): Option[QueryOp] = expr match {
     case (op: lang.ast.Filter) => Filter(op.generator, op.filter).some
     case (op: lang.ast.Transform) => Transform(op.generator, op.select).some
     case (op: lang.ast.Limit) => Limit(op.start, op.count).some
-    case (op: lang.ast.OrderBy) => OrderBy(op.ordering).some
+    case (op: lang.ast.OrderBy) => OrderBy(op.ordering, op.isExperimentTarget).some
   }
 
   private object Inner {

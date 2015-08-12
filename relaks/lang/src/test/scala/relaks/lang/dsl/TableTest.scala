@@ -279,7 +279,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         val b = load("world")
 
         val res = for {
-          as <- a(('ax.is[Int], 'ay.is[Int]))
+          as: Row2[Int, Int] <- a(('ax.is[Int], 'ay.is[Int]))
           bs <- b(('ax.is[Int], 'ay.is[Int]))
         } yield (as(0), as(1), bs(0), bs(1))
 

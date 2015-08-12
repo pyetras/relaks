@@ -1,7 +1,7 @@
 package relaks.lang.dsl
 
 import org.scalatest.{Matchers, Inside, FunSpec}
-import relaks.lang.ast.Table
+import relaks.lang.ast.UntypedTable
 
 import scalaz.stream.process1
 
@@ -70,7 +70,7 @@ class InterpreterTest extends FunSpec with Matchers with Inside {
 //      val model = choose from List("SVM", "knn")
 //      val k = choose between 1 and 5
 //
-//      val experiment: Rep[Table] = folds map { foldsRow =>
+//      val experiment: Rep[UntypedTable] = folds map { foldsRow =>
 //        val trainIx = data('fold.::[Int]) filter { sample =>
 //          val Tup(fold) = sample
 //          fold !== foldsRow(0)

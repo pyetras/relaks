@@ -62,9 +62,10 @@ sealed abstract class TupType[T <: HList : WeakTypeTag] extends LiftedArgType[Tu
 }
 
 sealed class Table
+final class UntypedTable extends Table
 final class TypedTable[T] extends Table
 
-sealed class UntypedTableType extends LiftedArgType[Table] {
+sealed class UntypedTableType extends LiftedArgType[UntypedTable] {
   var constraints = Vector.empty[Any]
 
   override def toString: String = s"UTTable"
@@ -73,7 +74,7 @@ sealed class UntypedTableType extends LiftedArgType[Table] {
 sealed abstract class TypedTableType[T <: HList : TypeTag] extends LiftedArgType[TypedTable[T]] with CompoundType {
   val length: Int
   val colNames: Vector[String]
-  override def containerName = s"Table$length"
+  override def containerName = s"UntypedTable$length"
   override def typeArgName = implicitly[TypeTag[T]].tpe.dealias.toString
 }
 
