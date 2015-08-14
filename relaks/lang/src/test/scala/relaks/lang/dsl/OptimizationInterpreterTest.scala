@@ -8,7 +8,7 @@ import scalaz.stream.process1
 /**
  * Created by Pietras on 12/07/15.
  */
-class InterpreterTest extends FunSpec with Matchers with Inside {
+class OptimizationInterpreterTest extends FunSpec with Matchers with Inside {
   describe("interpreter") {
     it("should interpret a simple expression") {
       object Program extends DSLInterpreter
@@ -48,7 +48,7 @@ class InterpreterTest extends FunSpec with Matchers with Inside {
           val Tup(x, y) = row
           val res = to (branin _) apply (x, y)
           res as 'result
-        } orderBy 'result
+        } by 'result
 
         store(result)
       }

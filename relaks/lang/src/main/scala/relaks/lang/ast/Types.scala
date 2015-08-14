@@ -93,7 +93,7 @@ object ScalaTypes {
   val stringType = new ScalaType[String]
   val intType = new ScalaNumType[Int]
   val doubleType = new ScalaNumType[Double]
-  val nullType = new ScalaType[Null]
+//  val nullType = new ScalaType[Null]
   val longType = new ScalaType[Long]
   val anyType = new ScalaType[Any]
 }
@@ -103,9 +103,16 @@ trait ScalaTypeImplis {
   implicit val stringType = ScalaTypes.stringType
   implicit val intType = ScalaTypes.intType
   implicit val doubleType = ScalaTypes.doubleType
-  implicit val nullType = ScalaTypes.nullType
+//  implicit val nullType = ScalaTypes.nullType
   implicit val longType = ScalaTypes.longType
 
+  trait Not[A]
+  type NotLifted[A] = Not[LiftedArgType[A]]
+
+  implicit def notA[A] = new NotLifted[A] {}
+  implicit def notNotA[A](implicit liftedArgType: LiftedArgType[A]) = new NotLifted[A] {} //adds ambiguity
+
+//  implicit def otherType[T: WeakTypeTag](implicit notLifted: NotLifted[T]): NativeArgType[T] = new NativeArgType[T]
   implicit def otherType[T: WeakTypeTag](implicit lifted: LiftedArgType[T] = null): ArgType[T] = if (lifted != null) lifted else new NativeArgType[T]
 
   implicit def listType[T: WeakTypeTag](implicit typ: ArgType[T]): ListType[T] = new ListType[T]

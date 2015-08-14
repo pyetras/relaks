@@ -27,9 +27,9 @@ trait AnyExtensions extends ASTSyntax with BoolExtensions {
     override val tree: Expression = Literal(x)
   }
 
-  implicit class AnyAsRep[T](x: T) {
-    def asRep: Rep[T] = new Rep[T] {
-      override val tree = Native(x)
+  implicit class AnyAsRep[T : NotLifted](x: T) {
+    def asRep(implicit typ: ArgType[T]): Rep[T] = new Rep[T] {
+      override val tree = Native(x)(typ)
     }
   }
 

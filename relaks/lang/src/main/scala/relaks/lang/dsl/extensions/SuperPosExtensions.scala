@@ -119,22 +119,6 @@ private[extensions] class SuperPosMapper[B1, B2, BR] {
   }
 }
 
-trait SuperPosInterpreter extends SuperPosExtensions with SuperPosAnalysis { this: BaseExprInterpreter =>
-  def evalSuperPosGenerator(expr: Expression): NondetParam[_] = expr match {
-    case _/> NondetGeneratorRange(from, to) =>
-      val frm = evalExpression(from)
-      val t = evalExpression(to)
-
-      expr.tpe match {
-        case ScalaTypes.doubleType => new ContinuousRange(frm.asInstanceOf[Double], t.asInstanceOf[Double])
-        case ScalaTypes.intType => new DiscreteRange(frm.asInstanceOf[Int], t.asInstanceOf[Int])
-      }
-    case _/> NondetGeneratorList(list) =>
-      val lst = evalExpression(list)
-      new ChooseOneOf[Any](lst.asInstanceOf[Seq[_]])
-  }
-}
-
 trait SuperPosContCompiler extends BaseContCompiler with SuperPosExtensions with SuperPosAnalysis with Environments {
   override def eval(expr: Expression, cont: (Any) => Cont): Cont = expr match {
     case sym @ Expr(c:NondetGenerator) => (s: State) => cont(s(sym.asInstanceOf[Sym].name))(s)

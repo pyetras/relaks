@@ -34,9 +34,9 @@ class ListTest extends FunSpec with Matchers with Inside {
       """implicitly[List[String] => Rep[List[String]]]""" should compile
       """implicitly[List[Long] => Rep[List[Long]]]""" should compile
     }
-    it("should allow non-lifted types") {
-      List(true, 1).getTpe shouldEqual (listType[AnyVal])
-    }
+//    it("should allow non-lifted types") {
+//      List(true, 1).getTpe shouldEqual (listType[AnyVal])
+//    }
     describe("evaluation") { pending }
   }
 

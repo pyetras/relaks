@@ -17,13 +17,14 @@ import scalaz.stream._
 /**
  * Created by Pietras on 26/06/15.
  */
-trait Interpreter
+
+trait OptimizationInterpreter
   extends Environments
   with SuperPosAnalysis
+  with BaseExprInterpreter
   with SuperPosInterpreter
-  with QueryInterpreter
+  with BaseQueryInterpreter
   with GridOptimizer
-  with TableIO
   with QueryRewritingPhases
   with TupleInterpreter {
   def eval(expr: Expression): Process[Task, impl.Row] = expr match {

@@ -1,8 +1,11 @@
 package relaks.lang.dsl
 
 import org.scalatest.{Inside, Matchers, FunSpec}
-import relaks.lang.ast.{ScalaTypes, TupleConstructor, ApplyNative, UntypedTable}
+import relaks.lang.ast._
+import relaks.lang.dsl.extensions.TupleInterpreter
 import relaks.lang.impl.TableImpl
+import relaks.lang.impl
+import relaks.lang.phases.interpreter.NativeInterpreter
 
 /**
  * Created by Pietras on 23/06/15.
@@ -30,8 +33,9 @@ class NativeFunTest extends FunSpec with Matchers with Inside {
       class B extends A
 
       def f(a: A) = null
-      val z = to (f _) apply Tuple1((new B).asRep)
-      z.tree should matchPattern { case ApplyNative(f, _ ) => }
+
+      val z = to(f _) apply Tuple1((new B).asRep)
+      z.tree should matchPattern { case ApplyNative(f, _) => }
     }
 
     it("should translate Table type") {
@@ -39,6 +43,28 @@ class NativeFunTest extends FunSpec with Matchers with Inside {
 
       def f(a: TableImpl) = null
       """import Program._; to (f _) apply Tuple1(null.asInstanceOf[UntypedTable].asRep)""" should compile
+    }
+
+    describe("evaluation") {
+      it("should evaluate a simple function with a staged result type") {
+        object Program extends DSL with TupleInterpreter with NativeInterpreter
+        import Program._
+
+        def f(a: Int, b: Int) = a + b + 1
+        val c = to (f _) apply (3, 5)
+        evalExpression(c.tree) should equal(9)
+      }
+
+      it("should evaluate a function to a non-staged type") {
+        object Program extends DSL with TupleInterpreter with NativeInterpreter
+        import Program._
+
+        def f(r: impl.Row) = Set(r.values:_*)
+        val row: Rep[Tup[_]] = (1, 2, 3, 4, 5.0)
+        val s = to (f _) apply Tuple1(row)
+
+        evalExpression(s.tree).asInstanceOf[Set[Any]] should contain allOf(1, 2, 3, 4, 5.0)
+      }
     }
   }
 }

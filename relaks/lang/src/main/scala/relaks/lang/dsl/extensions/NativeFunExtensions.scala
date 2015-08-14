@@ -3,10 +3,10 @@ package relaks.lang.dsl.extensions
 import relaks.lang.ast._
 import relaks.lang.dsl.AST.ASTSyntax
 import relaks.lang.dsl.Rep
-import relaks.lang.impl.TableImpl
+import relaks.lang.impl.{Row, TableImpl}
 import shapeless.ops.hlist.Mapper
 import shapeless.{HNil, ::, Poly1, HList}
-import shapeless.ops.function.FnToProduct
+import shapeless.ops.function.{FnFromProduct, FnToProduct}
 import shapeless.syntax.std.function._
 /**
  * Created by Pietras on 23/06/15.
@@ -24,22 +24,23 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
     }
 
     implicit val tableTranslation = defineTranslation[UntypedTable, TableImpl]
+    implicit val rowTranslation = defineTranslation[Tup[_], Row]
     implicit def translate[T, X](implicit translation: HasTranslation[T, X]) = at[T](x => null.asInstanceOf[X] : X)
   }
 
-  class CallWord[H <: HList, T, Arg <: HList](f: H => Rep[T], typ: TType)(implicit mapper: Mapper.Aux[translate.type, H, Arg]) {
+  class CallWord[T, Arg <: HList](f: Any, typ: TType) {
     def apply[AC <: Arg](args: Rep[Tup[AC]]): Rep[T] = new Rep[T] {
       override val tree: Expression = ApplyNative(f, args.tree)(typ)
     }
   }
 
-  private[dsl] trait Converter[R] {
+  trait Converter[R] {
     type Out
     val typ: TType
     def apply(r: R): Rep[Out]
   }
 
-  private[dsl] trait UnliftedConverter[R] extends Converter[R]
+  trait UnliftedConverter[R] extends Converter[R]
 
   object Converter {
     type Aux[R, T] = Converter[R] { type Out = T }
@@ -53,14 +54,28 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
         override def apply(r: R): Rep[T] = fn(r)
       }
 
-    implicit def conv2[R](implicit atyp: ArgType[R]): Aux2[R, R] =
-      new UnliftedConverter[R] {
+    implicit def conv2[R: NotLifted](implicit atyp: ArgType[R]): Aux[R, R] =
+      new Converter[R] {
         override type Out = R
         override val typ: TType = atyp
         override def apply(r: R): Rep[Out] = r.asRep
       }
   }
 
-  def to[F, H <: HList, R, Arg <: HList](f: F)(implicit fnToProduct: FnToProduct.Aux[F, H => R], converter: Converter[R], mapper: Mapper.Aux[translate.type, H, Arg]) =
-    new CallWord((x: H) => converter.apply(f.toProduct(x)), converter.typ)
+  trait Productized[H <: HList, R] {
+    def apply(h: H): R
+  }
+
+  implicit def productize[F, H <: HList, R](f: F)(implicit fnToProduct: FnToProduct.Aux[F, H => R]) = new Productized[H, R] {
+    override def apply(h: H): R = fnToProduct(f)(h)
+  }
+
+  //seems that the compiler has problem inferring R: NotLifted, thus the productized object (one less jump)
+  def to[F, H <: HList, R, Arg <: HList, T](f: Productized[H, R])(implicit
+                                                  converter: Converter.Aux[R, T], fnFromProduct: FnFromProduct[H => Expression],
+                                                  mapper: Mapper.Aux[translate.type, H, Arg]) =
+    new CallWord[T, Arg](fnFromProduct((x: H) => converter.apply(f(x)).tree), converter.typ)
+
+  def to2[F, H <: HList, R: NotLifted, Arg <: HList, T](f: F)(implicit fnToProduct: FnToProduct.Aux[F, H => R]) = null
+
 }

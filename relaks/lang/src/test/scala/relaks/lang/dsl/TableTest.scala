@@ -32,7 +32,8 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         val res = a(('x.is[Int], 'y.is[Int])).map { (t: Row2[Int, Int]) =>
           (1, 2)
         }
-        analyze(res.tree)
+        res shouldBe an[Rep[_]]
+//        analyze(res.tree)
 //        println(res)
 
       }
@@ -46,7 +47,9 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
             (t(0), u(0))
           }
         }
-        analyze(res.tree)
+        res shouldBe an[Rep[_]]
+
+        //        analyze(res.tree)
 //        println(res)
 
       }
@@ -59,7 +62,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
           t(0) === 1
         }
 
-        analyze(res.tree)
+//        analyze(res.tree)
 
         res.tree should matchPattern { case _/> Filter(_, _, _/> Apply(Stdlib.==, _)) => }
       }
@@ -72,7 +75,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
           as: Row2[Int, Int] <- a(('x.is[Int], 'y.is[Int])) if as(0) === 1
         } yield (as(0), 1)
 
-        analyze(res.tree)
+//        analyze(res.tree)
 
         res.tree should matchPattern { case _/> Transform(_, _/> Filter(_, _, _/> Apply(Stdlib.==, _)), _) => }
       }
@@ -116,7 +119,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
           bs: Row2[Int, Int] <- b(('bx.is[Int], 'by.is[Int])) if as(0) === bs(0)
         } yield (as(1), bs(1))
 
-        analyze(res.tree)
+//        analyze(res.tree)
         val transformed = fuseTransforms(res.tree).get
         transformed should matchPattern { case _/>Transform(_, _/>Join(_, _, InnerJoin, Some((_, _/>Apply(Stdlib.==, _)))), _/>(_: Pure)) => }
       }
@@ -136,7 +139,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
           cs: Row2[Int, Int] <- c(('cx.is[Int], 'cy.is[Int])) if as(0) === bs(0) && bs(0) === cs(0)
         } yield (as(0), as(1), bs(0), bs(1), cs(0), cs(1))
 
-        analyze(res.tree)
+//        analyze(res.tree)
         val transformed = fuseTransforms(res.tree).get
         transformed should matchPattern { case _/>Transform(_, _/>Join(_, (_, _/>Join(_, _, InnerJoin, _)), InnerJoin, _), _/>(_: Pure)) => }
       }
