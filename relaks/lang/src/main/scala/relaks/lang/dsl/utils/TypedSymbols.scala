@@ -1,5 +1,6 @@
 package relaks.lang.dsl.utils
 
+import relaks.lang.ast.{ArgType, TType}
 import shapeless.{HNil, Poly2, HList, ::}
 import shapeless.ops.hlist.{RightFolder, RightReducer}
 
@@ -12,7 +13,7 @@ import scalaz.Scalaz._
 trait TypedSymbols {
   trait TypedSymbolSchema[L <: HList] {
     type Out <: HList
-    def apply(l: L): Vector[Symbol] @@ Out
+    def apply(l: L): Vector[Field] @@ Out
   }
 
   object TypedSymbolSchema {
@@ -20,24 +21,25 @@ trait TypedSymbols {
     def apply[L <: HList](implicit schema: TypedSymbolSchema[L]): Aux[L, schema.Out] = schema
 
     object buildSchema extends Poly2 {
-      implicit def f[E, S <: HList] = at[Symbol @@ E, Vector[Symbol] @@ S] {
-        case (taggedSym, taggedSchema) => Tag.of[E :: S](Tag.unwrap(taggedSym) +: Tag.unwrap(taggedSchema))
+      implicit def f[E, S <: HList] = at[TypedField[E], Vector[Field] @@ S] {
+        case (field, taggedSchema) => Tag.of[E :: S](field +: Tag.unwrap(taggedSchema))
       }
-//      implicit def f2[S <: HList] = at[Symbol, Vector[Symbol] @@ S] {
-//        case (sym, taggedSchema) => Tag.of[Any :: S](sym +: Tag.unwrap(taggedSchema))
-//      }
     }
 
-    implicit def typedSymbolSchema[L <: HList, S <: HList](implicit folder: RightFolder.Aux[L, Vector[Symbol] @@ HNil, buildSchema.type, Vector[Symbol] @@ S]): Aux[L, S] = {
+    implicit def typedSymbolSchema[L <: HList, S <: HList]
+      (implicit folder: RightFolder.Aux[L, Vector[Field] @@ HNil, buildSchema.type, Vector[Field] @@ S]): Aux[L, S] = {
       new TypedSymbolSchema[L] {
         override type Out = S
-        override def apply(l: L): Vector[Symbol] @@ S = l.foldRight(Tag.of[HNil](Vector.empty[Symbol]))(buildSchema)
+        override def apply(l: L): Vector[Field] @@ S = l.foldRight(Tag.of[HNil](Vector.empty[Field]))(buildSchema)
       }
     }
   }
 
+  sealed case class Field(sym: Symbol, typ: TType)
+  final class TypedField[T](sym: Symbol, typ: TType) extends Field(sym, typ)
+
   implicit class TypedSymbol(sym: Symbol) {
-    def is[T] = Tag.of[T](sym)
-    def ::[T] = is[T]
+    def is[T: ArgType] = new TypedField[T](sym, implicitly[ArgType[T]])
+    def ::[T: ArgType] = is[T]
   }
 }

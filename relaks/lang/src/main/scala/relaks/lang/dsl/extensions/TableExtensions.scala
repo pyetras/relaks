@@ -21,7 +21,7 @@ import relaks.lang.dsl.extensions.ast._
 import relaks.lang.dsl.extensions.ast.logical.{QueryOp, LoadComprehension, SelectComprehension}
 import relaks.lang.dsl.utils.{TypedSymbols, TreePrettyPrintable}
 import relaks.lang.impl.Row
-import relaks.lang.phases.interpreter.{BaseQueryInterpreter, BaseExprInterpreter}
+import relaks.lang.phases.interpreter.{BaseQueryOpInterpreter, BaseExprInterpreter}
 import shapeless._
 import shapeless.ops.nat.ToInt
 import shapeless.ops.tuple.ToTraversable
@@ -42,9 +42,9 @@ trait TableExtensions extends TableIO with TableOps with TableUtils {
 
 trait TableUtils extends Symbols with Queries {
 
-  object outputNames extends Attribution {
-    val apply: Query => Vector[String] = attr {
-      case _ /> Transform(_, _, _ /> Pure(_ /> row)) => TupleWithNames.unapply(row).get._2
+  object outputNamesTypes extends Attribution {
+    val apply: Query => Vector[(String, TType)] = attr {
+      case _ /> Transform(_, _, _ /> Pure(_ /> row)) => TupleWithNames.unapplyWithTypes(row).get
       case _ /> Transform(_, _, Query(q)) => apply(q)
       case NextQuery(next) => apply(next)
     }
@@ -60,15 +60,15 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
   type Row3[A, B, C] = Rep[Tup[A :: B :: C :: HNil]]
 
 
-  class ProjectedTableComprehensions[FieldsLen <: Nat](private[extensions] val fields: Vector[Symbol],
+  class ProjectedTableComprehensions[FieldsLen <: Nat](private[extensions] val fields: Vector[Field],
                                                        private[extensions] val query: Atom)
     extends Rep[UntypedTable] with TableComprehensions {
 
     override type ComprehensionsMonad = ProjectedTableComprehensions[FieldsLen]
     override val tree: Expression = query
 
-    private def tupleGenerator[F <: HList](filterFields: Vector[Symbol] = fields): (Generator, Rep[Tup[F]]) = {
-      val gen = Generator.fromFields(fields)
+    private def tupleGenerator[F <: HList](filterFields: Vector[Field] = fields): (Generator, Rep[Tup[F]]) = {
+      val gen = Generator.fromFields(filterFields)
       val tuple = gen.toTuple[F] //todo types
       (gen, tuple)
     }
@@ -90,8 +90,8 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
 
     def flatMap[F <: HList, T <: HList](f: Rep[Tup[F]] => Rep[TypedTable[Tup[T]]])(implicit lenEv: hlist.Length.Aux[F, FieldsLen], lenOutEv: hlist.Length[T]) = {
       val expr = flatMapImpl(f)
-      val names = outputNames.apply(expr)
-      new ProjectedTypedTableComprehensions[T](names.map(Symbol.apply), expr(new UntypedTableType)) //TODO this could return a typed table
+      val names = outputNamesTypes.apply(expr)
+      new ProjectedTypedTableComprehensions[T](names.map { case (x, y) => Field(Symbol(x), y) }, expr(new UntypedTableType)) //TODO this could return a typed table
     }
 
     def map[F <: HList, T <: HList](f: Rep[Tup[F]] => Rep[Tup[T]])(implicit lenEv: hlist.Length.Aux[F, FieldsLen], lenOutEv: hlist.Length[T]) = {
@@ -113,8 +113,8 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
       new ProjectedTableComprehensions[FieldsLen](fields, filteredTable)
     }
 
-    override protected[extensions] def filterImpl[F <: HList](f: Rep[Tup[F]] => Rep[Boolean], fields: Vector[Symbol]) = {
-      val (generator, rep) = tupleGenerator()
+    override protected[extensions] def filterImpl[F <: HList](f: (Rep[Tup[F]]) => Rep[Boolean], fields: Vector[Field]) = {
+      val (generator, rep) = tupleGenerator(fields)
       val cond = f(rep).tree
       createFilterComprehension(generator, cond)
     }
@@ -123,12 +123,12 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
       filterImpl(f, fields)
     }
 
-    override protected[extensions] def orderImpl(fieldsVec: Vector[Symbol], expr: OrderBy): ProjectedTableComprehensions[FieldsLen] = {
-      new ProjectedTableComprehensions[FieldsLen](fieldsVec, expr)
+    override protected[extensions] def orderImpl(_fieldsVec: Vector[Field], expr: OrderBy): ProjectedTableComprehensions[FieldsLen] = {
+      new ProjectedTableComprehensions[FieldsLen](fields, expr)
     }
   }
 
-  class ProjectedTypedTableComprehensions[H <: HList](private[extensions] val fields: Vector[Symbol], private[extensions] val query: Atom)
+  class ProjectedTypedTableComprehensions[H <: HList](private[extensions] val fields: Vector[Field], private[extensions] val query: Atom)
                                                                 (implicit val lenEnv: hlist.Length[H])
     extends Rep[TypedTable[Tup[H]]] with TableComprehensions {
 
@@ -149,24 +149,24 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
 
     override type ComprehensionsMonad = ProjectedTypedTableComprehensions[H]
 
-    override protected[extensions] def filterImpl[F <: HList](f: (Rep[Tup[F]]) => Rep[Boolean], fields: Vector[Symbol]) =
+    override protected[extensions] def filterImpl[F <: HList](f: (Rep[Tup[F]]) => Rep[Boolean], fields: Vector[Field]) =
       fromUntypedTableComprehension(untypedComprehension.filterImpl(f, fields))
 
-    override protected[extensions] def orderImpl(fieldsVec: Vector[Symbol], expr: OrderBy) =
+    override protected[extensions] def orderImpl(fieldsVec: Vector[Field], expr: OrderBy) =
       fromUntypedTableComprehension(untypedComprehension.orderImpl(fieldsVec, expr))
 
     private def fromUntypedTableComprehension(comprehensions: ProjectedTableComprehensions[lenEnv.Out]) =
       new ProjectedTypedTableComprehensions[H](comprehensions.fields, comprehensions.query)
   }
 
-  class TypedOptimizerComprehensions[H <: HList](fields: Vector[Symbol], query: Atom)
+  class TypedOptimizerComprehensions[H <: HList](fields: Vector[Field], query: Atom)
                                            (implicit val lenEnv: hlist.Length[H])
     extends Rep[TypedTable[Tup[H]]] with TableComprehensions {
 
     override type ComprehensionsMonad = TypedOptimizerComprehensions[H]
 
     def by(field: Symbol) =
-      typedComp.orderImpl(Vector(field), OrderBy(tree, Vector(FieldWithDirection(field, GroupBy.Asc)), isExperimentTarget = true)(new UntypedTableType))
+      typedComp.orderImpl(null, OrderBy(tree, Vector(FieldWithDirection(field, GroupBy.Asc)), isExperimentTarget = true)(new UntypedTableType))
 
     private def fromTypedTableComprehension[T <: HList](t: ProjectedTypedTableComprehensions[T]) =
       new TypedOptimizerComprehensions[H](t.fields, t.query)
@@ -184,10 +184,10 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
     //TODO implement withfilter
     def filter(f: (Rep[Tup[H]]) => Rep[Boolean]) = fromTypedTableComprehension(typedComp.filter(f))
 
-    override protected def filterImpl[F <: HList](f: (Rep[Tup[F]]) => Rep[Boolean], fields: Vector[Symbol]) =
+    override protected[extensions] def filterImpl[F <: HList](f: (Rep[Tup[F]]) => Rep[Boolean], fields: Vector[Field]) =
       fromTypedTableComprehension(typedComp.filterImpl(f, fields))
 
-    override protected def orderImpl(fieldsVec: Vector[Symbol], expr: OrderBy) =
+    override protected[extensions] def orderImpl(fieldsVec: Vector[Field], expr: OrderBy) =
       fromTypedTableComprehension(typedComp.orderImpl(fieldsVec, expr))
 
     override val tree: TTree = query
@@ -202,13 +202,13 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
   trait OrderableTableComprehensions {
     type ComprehensionsMonad
     val tree: Expression
-    protected def orderImpl(fieldsVec: Vector[Symbol], expr: OrderBy): ComprehensionsMonad
+    protected[extensions] def orderImpl(fieldsVec: Vector[Field], expr: OrderBy): ComprehensionsMonad
 
-    //TODO ordering
+    //TODO ordering types
     def orderBy[P <: Product](fields: P)(implicit toVector: ToTraversable.Aux[P, Vector, Symbol]): ComprehensionsMonad = {
       val fieldsVec = toVector(fields)
       val expr = OrderBy(tree, fieldsVec.map(FieldWithDirection(_, GroupBy.Asc)), isExperimentTarget = true)(new UntypedTableType)
-      orderImpl(fieldsVec, expr)
+      orderImpl(fieldsVec.map(Field(_, UnknownType)), expr)
     }
 
     def orderBy(field: Symbol): ComprehensionsMonad = {
@@ -217,11 +217,11 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
   }
 
   trait TableComprehensions extends OrderableTableComprehensions {
-    protected def filterImpl[F <: HList](f: Rep[Tup[F]] => Rep[Boolean], fields: Vector[Symbol]): ComprehensionsMonad
+    protected[extensions] def filterImpl[F <: HList](f: (Rep[Tup[F]]) => Rep[Boolean], fields: Vector[Field]): ComprehensionsMonad
     def filter[P <: Product, FL <: Nat, F <: HList](fields: P)(f: Rep[Tup[F]] => Rep[Boolean])(implicit
                                                                                                lenEv: tuple.Length.Aux[P, FL],
                                                                                                lenEnv2: hlist.Length.Aux[F, FL],
-                                                                                               toVector: ToTraversable.Aux[P, Vector, Symbol]) =
+                                                                                               toVector: ToTraversable.Aux[P, Vector, Field]) =
       filterImpl(f, toVector(fields))
 
   }
@@ -272,11 +272,11 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
       new ProjectedTypedTableComprehensions[S](Tag.unwrap(schema(toHlist.to(fields))), arg1.tree)
     }
 
-    def apply[E](field: Symbol @@ E): ProjectedTypedTableComprehensions[E :: HNil] =
+    def apply[E](field: TypedField[E]): ProjectedTypedTableComprehensions[E :: HNil] =
       apply(Tuple1(field))
 
     override type ComprehensionsMonad = Rep[UntypedTable]
-    override protected def orderImpl(fieldsVec: Vector[Symbol], expr: OrderBy): ComprehensionsMonad = new Rep[UntypedTable] {
+    override protected[extensions] def orderImpl(fieldsVec: Vector[Field], expr: OrderBy): ComprehensionsMonad = new Rep[UntypedTable] {
       override val tree: Atom = expr
     }
 
@@ -417,7 +417,7 @@ trait DrillCompilers extends BaseRelationalCompilers with Symbols with Queries w
         case s: Sym => s""""`${env(s)}`""""
       }
   }
-  
+
   class CompileDrill(override val queryEnv: Map[Sym, LogicalOperator] = Map.empty)
     extends CompileRelational with DrillCompilerPart
 

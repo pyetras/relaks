@@ -24,7 +24,7 @@ final case class SelectComprehension(from: Comprehension,
                                 filter: Vector[QueryOp.Filter] = Vector.empty,
                                 limit: Vector[QueryOp.Limit] = Vector.empty,
                                 orderBy: Vector[QueryOp.OrderBy] = Vector.empty,
-                                sequence: Vector[QueryOp.QueryOp] = Vector.empty) extends Comprehension {
+                                sequence: List[QueryOp.QueryOp] = List.empty) extends Comprehension {
 
   import QueryOp._
   def append(queryOp: QueryOp): SelectComprehension = queryOp match {

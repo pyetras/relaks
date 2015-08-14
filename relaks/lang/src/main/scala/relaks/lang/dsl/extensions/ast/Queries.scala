@@ -3,7 +3,7 @@ package relaks.lang.dsl.extensions.ast
 import relaks.lang.ast._
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl.Rep
-import relaks.lang.dsl.utils.TreePrettyPrintable
+import relaks.lang.dsl.utils.{TypedSymbols, TreePrettyPrintable}
 import shapeless.{HList, HNil}
 
 import scala.languageFeature.implicitConversions
@@ -14,10 +14,10 @@ import Scalaz._
 /**
  * Created by Pietras on 12.08.15.
  */
-trait Queries extends Symbols with ToTypedTreeOps {
+trait Queries extends Symbols with ToTypedTreeOps with TypedSymbols {
   object Project {
     def apply(table: Atom, map: Vector[(Symbol, Symbol)]): Transform = {
-      val generator = Generator.fromFields(map.map(_._1))
+      val generator = Generator.fromUntypedFields(map.map(_._1))
       val names = map.map(_._2.name)
       Transform(generator, table, RowRep(generator.toTupleWithNames[HNil](names)).tree)
     }
@@ -60,7 +60,8 @@ trait Queries extends Symbols with ToTypedTreeOps {
     def apply(syms: Vector[Sym], fields: Vector[Symbol]) = {
       new Generator((syms zip fields).toMap, syms.some)
     }
-    def fromFields(fields: Vector[Symbol]) = apply(fields.indices.map(_ => fresh).toVector, fields)
+    def fromFields(fields: Vector[Field]) = apply(fields.map(f => fresh(f.typ)), fields.map(_.sym))
+    def fromUntypedFields(fields: Vector[Symbol]) = apply(fields.indices.map(_ => fresh).toVector, fields)
     def unapply(generator: Generator): Option[(Iterable[Sym], Iterable[Symbol])] = generator.symsToFields.unzip.some
 
     /**

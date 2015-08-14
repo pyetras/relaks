@@ -187,7 +187,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         val q = a(('ax.is[Int], 'ay.is[Int])) map { (xy: Row2[Int, Int]) =>
           (xy(0), xy(1))
         } orderBy Tuple1('x0)
-        val r = q.filter(Tuple1('x1))({(iter: Row[Int]) => iter(0) <= 10})
+        val r = q.filter(Tuple1('x1.is[Int]))({(iter: Row[Int]) => iter(0) <= 10})
 
         val transformed = buildComprehensions(r.tree).get
 
@@ -298,7 +298,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
   }
   describe("symbol schema") {
 
-    object Program extends TypedSymbols
+    object Program extends TypedSymbols with ScalaTypeImplis
     import Program._
     import scalaz.{@@, Tag}
     def f[L <: HList](p: L)(implicit schema: TypedSymbolSchema[L]) =
@@ -307,8 +307,8 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
     it("should construct a schema from a tuple") {
       val s = 'hi.is[String] :: 'ho.is[Int] :: HNil
 
-      val schema: @@[Vector[Symbol], String :: Int :: HNil] = f(s)
-      Tag.unwrap(schema) should equal(Vector('hi, 'ho))
+      val schema: @@[Vector[Field], String :: Int :: HNil] = f(s)
+      Tag.unwrap(schema).map(_.sym) should equal(Vector('hi, 'ho))
     }
 //    it("should construct a loosely typed schema from a tuple without types") {
 //      val s = 'one :: 'two :: HNil

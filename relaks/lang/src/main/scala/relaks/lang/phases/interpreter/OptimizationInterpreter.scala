@@ -11,9 +11,12 @@ import relaks.lang.impl.Row
 import relaks.lang.phases.rewriting.QueryRewritingPhases
 import relaks.optimizer.{NondetParams, NondetParam, BaseOptimizer, GridOptimizer}
 
+import scala.annotation.tailrec
+import scalaz.Free.Trampoline
+import scalaz.Free.Trampoline
 import scalaz.concurrent.Task
 import scalaz.stream._
-import scalaz.Scalaz
+import scalaz.{Trampoline, Scalaz}
 import Scalaz._
 
 /**
@@ -26,7 +29,7 @@ abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
   with SuperPosAnalysis
   with BaseExprInterpreter
   with SuperPosInterpreter
-  with BaseQueryInterpreter
+  with BaseQueryOpInterpreter
   with QueryRewritingPhases
   with TupleInterpreter {
   def eval(expr: Expression): Process[Task, impl.Row] = expr match {
@@ -40,36 +43,47 @@ abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
 
       val optimizer = Optimizer(1, paramsSpace, Optimizer.StrategyMinimize)
 
-      //find value to optimize on
-      val outputSchema = OutputSchema.forComprehension(c)
-      val orderby = orderbys.find(ob => ob.isExperimentTarget).get
-      val FieldWithDirection(name, GroupBy.Asc) = orderby.ordering.head
-
-      val toMinimizeIx = outputSchema.map(_._1).indexOf(name.name)
-      assert(toMinimizeIx >= 0, "Invalid optimization condition")
-
-      val (transform: Transform) +: IndexedSeq() = transforms
-
-      val loop: Process1[Params, (impl.Row, Params)] = process1.lift { params =>
+      val generate: Process1[Params, (impl.Row, Params)] = process1.lift { params =>
         push(params.map(nameVal => Sym(nameVal._1.drop(1).toInt) -> new Literal(nameVal._2))) //TODO types?
         //evaluate the input tuple to row
         val inputRow: impl.Row = evalTupleExpression(vars)
         (inputRow, params)
       }
 
-      val test: Process1[(impl.Row, Params), (impl.Row, Optimizer.OptimizerResult)] = process1.lift { in =>
+      def test(toMinimizeIx: Int): Process1[(impl.Row, Params), (impl.Row, Optimizer.OptimizerResult)] = process1.lift { in =>
         val (row, params) = in
         (row, Optimizer.OptimizerResult(row(toMinimizeIx), params))
       }
 
       def fst[L]: Process1[(L, _), L] = process1.lift {_._1}
 
-      optimizer.paramStream
-        .pipe(loop)
-        .pipe(process1.liftFirst((x: impl.Row) => none[Params])(evalQuery(transform)))
-        .pipe(test)
-        .observe(optimizer.update.contramap(_._2)) //pipe second element (OptimizerResult) to update sink
-        .pipe(fst)
+      def chainWithP(seq: List[QueryOp],
+                     acc: Process[Task, (impl.Row, Params)],
+                     lastTransform: Option[Transform] = None): Trampoline[Process[Task, impl.Row]] =
+        seq match {
+          case Nil => null
+          case op :: rest =>
+            def nextPipe(op: QueryOp, transOpt: Option[Transform] = lastTransform) =
+              Trampoline.suspend(chainWithP(rest, acc |> process1.liftFirst((x: impl.Row) => none[Params])(evalQuery(op)), transOpt))
+            op match {
+              case OrderBy(ordering, true) =>
+                //find value to optimize on
+                val outputSchema = OutputSchema.forTransform(lastTransform.get)
+                val FieldWithDirection(name, GroupBy.Asc) = ordering.head
+
+                val toMinimizeIx = outputSchema.map(_._1).indexOf(name.name)
+                assert(toMinimizeIx >= 0, "Invalid optimization condition")
+
+                Trampoline.done {
+                  rest.foldLeft((acc |> test(toMinimizeIx)).observe(optimizer.update.contramap(_._2)) |> fst) { _ |> evalQuery(_) }
+                }
+              case t: Transform => nextPipe(op, t.some)
+              case _ => nextPipe(op)
+            }
+        }
+
+
+      chainWithP(sequence, optimizer.paramStream |> generate).run
   }
 
   def dump(): Unit = {
@@ -107,7 +121,7 @@ trait BaseExprInterpreter extends Environments with Symbols {
   }
 }
 
-trait BaseQueryInterpreter extends Environments {
+trait BaseQueryOpInterpreter extends Environments {
   import QueryOp._
   def evalQuery(q: QueryOp): Process1[impl.Row, impl.Row] = throw new NotImplementedError(s"Evaluating query $q not implemented")
 }

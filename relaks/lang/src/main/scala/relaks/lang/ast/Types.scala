@@ -9,6 +9,7 @@ import shapeless.{HList, Nat}
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
+import scalaz.Order
 import scalaz.syntax.Ops
 /**
  * Created by Pietras on 10/04/15.
@@ -82,13 +83,15 @@ sealed abstract class SimpleArgType[T: ClassTag] extends LiftedArgType[T]
 
 sealed class ScalaType[T: ClassTag] extends SimpleArgType[T]
 
-class ScalaNumType[T : ClassTag] extends ScalaType[T] with NumType
+class ScalaNumType[T : ClassTag](implicit val order: Order[T]) extends ScalaType[T] with NumType
 
 object UnknownType extends TType {
   override val ct: WeakTypeTag[_] = null
 }
 
 object ScalaTypes {
+  import scalaz.Scalaz._
+
   val boolType = new ScalaType[Boolean]
   val stringType = new ScalaType[String]
   val intType = new ScalaNumType[Int]

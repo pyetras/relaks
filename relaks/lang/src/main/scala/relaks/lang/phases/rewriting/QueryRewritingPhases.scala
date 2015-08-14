@@ -57,7 +57,7 @@ trait QueryRewritingPhases extends LazyLogging with Symbols with Queries with Ta
 
   object OutputSchema extends Attribution {
     import QueryOp._
-    private val forTransform: Transform => Vector[(String, TType)] = attr {
+    val forTransform: Transform => Vector[(String, TType)] = attr {
       case Transform(_, _/>Pure(_/>(t: TupleConstructor))) => t.names.zip(t.tuple.map(_.tpe))
       case Transform(_, _/> (c: Comprehension)) => forComprehension(c)
     }

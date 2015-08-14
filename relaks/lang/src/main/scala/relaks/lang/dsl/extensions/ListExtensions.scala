@@ -29,7 +29,7 @@ trait ListExtensions extends AnyExtensions with ASTSyntax with Symbols with Tabl
 
   class ListOperations[T](arg1: Rep[List[T]]) {
     import shapeless.::
-    def asTable() = new ProjectedTypedTableComprehensions[T :: HNil](Vector('x0), TableFromList(arg1.tree))
+    def asTable() = new ProjectedTypedTableComprehensions[T :: HNil](Vector(Field('x0, UnknownType)), TableFromList(arg1.tree)) //TODO typ
   }
 
   implicit def listToListOps[T](l: Rep[List[T]]): ListOperations[T] = new ListOperations[T](l)

@@ -72,10 +72,13 @@ object TupleConstructor {
 }
 
 object TupleWithNames {
-  def unapply(expr: Expression) = expr match {
+  import scalaz.Scalaz._
+  def unapply(expr: Expression): Option[(Vector[Expression], Vector[String])] = expr match {
     case t: TupleConstructor => Some((t.tuple, t.names))
     case _ => None
   }
+  def unapplyWithTypes(row: Expression): Option[Vector[(String, TType)]] = unapply(row)
+    .map(_.bisequence[Vector, Expression, String].map { case (expr, name) => (name, expr.tpe)})
 }
 
 sealed trait NondetGenerator extends Expression {

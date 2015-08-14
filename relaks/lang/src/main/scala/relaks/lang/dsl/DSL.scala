@@ -3,7 +3,7 @@ package relaks.lang.dsl
 import relaks.lang.dsl.AST.ASTSyntax
 import relaks.lang.dsl.extensions._
 import relaks.lang.dsl.extensions.ast.Symbols
-import relaks.lang.phases.interpreter.{NativeInterpreter, QueryInterpreter, OptimizationInterpreter}
+import relaks.lang.phases.interpreter.{StdOpInterpreter, NativeInterpreter, QueryOpInterpreter, OptimizationInterpreter}
 import relaks.optimizer.{NondetParams, NondetParam, BaseOptimizer, GridOptimizer}
 
 import scala.collection.mutable
@@ -29,5 +29,6 @@ trait DSL
 
 abstract class DSLInterpreter(optimizer: BaseOptimizer = GridOptimizer) extends OptimizationInterpreter(optimizer)
   with DSL
-  with QueryInterpreter
+  with QueryOpInterpreter
   with NativeInterpreter
+  with StdOpInterpreter
