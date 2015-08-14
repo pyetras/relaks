@@ -2,6 +2,8 @@ package relaks.optimizer.util
 
 import java.io.OutputStream
 
+import com.typesafe.scalalogging.LazyLogging
+
 import scala.sys.process._
 import scalaz._
 import Scalaz._
@@ -12,7 +14,7 @@ import scalaz.stream.Process
 /**
  * Created by Pietras on 04/05/15.
  */
-object StreamProcess {
+object StreamProcess extends LazyLogging {
   sealed trait SPResult
   case class ExitCode(code: Int) extends SPResult
   sealed trait SPO extends SPResult
@@ -40,7 +42,7 @@ object StreamProcess {
       stdout.dequeue.map(OutLine).wye(stderr.dequeue.map(ErrLine))(wye.merge)
     )(wye.merge)
 
-    merged
+    Process.eval_(Task.delay(logger.debug("exec: " + cmd.mkString(" ")))) ++ merged
   }
 }
 
