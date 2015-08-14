@@ -13,6 +13,8 @@ import relaks.optimizer.{NondetParams, NondetParam, BaseOptimizer, GridOptimizer
 
 import scalaz.concurrent.Task
 import scalaz.stream._
+import scalaz.Scalaz
+import Scalaz._
 
 /**
  * Created by Pietras on 26/06/15.
@@ -48,21 +50,24 @@ abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
 
       val (transform: Transform) +: IndexedSeq() = transforms
 
-      val loop: Process1[Params, (impl.Row, Optimizer.OptimizerResult)] = process1.lift { params =>
+      val loop: Process1[Params, (impl.Row, Params)] = process1.lift { params =>
         push(params.map(nameVal => Sym(nameVal._1.drop(1).toInt) -> new Literal(nameVal._2))) //TODO types?
         //evaluate the input tuple to row
         val inputRow: impl.Row = evalTupleExpression(vars)
+        (inputRow, params)
+      }
 
-        val resultRow = evalQuery(inputRow, transform)
-
-        (resultRow, Optimizer.OptimizerResult(resultRow(toMinimizeIx), params))
+      val test: Process1[(impl.Row, Params), (impl.Row, Optimizer.OptimizerResult)] = process1.lift { in =>
+        val (row, params) = in
+        (row, Optimizer.OptimizerResult(row(toMinimizeIx), params))
       }
 
       def fst[L]: Process1[(L, _), L] = process1.lift {_._1}
 
-      //todo filter
       optimizer.paramStream
         .pipe(loop)
+        .pipe(process1.liftFirst((x: impl.Row) => none[Params])(evalQuery(transform)))
+        .pipe(test)
         .observe(optimizer.update.contramap(_._2)) //pipe second element (OptimizerResult) to update sink
         .pipe(fst)
   }
@@ -104,5 +109,5 @@ trait BaseExprInterpreter extends Environments with Symbols {
 
 trait BaseQueryInterpreter extends Environments {
   import QueryOp._
-  def evalQuery(inputRow: Row, q: QueryOp): Row = throw new NotImplementedError(s"Evaluating query $q not implemented")
+  def evalQuery(q: QueryOp): Process1[impl.Row, impl.Row] = throw new NotImplementedError(s"Evaluating query $q not implemented")
 }
