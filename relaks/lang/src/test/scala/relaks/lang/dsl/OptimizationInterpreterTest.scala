@@ -1,7 +1,8 @@
 package relaks.lang.dsl
 
-import org.scalatest.{Matchers, Inside, FunSpec}
+import org.scalatest.{Tag, Matchers, Inside, FunSpec}
 import relaks.lang.ast.UntypedTable
+import relaks.optimizer.SpearmintOptimizer
 
 import scalaz.stream.process1
 
@@ -39,8 +40,8 @@ class OptimizationInterpreterTest extends FunSpec with Matchers with Inside {
       Program.dump()
     }
 
-    it("should optimize branin") {
-      object Program extends DSLInterpreter {
+    it("should optimize branin", Tag("relaks.Integration")) {
+      object Program extends DSLInterpreter(SpearmintOptimizer) {
         val x = choose between 0.0 and 15.0
         val y = choose between -5.0 and 10
 

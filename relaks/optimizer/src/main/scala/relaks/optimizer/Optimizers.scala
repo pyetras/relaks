@@ -21,11 +21,6 @@ import Scalaz._
  * Created by Pietras on 23/04/15.
  */
 trait BaseOptimizer extends NondetParams {
-  sealed case class OptimizerResult(result: Any, params: Params, time: Long = 0)
-  object EmptyResult extends OptimizerResult(0, Map.empty, 0)
-
-  sealed class ExperimentStrategy
-  object StrategyMinimize extends ExperimentStrategy
 
 //  case class OptimizerResult[+T](result: T)
 
@@ -33,16 +28,16 @@ trait BaseOptimizer extends NondetParams {
     def paramStream: Process[Task, Params]
     def update: Sink[Task, OptimizerResult]
   }
+  sealed case class OptimizerResult(result: Any, params: Params, time: Long = 0)
+  object EmptyResult extends OptimizerResult(0, Map.empty, 0)
 
-  object Optimizer {
-    def apply(spaceDesc: ParamsSpace, strategy: ExperimentStrategy, maxParallel: Int = 1) = initOptimizer(maxParallel, spaceDesc, strategy)
-  }
+  sealed class ExperimentStrategy
+  object StrategyMinimize extends ExperimentStrategy
 
-  protected def initOptimizer(maxParallel: Int, spaceDesc: ParamsSpace, strategy: ExperimentStrategy): Optimizer
+  def apply(maxParallel: Int, spaceDesc: ParamsSpace, strategy: ExperimentStrategy): Optimizer
 }
 
 trait GridOptimizer extends BaseOptimizer {
-
   class GrOptimizer(spaceDesc: ParamsSpace, strategy: ExperimentStrategy) extends Optimizer {
     // a lazy generator for cartesian product of variable space
     var generator = spaceDesc.foldLeft(Seq(Seq.empty[(String, Any)])) ((acc, keyval) =>
@@ -55,9 +50,11 @@ trait GridOptimizer extends BaseOptimizer {
 
     override def update: Sink[Task, OptimizerResult] = sink.lift(x => Task.now(()))
   }
-  override protected def initOptimizer(maxParallel: Int, spaceDesc: ParamsSpace, strategy: ExperimentStrategy): Optimizer =
+  override def apply(maxParallel: Int, spaceDesc: ParamsSpace, strategy: ExperimentStrategy): Optimizer =
     new GrOptimizer(spaceDesc, strategy)
 }
+
+object GridOptimizer extends GridOptimizer
 
 trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearmint with LazyLogging {
   import org.json4s.jackson.JsonMethods._
@@ -239,6 +236,8 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
     override val update: Sink[Task, OptimizerResult] = updateQueue.enqueue
   }
 
-  override protected def initOptimizer(maxParallel: Int, spaceDesc: ParamsSpace, strategy: ExperimentStrategy): Optimizer =
+  override def apply(maxParallel: Int, spaceDesc: ParamsSpace, strategy: ExperimentStrategy): Optimizer =
     new Spearmint(spaceDesc, strategy, maxParallel)
 }
+
+object SpearmintOptimizer extends SpearmintOptimizer

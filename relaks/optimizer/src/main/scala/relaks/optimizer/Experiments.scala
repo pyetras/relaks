@@ -19,6 +19,7 @@ import scala.language.implicitConversions
  */
 
 trait Experiments extends NondetParams with BaseOptimizer with LabelledTuples {
+  import util._
 
   implicit val currentValueStore = new DynamicVariable(Map[String, Any]())
   implicit def extract[T: TypeTag](from: Nondet): T = currentValueStore.value(from.name).asInstanceOf[T]
@@ -39,7 +40,7 @@ trait Experiments extends NondetParams with BaseOptimizer with LabelledTuples {
    */
   class Experiment[R <: HList, O](expr: () => LabelledTuple[R], space: ParamsSpace, getObjective: LabelledTupleSelector[R, O], strategy: ExperimentStrategy) {
     def run(): Process[Task, LabelledTuple[R]] = {
-      val optimizer = Optimizer(space, strategy)
+      val optimizer = apply(1, space, strategy)
 
       val loop: Process1[Params, (LabelledTuple[R], OptimizerResult)] = process1.lift { params =>
         val resultTuple = currentValueStore.withValue(params) {

@@ -9,7 +9,7 @@ import relaks.lang.dsl.extensions.ast.logical.{LoadComprehension, QueryOp, Selec
 import relaks.lang.impl
 import relaks.lang.impl.Row
 import relaks.lang.phases.rewriting.QueryRewritingPhases
-import relaks.optimizer.GridOptimizer
+import relaks.optimizer.{NondetParams, NondetParam, BaseOptimizer, GridOptimizer}
 
 import scalaz.concurrent.Task
 import scalaz.stream._
@@ -18,13 +18,13 @@ import scalaz.stream._
  * Created by Pietras on 26/06/15.
  */
 
-trait OptimizationInterpreter
+abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
   extends Environments
+  with NondetParams
   with SuperPosAnalysis
   with BaseExprInterpreter
   with SuperPosInterpreter
   with BaseQueryInterpreter
-  with GridOptimizer
   with QueryRewritingPhases
   with TupleInterpreter {
   def eval(expr: Expression): Process[Task, impl.Row] = expr match {
@@ -36,7 +36,7 @@ trait OptimizationInterpreter
       val params = paramSources.toSeq.map(sym => sym -> evalSuperPosGenerator(sym))
       val paramsSpace = collection.mutable.LinkedHashMap(params.map(symParam => s"x${symParam._1.name}" -> symParam._2):_*)
 
-      val optimizer = new GrOptimizer(paramsSpace, StrategyMinimize)
+      val optimizer = Optimizer(1, paramsSpace, Optimizer.StrategyMinimize)
 
       //find value to optimize on
       val outputSchema = OutputSchema.forComprehension(c)
@@ -48,14 +48,14 @@ trait OptimizationInterpreter
 
       val (transform: Transform) +: IndexedSeq() = transforms
 
-      val loop: Process1[Params, (impl.Row, OptimizerResult)] = process1.lift { params =>
+      val loop: Process1[Params, (impl.Row, Optimizer.OptimizerResult)] = process1.lift { params =>
         push(params.map(nameVal => Sym(nameVal._1.drop(1).toInt) -> new Literal(nameVal._2))) //TODO types?
         //evaluate the input tuple to row
         val inputRow: impl.Row = evalTupleExpression(vars)
 
         val resultRow = evalQuery(inputRow, transform)
 
-        (resultRow, OptimizerResult(resultRow(toMinimizeIx), params))
+        (resultRow, Optimizer.OptimizerResult(resultRow(toMinimizeIx), params))
       }
 
       def fst[L]: Process1[(L, _), L] = process1.lift {_._1}
