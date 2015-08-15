@@ -34,6 +34,8 @@ trait BaseOptimizer extends NondetParams {
   sealed class ExperimentStrategy
   object StrategyMinimize extends ExperimentStrategy
 
+  class OptimizerConvergedError extends RuntimeException("Optimizer converged")
+
   def apply(maxParallel: Int, spaceDesc: ParamsSpace, strategy: ExperimentStrategy): Optimizer
 }
 
@@ -149,7 +151,7 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
       def getNextParams(code: Int): Task[Params] = {
         def go(code: Int, accumulator: Int): Task[Params] = {
           if (accumulator > 10)
-            Task.fail(new RuntimeException("spearmint converged"))
+            Task.fail(new OptimizerConvergedError)
           else
             code match {
               case 0 => readNextPending().flatMap {

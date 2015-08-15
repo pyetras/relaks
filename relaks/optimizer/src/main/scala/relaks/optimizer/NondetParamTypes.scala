@@ -1,5 +1,6 @@
 package relaks.optimizer
 
+import scala.collection.immutable.Range.Inclusive
 import scala.reflect.runtime.universe._
 import scalaz._
 import Scalaz._
@@ -32,7 +33,7 @@ sealed case class ContinuousRange(from: Double, to: Double) extends ContinuousNo
 sealed abstract class DiscreteNondetParam[+T: TypeTag] extends NondetParam[T]
 
 sealed case class DiscreteRange(from: Int, to: Int, step: Int = 1) extends DiscreteNondetParam[Int] with RangeLikeSpace[Int] {
-  val range = new Range(from, to, step)
+  val range = new Inclusive(from, to, step)
 
   override def view: Seq[Int] = range.view
 }

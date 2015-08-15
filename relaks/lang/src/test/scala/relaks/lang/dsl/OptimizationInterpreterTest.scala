@@ -21,13 +21,14 @@ class OptimizationInterpreterTest extends FunSpec with Matchers with Inside {
       }) by 'x0
 
 
-      val stream = eval(buildComprehensions(r.tree).get)
-      stream.runLog.run should have length 2
+      val Some((rows, error)) = Program.run(buildComprehensions(r.tree).get)
+      rows should have length 3
+      error shouldBe empty
     }
 
     it("should print a stored table") {
       object Program extends DSLInterpreter {
-        val b = choose between 1 and 10
+        val b = choose between 1 and 5
         val r = (optimize(Tuple1(b)) map { row =>
           Tuple1(row(0))
         }) filter { row =>
