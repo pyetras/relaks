@@ -22,7 +22,7 @@ sealed trait TType {
 }
 trait NumType
 
-sealed abstract class ArgType[T: WeakTypeTag] extends TType { self =>
+sealed abstract class ArgType[T: WeakTypeTag](implicit val order: Order[T] = null) extends TType { self =>
   override def toString = s"$containerName[$typeArgName]"
 
   override lazy val ct = implicitly[WeakTypeTag[T]]
@@ -40,7 +40,7 @@ sealed abstract class ArgType[T: WeakTypeTag] extends TType { self =>
   override def equals(obj: scala.Any): Boolean = canEqual(obj) && obj.asInstanceOf[ArgType[_]].ct.tpe =:= ct.tpe
 }
 
-sealed class NativeArgType[T: WeakTypeTag] extends ArgType[T]
+sealed class NativeArgType[T: WeakTypeTag](override implicit val order: Order[T] = null) extends ArgType[T]
 
 sealed abstract class LiftedArgType[T: WeakTypeTag] extends ArgType[T] //represents types explicitly lifted to reps
 
@@ -82,7 +82,7 @@ sealed abstract class TypedTableType[T <: HList : TypeTag] extends LiftedArgType
 
 sealed abstract class SimpleArgType[T: ClassTag] extends LiftedArgType[T]
 
-sealed class ScalaType[T: ClassTag](implicit val order: Order[T] = null) extends SimpleArgType[T]
+sealed class ScalaType[T: ClassTag](override implicit val order: Order[T] = null) extends SimpleArgType[T]
 
 class ScalaNumType[T : ClassTag : Order](implicit val field: Field[T]) extends ScalaType[T] with NumType
 
@@ -99,7 +99,7 @@ object ScalaTypes {
   val intType = new ScalaNumType[Int]
   val doubleType = new ScalaNumType[Double]
 //  val nullType = new ScalaType[Null]
-  val longType = new ScalaType[Long]
+  val longType = new ScalaNumType[Long]
   val anyType = new ScalaType[Any]
 }
 
@@ -118,7 +118,7 @@ trait ScalaTypeImplis {
   implicit def notNotA[A](implicit liftedArgType: LiftedArgType[A]) = new NotLifted[A] {} //adds ambiguity
 
 //  implicit def otherType[T: WeakTypeTag](implicit notLifted: NotLifted[T]): NativeArgType[T] = new NativeArgType[T]
-  implicit def otherType[T: WeakTypeTag](implicit lifted: LiftedArgType[T] = null): ArgType[T] = if (lifted != null) lifted else new NativeArgType[T]
+  implicit def otherType[T: WeakTypeTag](implicit lifted: LiftedArgType[T] = null, order: Order[T] = null): ArgType[T] = if (lifted != null) lifted else new NativeArgType[T]
 
   implicit def listType[T: WeakTypeTag](implicit typ: ArgType[T]): ListType[T] = new ListType[T]
 

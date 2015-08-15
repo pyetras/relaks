@@ -19,7 +19,7 @@ trait OrderExtensions extends ASTSyntax with BoolExtensions with scalaz.std.AnyV
     def >(arg: Rep[B1]): Rep[Boolean] =
       op.arg2[B1].to[Boolean].toRep(Stdlib.>, arg1.tree, arg.tree)
     def >=(arg: Rep[B1]): Rep[Boolean] =
-      !(this < arg)
+      op.arg2[B1].to[Boolean].toRep(Stdlib.>=, arg1.tree, arg.tree)
 
   }
 

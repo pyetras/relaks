@@ -22,7 +22,7 @@ trait StdOpInterpreter extends BaseExprInterpreter with Stdlib {
     case _/>Apply(Stdlib.CmpOp(op), lExpr :: rExpr :: Nil) =>
       val l = evalExpression(lExpr)
       val r = evalExpression(rExpr)
-      cmp(lExpr.tpe.asInstanceOf[ScalaType[Any]].order.apply(l, r), op)
+      cmp(lExpr.tpe.asInstanceOf[ArgType[Any]].order.apply(l, r), op)
 
     case _/>Apply(Stdlib.NumericOp(op), lExpr :: rExpr :: Nil) =>
       val l = evalExpression(lExpr)

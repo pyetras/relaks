@@ -32,8 +32,8 @@ object BuildRelaks extends Build {
       "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0",
       "ch.qos.logback" % "logback-classic" % "1.1.3",
 
-      "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3",
-      "org.scala-lang.modules" %% "scala-xml" % "1.0.3",
+      "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.4",
+      "org.scala-lang.modules" %% "scala-xml" % "1.0.4",
       "jline" % "jline" % "2.12.1",
 
       "org.scala-lang" % "scala-reflect" % _scalaVersion,
