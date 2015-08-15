@@ -7,8 +7,8 @@ import Keys._
 object BuildRelaks extends Build {
   lazy val relaks = Project(id = "relaks", base = file(".")).settings(basicSettings ++ Seq(name := "relaks")).aggregate(lang, optimizer, data)
 
-  val scalazVersion = "7.1.1"
-  val _scalaVersion = "2.11.6"
+  val scalazVersion = "7.1.3"
+  val _scalaVersion = "2.11.7"
 
   val mavenLocal = "Local Maven Repository" at Path.userHome.asFile.toURI.toURL + "/.m2/repository"
 
