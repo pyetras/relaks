@@ -1,8 +1,9 @@
 package relaks.lang.dsl
 
 import org.scalatest.{Tag, Matchers, Inside, FunSpec}
-import relaks.lang.ast.UntypedTable
+import relaks.lang.ast.{Table, UntypedTable}
 import relaks.optimizer.SpearmintOptimizer
+import shapeless.{HNil, ::}
 
 import scalaz.stream.process1
 
@@ -21,22 +22,26 @@ class OptimizationInterpreterTest extends FunSpec with Matchers with Inside {
       }) by 'x0
 
 
-      val Some((rows, error)) = Program.run(buildComprehensions(r.tree).get)
+      val Some((rows, error)) = Program.run(r.tree)
       rows should have length 3
       error shouldBe empty
     }
 
     it("should print a stored table") {
-      object Program extends DSLInterpreter {
-        val b = choose between 1 and 5
-        val r = (optimize(Tuple1(b)) map { row =>
-          Tuple1(row(0))
-        }) filter { row =>
-          row(0) > 1
-        } by 'x0
+      object Program extends DSLInterpreter
+      import Program._
 
-        store(r)
-      }
+      val b = choose between 1 and 10
+      val r: ProjectedTypedTableComprehensions[Int::HNil] = (optimize(Tuple1(b)) map { row =>
+        Tuple1(row(0))
+      }) filter { row =>
+        row(0) > 1
+      } by 'x0 limit 3
+      store(r)
+
+      val Some((rows, error)) = Program.run(r.tree)
+      rows should have length 3
+      error shouldBe empty
 
       Program.dump()
     }

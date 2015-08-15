@@ -159,11 +159,38 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
       new ProjectedTypedTableComprehensions[H](comprehensions.fields, comprehensions.query)
   }
 
-  class FlatMapComprehension(arg: Rep[Table])
+  abstract class AsComprehension[+T <: Rep[Table], Out](val arg: T, val fields: Vector[Field]) {
+    def create(fields: Vector[Field], query: Atom): Out
+  }
 
-  class TypedFlatMapComprehension[H <: HList](arg: Rep[TypedTable[Tup[H]]])
+  class LimitComprehension[Out](arg: AsComprehension[Rep[Table], Out]) {
+    def limit(count: Rep[Int]) =
+      arg.create(arg.fields, Limit(arg.arg.tree, Literal(0), count.tree))
+    def limit(start: Rep[Int], count: Rep[Int]) =
+      arg.create(arg.fields, Limit(arg.arg.tree, start.tree, count.tree))
+  }
 
-  class TypedOptimizerComprehensions[H <: HList](fields: Vector[Field], query: Atom)
+  implicit def limitComprehension[T <: Rep[Table], X](arg: T)(implicit cmp: T => AsComprehension[Rep[Table], X]) = new LimitComprehension(arg)
+
+  implicit def untypedAsComprehension(arg: Rep[UntypedTable]): AsComprehension[Rep[UntypedTable], Rep[UntypedTable]] = new AsComprehension[Rep[UntypedTable], Rep[UntypedTable]](arg, null) {
+    override def create(fields: Vector[Field], query: Atom): Rep[UntypedTable] = new Rep[UntypedTable] {
+      override val tree: TTree = query
+    }
+  }
+
+  implicit def typedOptimizerAsComprehension[H <: HList](arg: TypedOptimizerComprehensions[H]): AsComprehension[TypedOptimizerComprehensions[H], TypedOptimizerComprehensions[H]] =
+    new AsComprehension[TypedOptimizerComprehensions[H], TypedOptimizerComprehensions[H]](arg, arg.fields) {
+      implicit val lenEnv = arg.lenEnv
+      override def create(fields: Vector[Field], query: Atom): TypedOptimizerComprehensions[H] = new TypedOptimizerComprehensions[H](fields, query)
+    }
+
+  implicit def typedAsComprehension[H <: HList](arg: ProjectedTypedTableComprehensions[H]): AsComprehension[ProjectedTypedTableComprehensions[H], ProjectedTypedTableComprehensions[H]] =
+    new AsComprehension[ProjectedTypedTableComprehensions[H], ProjectedTypedTableComprehensions[H]](arg, arg.fields) {
+      implicit val lenEnv = arg.lenEnv
+      override def create(fields: Vector[Field], query: Atom): ProjectedTypedTableComprehensions[H] = new ProjectedTypedTableComprehensions[H](fields, query)
+    }
+
+  class TypedOptimizerComprehensions[H <: HList](private[extensions] val fields: Vector[Field], query: Atom)
                                            (implicit val lenEnv: hlist.Length[H])
     extends Rep[TypedTable[Tup[H]]] with TableComprehensions {
 

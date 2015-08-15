@@ -62,11 +62,10 @@ sealed trait JoinType {
 object CartesianJoin extends JoinType
 object InnerJoin extends JoinType
 
-sealed case class Limit(table: Atom, start: Atom, count: Atom) extends SourceQuery {
+sealed case class Limit(table: Atom, start: Atom, count: Atom) extends SingleSourceTransformation {
   override def mainToString: String = withArgs(super.mainToString, count.toString)
 
-  override def stepTable: Option[Atom] = None
-  override def sources: Seq[Atom] = Seq(table)
+  override def stepTable: Option[Atom] = table.some
 }
 sealed case class Filter(generator: GeneratorBase, table: Atom, filter: Atom) extends Query with SingleSourceTransformation {
   override def mainToString: String = withArgs(super.mainToString, filter.toString)
