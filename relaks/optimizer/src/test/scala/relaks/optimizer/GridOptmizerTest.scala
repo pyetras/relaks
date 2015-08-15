@@ -39,7 +39,7 @@ class GridOptmizerTest extends FunSpec with Matchers with Inside {
 
       results.run.run
 //      println(cnt.get())
-      cnt.get() should equal(200)
+      cnt.get() should equal(204)
     }
   }
 }

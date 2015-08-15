@@ -159,6 +159,10 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
       new ProjectedTypedTableComprehensions[H](comprehensions.fields, comprehensions.query)
   }
 
+  class FlatMapComprehension(arg: Rep[Table])
+
+  class TypedFlatMapComprehension[H <: HList](arg: Rep[TypedTable[Tup[H]]])
+
   class TypedOptimizerComprehensions[H <: HList](fields: Vector[Field], query: Atom)
                                            (implicit val lenEnv: hlist.Length[H])
     extends Rep[TypedTable[Tup[H]]] with TableComprehensions {
