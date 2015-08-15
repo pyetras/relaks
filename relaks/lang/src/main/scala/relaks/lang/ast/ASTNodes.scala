@@ -78,7 +78,7 @@ object TupleWithNames {
     case _ => None
   }
   def unapplyWithTypes(row: Expression): Option[Vector[(String, TType)]] = unapply(row)
-    .map(_.bisequence[Vector, Expression, String].map { case (expr, name) => (name, expr.tpe)})
+    .map(_.zipped.map { case (expr, name) => (name, expr.tpe)})
 }
 
 sealed trait NondetGenerator extends Expression {

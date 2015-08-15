@@ -27,7 +27,7 @@ class OptimizationInterpreterTest extends FunSpec with Matchers with Inside {
 
     it("should print a stored table") {
       object Program extends DSLInterpreter {
-        val b = choose between 1 and 3
+        val b = choose between 1 and 10
         val r = (optimize(Tuple1(b)) map { row =>
           Tuple1(row(0))
         }) filter { row =>

@@ -89,10 +89,16 @@ abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
   def dump(): Unit = {
     for (expr <- storedOutput) {
       val stream = eval(buildComprehensions(expr).get)
-      val rows = stream.runLog.run
+      val rowsWithError = stream
+        .observe(sink.lift(r => Task.now(println(r)))) //output partial results
+        .map((r: impl.Row) => scala.List(r)).scanMonoid //collect partial results in a grid
+        .attempt[Task, Throwable]() //emit an error
+        .sliding(2).map { case fst +: snd +: Seq() => (snd getOrElse fst.getOrElse(scala.List.empty[impl.Row]), snd.swap.toOption)}
+      val (rows, error) = rowsWithError.runLast.run.get
       if (rows.nonEmpty) {
         ASCIITable.getInstance().printTable(rows.head.colNames.toArray, rows.map(_.values.map(_.toString).toArray).toArray)
       }
+      error map (println _)
     }
   }
 }
