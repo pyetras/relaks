@@ -45,8 +45,7 @@ class OptimizationInterpreterTest extends FunSpec with Matchers with Inside {
         val x = choose between 0.0 and 15.0
         val y = choose between -5.0 and 10
 
-        val result = optimize (x, y) map { row =>
-          val Tup(x, y) = row
+        val result = optimize (x, y) map { case Tup(x, y) =>
           val res = to (branin _) apply (x, y)
           res as 'result
         } by 'result

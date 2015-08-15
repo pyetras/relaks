@@ -31,6 +31,15 @@ trait Stdlib {
         case _ => None
       }
     }
+
+    object NumericOp {
+      def unapply(expression: Expression) = expression match {
+        case Stdlib.+ => expression.some
+        case Stdlib.- => expression.some
+        case Stdlib.* => expression.some
+        case Stdlib./ => expression.some
+      }
+    }
   }
 
 }

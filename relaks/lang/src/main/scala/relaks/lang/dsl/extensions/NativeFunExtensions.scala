@@ -8,6 +8,7 @@ import shapeless.ops.hlist.Mapper
 import shapeless.{HNil, ::, Poly1, HList}
 import shapeless.ops.function.{FnFromProduct, FnToProduct}
 import shapeless.syntax.std.function._
+import scala.language.implicitConversions
 /**
  * Created by Pietras on 23/06/15.
  */
