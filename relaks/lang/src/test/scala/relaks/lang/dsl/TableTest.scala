@@ -1,20 +1,14 @@
 package relaks.lang.dsl
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.typesafe.scalalogging.LazyLogging
-import org.apache.drill.common.logical.data.{Transform => DrillTransform, LogicalOperator, Scan, Join => DrillJoin}
-import org.scalatest.enablers.Collecting
 import org.scalatest.{Matchers, Inside, LoneElement, Inspectors, FunSpec}
 import relaks.lang.ast._
 import relaks.lang.dsl.AST._
-import relaks.lang.dsl.extensions.ast._
 import relaks.lang.dsl.extensions.ast.logical._
-import relaks.lang.dsl.extensions.{SQLCompilers, DrillCompilers, TableExtensions}
+import relaks.lang.dsl.extensions.{SQLCompilers, TableExtensions}
 import relaks.lang.phases.rewriting.QueryRewritingPhases
 import relaks.lang.dsl.utils.TypedSymbols
 import shapeless._
-import shapeless.ops.hlist
-import shapeless.ops.nat.ToInt
 
 import scalaz.{Tag, @@}
 
@@ -226,52 +220,6 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         val schema = OutputSchema forComprehension comprehension
         schema.map(_._1) should contain theSameElementsInOrderAs scala.List("x0", "x1")
       }
-    }
-    describe("drill compiler") {
-      it("should compile a load table expression") {
-        object Program extends TableExtensions with QueryRewritingPhases with DrillCompilers
-
-        val table = Program.load("hello")
-        val compiler = new Program.CompileDrill(Map.empty)
-        val result = compiler(table.tree).written.asInstanceOf[Map[Program.Sym, LogicalOperator]] //cast needed by lone element
-        result.loneElement should matchPattern { case (_, _: Scan) => }
-      }
-
-      it("should compile a simple transform") {
-        object Program extends DSL with TableExtensions with QueryRewritingPhases with DrillCompilers
-        import Program._
-
-        val a = Program.load("hello")
-        val res = for {
-          as: Row2[Int, Int] <- a(('ax.is[Int], 'ay.is[Int]))
-        } yield (as(0), as(1))
-
-        val compiler = new CompileDrill(Map.empty)
-        val result = compiler(res.tree).written
-
-        result.values.toSeq should have length 2
-        result.values.exists(_.isInstanceOf[DrillTransform]) should be(true)
-        result.values.exists(_.isInstanceOf[Scan]) should be(true)
-      }
-
-      it("should compile a join") {
-        object Program extends DSL with TableExtensions with QueryRewritingPhases with DrillCompilers
-        import Program._
-        val a = load("hello")
-        val b = load("world")
-
-        val res = for {
-          as: Row2[Int, Int] <- a(('ax.is[Int], 'ay.is[Int]))
-          bs: Row2[Int, Int] <- b(('bx.is[Int], 'by.is[Int]))
-        } yield (as(0), as(1), bs(0), bs(1))
-
-        val projected = fuseTransforms(res.tree).get
-        val compiler = new CompileDrill(Map.empty)
-        val result = compiler(projected).written
-
-        result.values.exists(_.isInstanceOf[DrillJoin]) should be(true)
-      }
-
     }
 
     describe("sql compiler") {

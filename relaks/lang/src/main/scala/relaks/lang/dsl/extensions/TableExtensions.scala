@@ -6,11 +6,8 @@ import com.fasterxml.jackson.databind.{SerializationFeature, ObjectMapper}
 import com.fasterxml.jackson.databind.module.SimpleModule
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.calcite.rel.core.JoinRelType
-import org.apache.drill.common.JSONOptions
 import org.kiama.attribution.Attribution
 import org.kiama.relation.GraphTree
-import org.apache.drill.common.expression.{SchemaPath, LogicalExpression, FieldReference}
-import org.apache.drill.common.logical.data.{Transform => DrillTransform, Join => DrillJoin, NamedExpression, JoinCondition, LogicalOperator, Scan}
 import org.kiama.==>
 import org.kiama.rewriting.{Rewriter, Strategy}
 import relaks.lang.ast._
@@ -390,65 +387,3 @@ trait SQLCompilers extends BaseRelationalCompilers {
     extends CompileRelational with SQLCompilerPart
 
 }
-
-trait DrillCompilers extends BaseRelationalCompilers with Symbols with Queries with LazyLogging with TableUtils {
-  private lazy val mapper = {
-    val m = new ObjectMapper
-    val deserModule: SimpleModule = new SimpleModule("LogicalExpressionDeserializationModule")
-      .addDeserializer(classOf[LogicalExpression], new LogicalExpression.De(null))
-      .addDeserializer(classOf[SchemaPath], new SchemaPath.De(null))
-    m.registerModule(deserModule)
-    m.enable(SerializationFeature.INDENT_OUTPUT)
-    m.configure(Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-    m.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true)
-    m.configure(Feature.ALLOW_COMMENTS, true)
-    m
-  }
-
-  trait DrillCompilerPart extends RelationalCompilerPartBase {
-    override type NodeType = LogicalOperator
-
-    override def compileQuery(q: Query): LogicalOperator = q match {
-      case LoadTableFromFs(path) =>
-        val optionsJson = "{\"format\" : {\"type\" : \"parquet\"},\"files\" : [ \"file:"  + path + "\" ]}"
-        val opts = mapper.readValue(optionsJson, classOf[JSONOptions])
-        val scan = new Scan("dfs", opts)
-        scan
-
-      case Join((_, left), (_, right), typ, conditions) =>
-        val leftOp = compileTable(left)
-        val rightOp = compileTable(right)
-
-        val joinT = typ match {
-          case CartesianJoin => JoinRelType.INNER
-          case InnerJoin => JoinRelType.INNER
-        }
-
-        new DrillJoin(leftOp, rightOp, Array.empty[JoinCondition], joinT)
-
-      case Transform(gen: Generator, source, _/>Pure(_/>(select: TupleConstructor))) =>
-        val sourceOp = compileTable(source)
-
-        val env = gen.symsToFields.andThen(_.name)
-        val transforms = compilePureRow(select)(env).zip(select.names).map
-        { case (expr, name) => new NamedExpression(mapper.readValue(expr, classOf[LogicalExpression]), new FieldReference(name)) }
-
-        val transform = new DrillTransform(transforms.toArray)
-        transform.setInput(sourceOp)
-        transform
-    }
-
-    private def compilePureRow(tup: TupleConstructor): ((Sym => String) => Vector[String]) = (env: Sym => String) =>
-      tup.tuple.map {
-        case _ /> link => ???
-        case s: Sym => s""""`${env(s)}`""""
-      }
-  }
-
-  class CompileDrill(override val queryEnv: Map[Sym, LogicalOperator] = Map.empty)
-    extends CompileRelational with DrillCompilerPart
-
-}
-
-
-
