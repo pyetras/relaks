@@ -209,12 +209,15 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
     new TypedFilterComprehension(arg)
 
   implicit class ProjectionComprehension(arg: Rep[Table]) {
-    def apply[P <: Product, FieldsLen <: Nat, L <: HList, S <: HList](fields: P)(implicit tupEv: IsTuple[P],
+    def apply[P <: Product, FieldsLen <: Nat, L <: HList, S <: HList](schemaT: P)(implicit tupEv: IsTuple[P],
                                                                                  toHlist: Generic.Aux[P, L],
                                                                                  schema: TypedSymbolSchema.Aux[L, S],
+                                                                                  typC: TupTypeConstructor[S],
                                                                                  lenEv: hlist.Length.Aux[S, FieldsLen],
-                                                                                 fieldsLength: ToInt[FieldsLen]) = {
-      new ProjectedTypedTableComprehensions[S](Tag.unwrap(schema(toHlist.to(fields))), arg.tree)
+                                                                                 schemaLength: ToInt[FieldsLen]) = {
+      val fields = Tag.unwrap(schema(toHlist.to(schemaT)))
+      val projection = Project.applyTyped[S](arg.tree, fields.map(f => f -> f.sym), typC(fields.map(_.typ)))
+      new ProjectedTypedTableComprehensions[S](fields, projection)
     }
 
     def apply[E](field: TypedField[E]): ProjectedTypedTableComprehensions[E :: HNil] =

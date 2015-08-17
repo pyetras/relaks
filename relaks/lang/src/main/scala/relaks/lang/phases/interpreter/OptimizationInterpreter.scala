@@ -20,21 +20,13 @@ import scalaz.stream._
 import scalaz.{Trampoline, Scalaz}
 import Scalaz._
 
-/**
- * Created by Pietras on 26/06/15.
- */
-
 abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
-  extends Environments
+  extends ComprehensionInterpreter
   with NondetParams
   with SuperPosAnalysis
-  with BaseExprInterpreter
   with SuperPosInterpreter
-  with BaseQueryOpInterpreter
-  with QueryRewritingPhases
-  with TupleInterpreter
   with LazyLogging {
-  private def evalComprehension(expr: Expression): Process[Task, impl.Row] = expr match {
+  private val evalOptimizerComprehension: PartialFunction[Expression, Process[Task, impl.Row]] = {
     case _/>(c @ SelectComprehension(LoadComprehension(OptimizerResultTable(vars)), transforms, filters, limits, orderbys, sequence)) =>
       import QueryOp._
 
@@ -85,60 +77,9 @@ abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
             }
         }
 
-
       chainWithP(sequence, optimizer.paramStream |> generate).run
   }
 
-  def run(expr: Expression) = {
-    val stream = evalComprehension(buildComprehensions(expr).get)
-    val rowsWithError = stream
-      .observe(sink.lift(r => Task.now(logger.info(s"Optimizer partial results: $r"))))
-      .map((r: impl.Row) => scala.List(r)).scanMonoid //collect partial results in a grid
-      .attempt[Task, Throwable]() //emit an error
-      .sliding(2).map { case fst +: snd +: Seq() => (snd getOrElse fst.getOrElse(scala.List.empty[impl.Row]), snd.swap.toOption)}
-    rowsWithError.runLast.run
-  }
-
-  def show(rows: scala.List[impl.Row], error: Option[Throwable]) = {
-    if (rows.nonEmpty) {
-      ASCIITable.getInstance().printTable(rows.head.colNames.toArray, rows.map(_.values.map(_.toString).toArray).toArray)
-    }
-    error foreach println
-  }
-
-  def dump(): Unit = {
-    for (expr <- storedOutput) {
-      val (rows, error) = run(expr).get
-      show(rows, error)
-    }
-  }
-}
-
-trait Environments extends Symbols {
-  var history = List.empty[Map[Sym, Expression]]
-  var cachedDefinitions = Map.empty[Sym, Expression]
-
-  private[interpreter] def push(update: Iterable[(Sym, Expression)] = Map.empty) = {
-    history = cachedDefinitions :: history
-    cachedDefinitions ++= update
-  }
-  private[interpreter] def pop() = {
-    cachedDefinitions = history.head
-    history = history.tail
-  }
-  override protected def findDefinition(sym: Sym): Option[Expression] = cachedDefinitions.get(sym).orElse(super.findDefinition(sym))
-
-  protected def cache(sym: Sym, expr: Expression) = cachedDefinitions += (sym -> expr)
-}
-
-trait BaseExprInterpreter extends Environments with Symbols {
-  def evalExpression(expr: Expression): Any = expr match {
-    case _/>Literal(v) => v
-    case _ => throw new NotImplementedError(s"Evaluating $expr not implemented")
-  }
-}
-
-trait BaseQueryOpInterpreter extends Environments {
-  import QueryOp._
-  def evalQuery(q: QueryOp): Process1[impl.Row, impl.Row] = throw new NotImplementedError(s"Evaluating query $q not implemented")
+  override protected[lang] def evalComprehension(expr: Expression): Process[Task, impl.Row] =
+    evalOptimizerComprehension.applyOrElse(expr, super.evalComprehension)
 }

@@ -68,6 +68,5 @@ package object utils {
             state.run
         }
     }
-
   }
 }

@@ -20,7 +20,13 @@ trait Queries extends Symbols with ToTypedTreeOps with TypedSymbols {
     def apply(table: Atom, map: Vector[(Symbol, Symbol)]): Transform = {
       val generator = Generator.fromUntypedFields(map.map(_._1))
       val names = map.map(_._2.name)
-      Transform(generator, table, RowRep(generator.toTupleWithNames[HNil](names)).tree)
+      Transform(generator, table, RowRep(generator.toTupleWithNames[HNil](names, UnknownType)).tree)
+    }
+
+    def applyTyped[S <: HList](table: Atom, map: Vector[(Field, Symbol)], tupTyp: TType): Transform = {
+      val generator = Generator.fromFields(map.map(_._1))
+      val names = map.map(_._2.name)
+      Transform(generator, table, RowRep(generator.toTupleWithNames[S](names, tupTyp)).tree)
     }
   }
 
@@ -46,9 +52,9 @@ trait Queries extends Symbols with ToTypedTreeOps with TypedSymbols {
       }
     }
 
-    def toTupleWithNames[F <: HList](names: Vector[String]): Rep[Tup[F]] = {
+    def toTupleWithNames[F <: HList](names: Vector[String], tupTyp: TType): Rep[Tup[F]] = {
       new Rep[Tup[F]] {
-        override val tree: TTree = TupleConstructor(symsVector, names)
+        override val tree: TTree = TupleConstructor(symsVector, names)(tupTyp)
       }
     }
 
