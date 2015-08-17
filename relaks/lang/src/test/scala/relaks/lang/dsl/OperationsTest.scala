@@ -19,7 +19,7 @@ class OperationsTest extends FunSpec with Matchers with Inside with Checkers wit
   describe("Interpreter") {
     describe("for numeric ops") {
       it("should interpret binary operations") {
-        object Program extends DSLInterpreter
+        object Program extends DSLOptimizerInterpreter
         import Program._
         def checker[T: ScalaNumType: FieldZ](a: T, b: T)(implicit f: FieldZ[T]) = {
           val ra: Rep[T] = a
@@ -37,7 +37,7 @@ class OperationsTest extends FunSpec with Matchers with Inside with Checkers wit
     }
     describe("for orderable ops") {
       it("should interpet staged orderable operations") {
-        object Program extends DSLInterpreter
+        object Program extends DSLOptimizerInterpreter
         import Program._
         def checker[T : ScalaType: Order](a: T, b: T)(implicit ev: T => Rep[T] = (x: Any) => x.asRep.asInstanceOf[Rep[T]]) = {
           val ra: Rep[T] = a
@@ -55,7 +55,7 @@ class OperationsTest extends FunSpec with Matchers with Inside with Checkers wit
       }
 
       it("should interpret native orderable operations") {
-        object Program extends DSLInterpreter
+        object Program extends DSLOptimizerInterpreter
         import Program._
 
         case class A(i: Int)

@@ -6,6 +6,7 @@ import relaks.lang.dsl.Rep
 import relaks.lang.dsl.utils.{TypedSymbols, TreePrettyPrintable}
 import shapeless.{HList, HNil}
 
+import scala.language.implicitConversions
 import scala.languageFeature.implicitConversions
 import scalaz.Reader
 import scalaz.Scalaz

@@ -34,10 +34,11 @@ trait BaseOptimizer extends NondetParams {
   sealed class ExperimentStrategy
   object StrategyMinimize extends ExperimentStrategy
 
-  class OptimizerConvergedError extends RuntimeException("Optimizer converged")
-
   def apply(maxParallel: Int, spaceDesc: ParamsSpace, strategy: ExperimentStrategy): Optimizer
 }
+
+trait OptimizerError extends Exception
+class OptimizerConvergedError extends RuntimeException("Optimizer converged") with OptimizerError
 
 trait GridOptimizer extends BaseOptimizer {
   class GrOptimizer(spaceDesc: ParamsSpace, strategy: ExperimentStrategy) extends Optimizer {

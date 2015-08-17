@@ -1,13 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration debug="false" scan="false">
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
+            <evaluator>
+                <expression>
+                    return logger.startsWith("local.") || logger.startsWith("org.reflections.");
+                </expression>
+            </evaluator>
+            <OnMatch>DENY</OnMatch>
+        </filter>
         <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
             <pattern>
                 %d{HH:mm:ss} %highlight(%-5level) %.30logger{10} [%file:%line] - %msg%n
             </pattern>
         </encoder>
     </appender>
-    <root level="TRACE">
+    <root level="DEBUG">
         <appender-ref ref="STDOUT" />
     </root>
 </configuration>

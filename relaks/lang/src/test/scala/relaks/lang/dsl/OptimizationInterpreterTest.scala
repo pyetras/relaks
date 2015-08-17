@@ -13,7 +13,7 @@ import scalaz.stream.process1
 class OptimizationInterpreterTest extends FunSpec with Matchers with Inside {
   describe("interpreter") {
     it("should interpret a simple expression") {
-      object Program extends DSLInterpreter
+      object Program extends DSLOptimizerInterpreter
       import Program._
       val b = choose between 1 and 3
 //      val a = choose between 5 and 10
@@ -28,7 +28,7 @@ class OptimizationInterpreterTest extends FunSpec with Matchers with Inside {
     }
 
     it("should print a stored table") {
-      object Program extends DSLInterpreter
+      object Program extends DSLOptimizerInterpreter
       import Program._
 
       val b = choose between 1 and 10
@@ -47,7 +47,7 @@ class OptimizationInterpreterTest extends FunSpec with Matchers with Inside {
     }
 
     it("should optimize branin", Tag("relaks.Integration")) {
-      object Program extends DSLInterpreter(SpearmintOptimizer) {
+      object Program extends DSLOptimizerInterpreter(SpearmintOptimizer) {
         val x = choose between 0.0 and 15.0
         val y = choose between -5.0 and 10
 
@@ -63,7 +63,7 @@ class OptimizationInterpreterTest extends FunSpec with Matchers with Inside {
     }
 
 //    it("should execute an optimization scenario") {
-//      object Program extends DSLInterpreter
+//      object Program extends DSLOptimizerInterpreter
 //      import Program._
 //
 //      def trainSVM(a: Any, b: Any, c: Any, d: Any) = 0.0

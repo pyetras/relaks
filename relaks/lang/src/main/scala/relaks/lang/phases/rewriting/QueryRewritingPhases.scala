@@ -22,10 +22,7 @@ trait QueryRewritingPhases extends LazyLogging with Symbols with Queries with Ta
       case Some(querySym) /> NextTable(nextSym) =>
         val _ /> query = querySym
         for {
-          select <- nextSym match {
-            case Some(q) /> (source: SourceQuery) => SelectComprehension(LoadComprehension(source)).some
-            case _ => comprehension(nextSym)
-          }
+          select <- comprehension(nextSym)
           updatedSelect <- query match {
             //            case l: Limit => QueryOp.unapply(l).map(op => select.appendAndCommit(op))
             case QueryOp(queryOp) => select.append(queryOp).some
@@ -33,6 +30,7 @@ trait QueryRewritingPhases extends LazyLogging with Symbols with Queries with Ta
             case join: Join => throw new NotImplementedError("JoinComprehension not implemented")
           }
         } yield updatedSelect
+      case _ /> (source: SourceQuery) => SelectComprehension(LoadComprehension(source)).some
       case _ => None
     }
   }

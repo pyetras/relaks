@@ -15,7 +15,7 @@ import shapeless.{::, HNil}
 class KNNTest extends FunSpec with Matchers with Inside {
   describe("knn experiment") {
     it("should work") {
-      object Program extends DSLInterpreter
+      object Program extends DSLOptimizerInterpreter
       import Program._
 
       def euclidDistance[T](implicit ring: Ring[T], sq: sqrt.Impl[T, Double]) = new DistanceFunction[Vector[T]] {

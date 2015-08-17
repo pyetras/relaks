@@ -32,7 +32,7 @@ abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
   with BaseQueryOpInterpreter
   with QueryRewritingPhases
   with TupleInterpreter {
-  def eval(expr: Expression): Process[Task, impl.Row] = expr match {
+  private def evalComprehension(expr: Expression): Process[Task, impl.Row] = expr match {
     case _/>(c @ SelectComprehension(LoadComprehension(OptimizerResultTable(vars)), transforms, filters, limits, orderbys, sequence)) =>
       import QueryOp._
 
@@ -87,7 +87,7 @@ abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
   }
 
   def run(expr: Expression) = {
-    val stream = eval(buildComprehensions(expr).get)
+    val stream = evalComprehension(buildComprehensions(expr).get)
     val rowsWithError = stream
       .observe(sink.lift(r => Task.now(println(r)))) //output partial results
       .map((r: impl.Row) => scala.List(r)).scanMonoid //collect partial results in a grid
@@ -103,7 +103,7 @@ abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
       if (rows.nonEmpty) {
         ASCIITable.getInstance().printTable(rows.head.colNames.toArray, rows.map(_.values.map(_.toString).toArray).toArray)
       }
-      error foreach (println _)
+      error foreach println
     }
   }
 }
