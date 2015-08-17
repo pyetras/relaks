@@ -32,18 +32,18 @@ class OptimizationInterpreterTest extends FunSpec with Matchers with Inside {
       import Program._
 
       val b = choose between 1 and 10
-      val r: ProjectedTypedTableComprehensions[Int::HNil] = (optimize(Tuple1(b)) map { row =>
-        Tuple1(row(0))
-      }) filter { row =>
-        row(0) > 1
-      } by 'x0 limit 3
+      val r: ProjectedTypedTableComprehensions[Int::Int::HNil] = optimize(Tuple1(b)) map { row =>
+        (1 as 'var1, row(0) as 'var2)
+      } filter { row =>
+        row(1) > 1
+      } by 'var2 limit 3
       store(r)
 
       val Some((rows, error)) = Program.run(r.tree)
       rows should have length 3
       error shouldBe empty
-
-      Program.dump()
+      Program.show(rows, error) // TODO: optimizer is stateful, so dump will produce different results
+//      Program.dump()
     }
 
     it("should optimize branin", Tag("relaks.Integration")) {

@@ -1,6 +1,7 @@
 package relaks.lang.phases.interpreter
 
 import com.bethecoder.ascii_table.ASCIITable
+import com.typesafe.scalalogging.LazyLogging
 import org.kiama.relation.GraphTree
 import relaks.lang.ast._
 import relaks.lang.dsl.extensions._
@@ -31,7 +32,8 @@ abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
   with SuperPosInterpreter
   with BaseQueryOpInterpreter
   with QueryRewritingPhases
-  with TupleInterpreter {
+  with TupleInterpreter
+  with LazyLogging {
   private def evalComprehension(expr: Expression): Process[Task, impl.Row] = expr match {
     case _/>(c @ SelectComprehension(LoadComprehension(OptimizerResultTable(vars)), transforms, filters, limits, orderbys, sequence)) =>
       import QueryOp._
@@ -89,21 +91,24 @@ abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
   def run(expr: Expression) = {
     val stream = evalComprehension(buildComprehensions(expr).get)
     val rowsWithError = stream
-      .observe(sink.lift(r => Task.now(println(r)))) //output partial results
+      .observe(sink.lift(r => Task.now(logger.info(s"Optimizer partial results: $r"))))
       .map((r: impl.Row) => scala.List(r)).scanMonoid //collect partial results in a grid
       .attempt[Task, Throwable]() //emit an error
       .sliding(2).map { case fst +: snd +: Seq() => (snd getOrElse fst.getOrElse(scala.List.empty[impl.Row]), snd.swap.toOption)}
     rowsWithError.runLast.run
   }
 
+  def show(rows: scala.List[impl.Row], error: Option[Throwable]) = {
+    if (rows.nonEmpty) {
+      ASCIITable.getInstance().printTable(rows.head.colNames.toArray, rows.map(_.values.map(_.toString).toArray).toArray)
+    }
+    error foreach println
+  }
 
   def dump(): Unit = {
     for (expr <- storedOutput) {
       val (rows, error) = run(expr).get
-      if (rows.nonEmpty) {
-        ASCIITable.getInstance().printTable(rows.head.colNames.toArray, rows.map(_.values.map(_.toString).toArray).toArray)
-      }
-      error foreach println
+      show(rows, error)
     }
   }
 }

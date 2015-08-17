@@ -14,7 +14,8 @@ trait QueryOpInterpreter extends BaseQueryOpInterpreter with Queries with BaseEx
   import QueryOp._
 
   private def inEnv[T](gen: Generator)(f: => T)(inputRow: Row) = {
-    push(gen.symsVector.zip(inputRow.values).map { case (sym, v) => (sym, new Literal(v)(sym.tpe)) })
+    push(gen.symsToFields
+      .map {case (sym, name) => (sym, new Literal(inputRow(name.name))(sym.tpe)) })
     val result = f
     pop()
     result

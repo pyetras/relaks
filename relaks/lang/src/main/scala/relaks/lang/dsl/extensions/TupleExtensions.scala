@@ -172,17 +172,18 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
     }
   }
 
-  implicit def labelledTupleToRep[R <: HList](p: LabelledTuple[R])
-                                             (implicit lttr: LabelledTupleToRep[R]): Rep[Tup[lttr.Out]] =
+  implicit def labelledTupleToRep[R <: HList, Out <: HList](p: LabelledTuple[R])
+                                             (implicit lttr: LabelledTupleToRep.Aux[R, Out]): Rep[Tup[Out]] =
     lttr(p)
 
-  implicit def tupleWithLabelsToRep[P <: Product, L <: HList, R <: HList](tup: P)(implicit ev1: IsTuple[P],
+  implicit def tupleWithLabelsToRep[P <: Product, L <: HList, R <: HList, Out <: HList](tup: P)(implicit ev1: IsTuple[P],
                                                                      toHlist: Generic.Aux[P, L],
                                                                      evR: Mapper[isRecord.type, L],
-                                                                     lttr: LabelledTupleToRep[L]): Rep[Tup[lttr.Out]] =
+                                                                     lttr: LabelledTupleToRep.Aux[L, Out]): Rep[Tup[Out]] =
     lttr(new LabelledTuple(toHlist.to(tup)))
 
-  implicit def singleFieldToRep[K, V](field: FieldType[K, V])(implicit lttr: LabelledTupleToRep[FieldType[K, V] :: HNil]): Rep[Tup[lttr.Out]] =
+  implicit def singleFieldToRep[K, V, Out <: HList](field: FieldType[K, V])
+                                                   (implicit lttr: LabelledTupleToRep.Aux[FieldType[K, V] :: HNil, Out]): Rep[Tup[Out]] =
     lttr(new LabelledTuple(field :: HNil))
 
 }

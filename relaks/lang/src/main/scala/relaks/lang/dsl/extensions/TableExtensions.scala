@@ -254,8 +254,10 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
         fields,
         OrderBy(tree, Vector(FieldWithDirection(field, GroupBy.Asc)), isExperimentTarget = true)(new UntypedTableType))
 
-    private def fromTypedTableComprehension[T <: HList](t: ProjectedTypedTableComprehensions[T]) =
-      new TypedOptimizerComprehensions[H](t.fields, t.query)
+    private def fromTypedTableComprehension[T <: HList](t: ProjectedTypedTableComprehensions[T]) = {
+      implicit val lenEv = t.lenEnv
+      new TypedOptimizerComprehensions[T](t.fields, t.query)
+    }
     lazy val typedComp = new ProjectedTypedTableComprehensions[H](fields, query)
 
 //    def flatMap(f: (Rep[Tup[H]]) => Rep[UntypedTable]): Rep[UntypedTable] = typedComp.flatMap(f)
