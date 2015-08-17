@@ -6,8 +6,10 @@ package relaks.lang.dsl.extensions.ast.logical
 
 import relaks.lang
 import relaks.lang.ast._
+import relaks.lang.dsl.extensions.ast.logical.QueryOp
+import relaks.lang.dsl.extensions.ast.logical.QueryOp.QueryOp
 import relaks.lang.dsl.extensions.ast.{Queries, Symbols}
-import scalaz.Scalaz
+import scalaz._
 import Scalaz._
 import org.kiama.output.PrettyPrinter
 
@@ -20,13 +22,16 @@ sealed trait Comprehension extends Expression
 sealed case class LoadComprehension(loadExpression: SourceQuery) extends Comprehension
 
 final case class SelectComprehension(from: Comprehension,
-                                transform: Vector[QueryOp.Transform] = Vector.empty,
-                                filter: Vector[QueryOp.Filter] = Vector.empty,
-                                limit: Vector[QueryOp.Limit] = Vector.empty,
-                                orderBy: Vector[QueryOp.OrderBy] = Vector.empty,
-                                sequence: List[QueryOp.QueryOp] = List.empty) extends Comprehension {
-
+                                     transform: Vector[QueryOp.Transform] = Vector.empty,
+                                     filter: Vector[QueryOp.Filter] = Vector.empty,
+                                     limit: Vector[QueryOp.Limit] = Vector.empty,
+                                     orderBy: Vector[QueryOp.OrderBy] = Vector.empty,
+                                     sequence: Vector[QueryOp] = Vector.empty) extends Comprehension {
   import QueryOp._
+
+//  val seqL = Lens.lensu[SelectComprehension, QueryOp]((cmp, ops) => cmp.copy(sequence = cmp.sequence :+ ops), _.sequence.first)
+//  val filterL = Lens.lensu[SelectComprehension, Filter]((cmp, ops) => cmp.copy(filter = ops), _.filter)
+
   def append(queryOp: QueryOp): SelectComprehension = queryOp match {
     case (op: Filter) => this.copy(filter = this.filter :+ op, sequence = this.sequence :+ op)
     case (op: Transform) => this.copy(transform = this.transform :+ op, sequence = this.sequence :+ op)

@@ -44,11 +44,12 @@ abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
       val paramsSpace = collection.mutable.LinkedHashMap(params.map(symParam => s"x${symParam._1.name}" -> symParam._2):_*)
 
       val optimizer = Optimizer(1, paramsSpace, Optimizer.StrategyMinimize)
-
+      logger.debug(optimizer.toString)
       val generate: Process1[Params, (impl.Row, Params)] = process1.lift { params =>
         push(params.map(nameVal => Sym(nameVal._1.drop(1).toInt) -> new Literal(nameVal._2))) //TODO types?
         //evaluate the input tuple to row
         val inputRow: impl.Row = evalTupleExpression(vars)
+        pop()
         (inputRow, params)
       }
 
@@ -59,12 +60,12 @@ abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
 
       def fst[L]: Process1[(L, _), L] = process1.lift {_._1}
 
-      def chainWithP(seq: List[QueryOp],
+      def chainWithP(seq: Seq[QueryOp],
                      acc: Process[Task, (impl.Row, Params)],
                      lastTransform: Option[Transform] = None): Trampoline[Process[Task, impl.Row]] =
         seq match {
-          case Nil => null
-          case op :: rest =>
+          case Seq() => null
+          case op +: rest =>
             def nextPipe(op: QueryOp, transOpt: Option[Transform] = lastTransform) =
               Trampoline.suspend(chainWithP(rest, acc |> process1.liftFirst((x: impl.Row) => none[Params])(evalQuery(op)), transOpt))
             op match {

@@ -22,7 +22,7 @@ trait QueryOpInterpreter extends BaseQueryOpInterpreter with Queries with BaseEx
   }
 
   override def evalQuery(q: QueryOp): Process1[Row, Row] = q match {
-    case Transform(gen: Generator, select) =>
+    case Transform(gen: Generator, select) => //TODO dodac cache dla row schema do wierzcholka Transform
       process1.lift(inEnv(gen) {
           evalExpression(select).asInstanceOf[Row]
         })
