@@ -173,7 +173,7 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
 
   abstract class ProjectionFilter[In <: Rep[Table], Out](arg: AsComprehension[In, Out]) extends TupleGenerator {
     def filter[P <: Product, FL <: Nat, F <: HList](fields: P)(f: Rep[Tup[F]] => Rep[Boolean])(implicit
-                                                                                               lenEv: tuple.Length.Aux[P, FL],
+                                                                                                 lenEv: tuple.Length.Aux[P, FL],
                                                                                                lenEnv2: hlist.Length.Aux[F, FL],
                                                                                                toVector: ToTraversable.Aux[P, Vector, Field]) = {
       val (generator, rep) = tupleGenerator(toVector(fields))

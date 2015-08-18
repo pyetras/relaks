@@ -3,7 +3,7 @@ package relaks.lang.dsl
 import shapeless.HList
 import shapeless.ops.hlist.ToTraversable
 
-import scala.language.higherKinds
+import scala.language.{implicitConversions, higherKinds}
 import scalaz._
 import Scalaz._
 import scalaz.concurrent.Task
@@ -33,7 +33,7 @@ package object utils {
   }
 
   import scalaz.stream._
-  //https://github.com/scalaz/scalaz-stream/issues/323
+  // https://github.com/scalaz/scalaz-stream/issues/323
   trait Stepper[F[_], A] {
     def next: OptionT[F, Seq[A]]
     def close: F[Unit]
@@ -53,20 +53,22 @@ package object utils {
           // 1st change
           OptionT(as.point[Task] map some)
 
-        case Step(Await(req: Task[_] @unchecked, rcv), cont) =>
+        case Step(Await(req: Task[_]@unchecked, rcv), cont) =>
           for {
             tail <- (req.attempt map { r => rcv(EarlyCause fromTaskResult r).run +: cont }).liftM[OptionT]
-            _ = state = tail          // purity ftw!
+            _ = state = tail // purity ftw!
             // 2nd change s/step/next
             back <- next
           } yield back
       }
+
       // 3rd change
       def close =
         Task.suspend {
           Task.delay(state = state.kill) >>
             state.run
         }
+
     }
   }
 }

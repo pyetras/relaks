@@ -84,7 +84,7 @@ trait DrillInterpreter extends ComprehensionInterpreter {
       implicit val session = new ActiveSession(connection, DBConnectionAttributes())
 
       val projectSet = initialOps(seq)
-      assert(projectSet.map(_._1).size == projectSet.size, "multiple fields of different types currently not supported")
+      assert(projectSet.map(_._1).size == projectSet.size, "multiple fields of different types currently not supported") //TODO
 
       val projection = toProjection(projectSet)
 
@@ -103,7 +103,12 @@ trait DrillInterpreter extends ComprehensionInterpreter {
         )
 
       val rows: Process[Task, WrappedResultSet] = executorS.take(1).flatMap { stmt => io.resource(
-        Task.delay(stmt.executeQuery(query))
+        Task.delay {
+          logger.info(s"Drill: executing query $query")
+          val rs = stmt.executeQuery(query)
+          logger.info(s"Drill: finished executing query $query")
+          rs
+        }
       )(rs =>
         Task.delay {
           ignoring(classOf[Throwable]) {
@@ -115,13 +120,14 @@ trait DrillInterpreter extends ComprehensionInterpreter {
           if (rs.next()) {
             new WrappedResultSet(rs, new ResultSetCursor(0), 0)
           } else throw Cause.Terminated(Cause.End)
-        }
-        )
+        })
       }
 
       if (projection != "*"){
+        val schema = projectSet.toVector.map(x => x._1.name -> x._2)
         rows |> process1.lift { wrs =>
-          new impl.Row((1 to projectSet.size).map(i => wrs.any(i)).toVector, projectSet.toVector.map(x => x._1.name -> x._2))
+          logger.debug("got drill row")
+          new impl.Row((1 to projectSet.size).map(i => wrs.any(i)).toVector, schema)
         }
       } else {
         rows |> process1.lift { wrs =>
@@ -139,10 +145,10 @@ trait DrillInterpreter extends ComprehensionInterpreter {
       seq.foldl(process1.id[impl.Row])(acc => op => acc |> evalQuery(op))
   }
 
-  val id = implicitly[Arrow[PartialFunction]].id[Expression]
+  private val generatorPlusOps = {
+    val id = implicitly[Arrow[PartialFunction]].id[Expression]
+    (id &&& id) >>> rowsProcess *** operatorsProcess >>> { case (generator, ops) => generator |> ops }
+  }
 
-  val generatorPlusOps = (id &&& id) >>> rowsProcess *** operatorsProcess >>> { case (generator, ops) => generator |> ops }
-
-  override protected[lang] def evalComprehension(expr: Expression): Process[Task, Row] =
-    generatorPlusOps.applyOrElse(expr, super.evalComprehension)
+  override protected[lang] def evalComprehensionPartial = generatorPlusOps orElse super.evalComprehensionPartial
 }

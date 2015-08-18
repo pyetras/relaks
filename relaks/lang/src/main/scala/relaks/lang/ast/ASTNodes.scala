@@ -1,6 +1,7 @@
 package relaks.lang.ast
 
 import relaks.optimizer.NondetParam
+import shapeless.HNil
 
 import scalaz.NonEmptyList
 
@@ -61,7 +62,13 @@ case class Native(value: Any) extends Atom with Leaf
 
 sealed case class ListConstructor(lst: Seq[Expression]) extends Expression
 
-sealed case class TupleConstructor(tuple: Vector[Expression], names: Vector[String]) extends Expression
+sealed case class TupleConstructor(tuple: Vector[Expression], names: Vector[String]) extends Expression {
+  import scalaz._
+  import Scalaz._
+  lazy private val tpeFromExprs: TType = TupType.fromElements[HNil](tuple)
+
+  override def tpe: TType = super.tpe.isUnknown ? tpeFromExprs | super.tpe
+}
 
 object TupleConstructor {
   def apply(tuple: Vector[Expression]): TupleConstructor = TupleConstructor(tuple, tuple.indices.map(i => s"x$i").toVector)

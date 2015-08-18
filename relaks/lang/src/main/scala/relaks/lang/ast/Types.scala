@@ -5,12 +5,12 @@ import relaks.lang.dsl.utils.TupleLU
 import shapeless.nat._
 import shapeless.ops.hlist.Length
 import shapeless.ops.nat.ToInt
-import shapeless.{HList, Nat}
+import shapeless.{HNil, HList, Nat}
 
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
-import scalaz.Order
+import scalaz.{Scalaz, Order}
 import scalaz.syntax.Ops
 /**
  * Created by Pietras on 10/04/15.
@@ -19,6 +19,7 @@ import scalaz.syntax.Ops
 sealed trait TType {
   def canEqual(other: Any) = ClassTag(other.getClass) == ClassTag(this.getClass)
   def ct: WeakTypeTag[_]
+  val isUnknown = false
 }
 trait NumType
 
@@ -63,6 +64,15 @@ sealed abstract class TupType[T <: HList : WeakTypeTag] extends LiftedArgType[Tu
   override def typeArgName = implicitly[WeakTypeTag[T]].tpe.dealias.toString
 }
 
+object TupType {
+  def fromElements[T <: HList : WeakTypeTag](exprs: Vector[Expression]): TupType[T] = new TupType[T] {
+    override type LUB = Any //TODO
+    override val length: Int = exprs.size
+    override val childrenTypes: Vector[TType] = exprs.map(_.tpe)
+    override val lowerBound: ArgType[LUB] = ScalaTypes.anyType
+  }
+}
+
 sealed class Table
 final class UntypedTable extends Table
 final class TypedTable[T] extends Table
@@ -88,6 +98,9 @@ class ScalaNumType[T : ClassTag : Order](implicit val field: Field[T]) extends S
 
 object UnknownType extends TType {
   override val ct: WeakTypeTag[_] = null
+  override val isUnknown: Boolean = true
+  import Scalaz._
+  override def equals(obj: scala.Any): Boolean = obj.isInstanceOf[AnyRef] ? (this eq obj.asInstanceOf[AnyRef]) | false
 }
 
 object ScalaTypes {
@@ -122,6 +135,18 @@ trait ScalaTypeImplis {
 
   implicit def listType[T: WeakTypeTag](implicit typ: ArgType[T]): ListType[T] = new ListType[T]
 
+  object TupTypeConstructor {
+    def apply[T <: HList: WeakTypeTag](implicit tupTypeConstructor: TupTypeConstructor[T]) = tupTypeConstructor
+    implicit def tupleTypeConstructor[H <: HList: WeakTypeTag, N <: Nat, LUB : WeakTypeTag]
+    (implicit len: Length.Aux[H, N],
+     ti: ToInt[N],
+     tt: TupleLU[H, LUB]): TupTypeConstructor[H] =
+      new TupTypeConstructor[H](Nat.toInt[N]) {
+        override type LU = LUB
+        override val luCT: WeakTypeTag[LU] = implicitly[WeakTypeTag[LUB]]
+      }
+  }
+
   abstract class TupTypeConstructor[T <: HList : WeakTypeTag](n: Int) {
     type LU
     implicit val luCT: WeakTypeTag[LU]
@@ -139,15 +164,6 @@ trait ScalaTypeImplis {
       typ
     }
   }
-
-  implicit def tupleTypeConstructor[H <: HList: WeakTypeTag, N <: Nat, LUB : WeakTypeTag]
-    (implicit len: Length.Aux[H, N],
-     ti: ToInt[N],
-     tt: TupleLU[H, LUB]): TupTypeConstructor[H] =
-    new TupTypeConstructor[H](Nat.toInt[N]) {
-      override type LU = LUB
-      override val luCT: WeakTypeTag[LU] = implicitly[WeakTypeTag[LUB]]
-    }
 }
 
 trait Typed { this: Tree =>

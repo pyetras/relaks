@@ -5,6 +5,7 @@ import relaks.lang.ast.{Literal, Expression}
 import relaks.lang.dsl.extensions.ast.Symbols
 import relaks.lang.dsl.extensions.ast.logical.QueryOp
 import relaks.lang.dsl.extensions.{TupleInterpreter, TableIO}
+import relaks.lang.impl.{TableImpl, Row}
 import relaks.lang.phases.rewriting.QueryRewritingPhases
 import relaks.lang.impl
 
@@ -25,8 +26,10 @@ trait ComprehensionInterpreter
   with TupleInterpreter
   with TableIO {
 
-  protected[lang] def evalComprehension(expr: Expression): Process[Task, impl.Row] =
-    throw new NotImplementedError(s"Evaluating $expr not implemented")
+  protected[lang] def evalComprehensionPartial: PartialFunction[Expression, Process[Task, impl.Row]] = PartialFunction.empty
+
+  protected[lang] final def evalComprehension(expr: Expression): Process[Task, impl.Row] =
+    evalComprehensionPartial applyOrElse(expr, (x: Expression) => throw new NotImplementedError(s"Evaluating $expr not implemented"))
 
   def run(expr: Expression) = {
     val stream = evalComprehension(buildComprehensions(expr).get)
@@ -51,6 +54,9 @@ trait ComprehensionInterpreter
       show(rows, error)
     }
   }
+
+  override def evalExpression(expr: Expression): Any =
+    evalComprehensionPartial.andThen(proc => new TableImpl(proc)).applyOrElse(expr, super.evalExpression)
 }
 
 trait Environments extends Symbols {

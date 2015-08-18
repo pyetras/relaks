@@ -80,6 +80,5 @@ abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
       chainWithP(sequence, optimizer.paramStream |> generate).run
   }
 
-  override protected[lang] def evalComprehension(expr: Expression): Process[Task, impl.Row] =
-    evalOptimizerComprehension.applyOrElse(expr, super.evalComprehension)
+  override protected[lang] def evalComprehensionPartial = evalOptimizerComprehension orElse super.evalComprehensionPartial
 }
