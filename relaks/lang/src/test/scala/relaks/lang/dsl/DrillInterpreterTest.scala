@@ -1,10 +1,11 @@
 package relaks.lang.dsl
 
 import org.scalatest.{Inside, Matchers, FunSpec}
-import relaks.lang.ast.Table
-import relaks.lang.impl.TableImpl
+import relaks.lang.ast.{Tup, TypedTable, Table}
+import relaks.lang.impl.{TypedTableImpl, TableImpl}
 import scalikejdbc.{ConnectionPool, WrappedResultSet}
 import relaks.lang.impl
+import shapeless._
 import scalaz._
 
 /**
@@ -40,14 +41,20 @@ class DrillInterpreterTest extends FunSpec with Matchers with Inside {
         } limit 10
 
         val buffer = collection.mutable.Buffer.empty[impl.Row]
-        def f(tbl: TableImpl) =
+        def f(tbl: TypedTableImpl[String::Int::HNil]) = {
           buffer ++= tbl.toIterator
+          ()
+        }
+        val r: Rep[Tup[ProjectedTypedTableComprehensions[String::Int::HNil] :: HNil]] = tupleToRep(Tuple1(a))
 
-        val b = to(f _) apply tupleToRep(Tuple1(a.asInstanceOf[Rep[Table]]))
-        val result = evalExpression(buildComprehensions(b.tree).get)
 
-        result should equal(buffer)
-        buffer should have length 10
+//        val b : CallWord[Unit, TypedTable[Tup[String :: Int :: HNil]] :: HNil] = to(f _) //apply tupleToRep(Tuple1(a))
+//        val c = null.asInstanceOf[ProjectedTypedTableComprehensions[String :: Int :: HNil]]
+//        val d: Rep[TypedTable[Tup[String :: Int :: HNil]]] = c
+//        val result = evalExpression(buildComprehensions(b.tree).get)
+//
+//        result should equal(buffer)
+//        buffer should have length 10
       }
     }
   }

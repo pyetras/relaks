@@ -106,7 +106,7 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
    * this will lift any type T to a Rep[T]
     */
   private object asRep extends Poly1 {
-    implicit def lifted[T: ArgType] = at[Rep[T]](x => x)
+    implicit def lifted[T <: Rep[_]] = at[T](x => x)
     implicit def unlifted[T: ArgType](implicit c: T => Rep[T]) = at[T](x => c(x))
   }
 
@@ -123,16 +123,25 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
                                                                         evlu: TupleLU[R, LU],
                                                                         typC: TupTypeConstructor[R],
                                                                         mapper: Mapper.Aux[asRep.type, H, Mapped],
-                                                                        traversable: ToTraversable.Aux[Mapped, List, Rep[LU]]): Aux[H, R] =
+                                                                        traversable: ToTraversable.Aux[Mapped, List, Rep[_]]): Aux[H, R] =
       new HListToNode[H] {
         override type Out = R
         override def apply(hlist: H): (Vector[Expression], TType) = {
-          val replist = hlist.map(asRep).toList[Rep[LU]] // <: List[Rep[Any]]
+          val replist = hlist.map(asRep).toList[Rep[_]] // <: List[Rep[Any]]
           val typ = typC(replist.map(_.getTpe).toVector)
           (replist.map(_.tree).toVector, typ)
         }
       }
   }
+
+  def tupleToRep2[P <: Product, H <: HList, R <: HList, LU, Mapped <: HList](p: P)
+                                                               (implicit ev: Generic.Aux[P, H],
+                                                                tev: IsTuple[P], ul: UnliftType.Aux[H, Rep, R],
+                                                                evlu: TupleLU[R, LU],
+                                                                typC: TupTypeConstructor[R],
+                                                                mapper: Mapper.Aux[asRep.type, H, Mapped],
+                                                                traversable: ToTraversable.Aux[Mapped, List, Rep[_]]) = null
+
 
   implicit def tupleToRep[P <: Product, H <: HList, R <: HList](p: P)
                                                                (implicit ev: Generic.Aux[P, H],

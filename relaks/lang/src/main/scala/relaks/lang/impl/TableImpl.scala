@@ -1,5 +1,7 @@
 package relaks.lang.impl
 
+import shapeless.HList
+
 import scalaz.stream._
 import scalaz.concurrent._
 import scalaz.Scalaz._
@@ -45,3 +47,7 @@ class TableImpl(rows: Process[Task, Row]) {
   def toIterator: Iterator[Row] = new TableIterator
 
 }
+
+class UntypedTableImpl(rows: Process[Task, Row]) extends TableImpl(rows)
+
+class TypedTableImpl[H <: HList](rows: Process[Task, Row]) extends TableImpl(rows)

@@ -3,7 +3,7 @@ package relaks.lang.dsl.extensions
 import relaks.lang.ast._
 import relaks.lang.dsl.AST.ASTSyntax
 import relaks.lang.dsl.Rep
-import relaks.lang.impl.{Row, TableImpl}
+import relaks.lang.impl.{TypedTableImpl, UntypedTableImpl, Row, TableImpl}
 import shapeless.ops.hlist.Mapper
 import shapeless.{HNil, ::, Poly1, HList}
 import shapeless.ops.function.{FnFromProduct, FnToProduct}
@@ -24,8 +24,8 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
       override val value: (::[A, HNil]) => Result = x => null.asInstanceOf[B]
     }
 
-//    implicit val tableTranslation = defineTranslation[UntypedTable, TableImpl]
-    implicit val typedTableTranslation = defineTranslation[Table, TableImpl]
+    implicit val tableTranslation = defineTranslation[UntypedTable, UntypedTableImpl]
+    implicit def typedTableTranslation[H <: HList] = at[TypedTableImpl[H]](x => x.asInstanceOf[TypedTable[Tup[H]]])
     implicit val rowTranslation = defineTranslation[Tup[_], Row]
     implicit def translate[T, X](implicit translation: HasTranslation[T, X]) = at[T](x => null.asInstanceOf[X] : X)
   }
