@@ -49,14 +49,14 @@ class KNNTest extends FunSpec with Matchers with Inside {
       }
 
 
-//      val distFn = choose from List(euclidDistance[Double].asRep, manhattanDistance[Double].asRep)
-//      val train = load("train.csv")
-//      val test = load("test.csv")
-//
-//      val tree = to (makeTree _) apply (euclidDistance[Double].asRep, train)
-//      val results = to (knn _) apply (5, tree, test)
-//
-//      println(tree.toString)
+      val distFn = choose from List(euclidDistance[Double].asRep, manhattanDistance[Double].asRep)
+      val train = load("train.csv")
+      val test = load("test.csv")
+
+      val tree = to (makeTree _) apply (euclidDistance[Double].asRep, train)
+      val results = to (knn _) apply (5, tree, test)
+
+      println(tree.toString)
     }
   }
 }
