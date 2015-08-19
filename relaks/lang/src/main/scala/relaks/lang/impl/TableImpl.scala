@@ -1,6 +1,6 @@
 package relaks.lang.impl
 
-import shapeless.HList
+import shapeless.{HNil, HList}
 
 import scalaz.stream._
 import scalaz.concurrent._
@@ -9,7 +9,15 @@ import relaks.lang.dsl.utils.ProcessIterator
 /**
  * Created by Pietras on 12.08.15.
  */
-class TableImpl(rows: Process[Task, Row]) {
+trait TableBaseImpl {
+  def toIterator: Iterator[Row]
+}
+
+trait UntypedTableImpl extends TableBaseImpl
+
+trait TypedTableImpl[H <: HList] extends TableBaseImpl
+
+class TableImpl(rows: Process[Task, Row]) extends UntypedTableImpl with TypedTableImpl[HNil] {
   class TableIterator extends Iterator[Row] {
     lazy private val stepper = {
       Process.step(rows)
@@ -47,7 +55,3 @@ class TableImpl(rows: Process[Task, Row]) {
   def toIterator: Iterator[Row] = new TableIterator
 
 }
-
-class UntypedTableImpl(rows: Process[Task, Row]) extends TableImpl(rows)
-
-class TypedTableImpl[H <: HList](rows: Process[Task, Row]) extends TableImpl(rows)

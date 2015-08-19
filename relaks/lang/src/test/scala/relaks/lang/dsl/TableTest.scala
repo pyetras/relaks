@@ -23,7 +23,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         object Program extends DSL with TableExtensions
         import Program._
         val a = load("hello")
-        val res = a(('x.is[Int], 'y.is[Int])).map { (t: Row2[Int, Int]) =>
+        val res = a.apply(('x.is[Int], 'y.is[Int])).map { (t: Row2[Int, Int]) =>
           (1, 2)
         }
         res shouldBe an[Rep[_]]

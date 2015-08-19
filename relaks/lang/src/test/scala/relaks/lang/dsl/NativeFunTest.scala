@@ -3,7 +3,7 @@ package relaks.lang.dsl
 import org.scalatest.{Inside, Matchers, FunSpec}
 import relaks.lang.ast._
 import relaks.lang.dsl.extensions.TupleInterpreter
-import relaks.lang.impl.TableImpl
+import relaks.lang.impl.{UntypedTableImpl, TableImpl}
 import relaks.lang.impl
 import relaks.lang.phases.interpreter.NativeInterpreter
 
@@ -41,7 +41,7 @@ class NativeFunTest extends FunSpec with Matchers with Inside {
     it("should translate Table type") {
       object Program extends DSL
 
-      def f(a: TableImpl) = null
+      def f(a: UntypedTableImpl) = null
       """import Program._; to (f _) apply Tuple1(null.asInstanceOf[UntypedTable].asRep)""" should compile
     }
 
