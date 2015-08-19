@@ -1,11 +1,15 @@
 package relaks.lang.phases.interpreter
 
-import relaks.lang.ast.{Pure, Expression, Literal}
+import com.twitter.algebird.mutable.InfPriorityQueueAggregator
+import relaks.lang.ast._
 import relaks.lang.dsl.extensions.ast.Queries
 import relaks.lang.dsl.extensions.ast.logical.QueryOp
 import relaks.lang.impl.Row
+import relaks.lang.ast
 
-import scalaz.stream.{process1, Process1}
+import scalaz.{Ordering, Order, Scalaz}
+import Scalaz._
+import scalaz.stream._
 
 /**
  * Created by Pietras on 12.08.15.
@@ -36,6 +40,25 @@ trait QueryOpInterpreter extends BaseQueryOpInterpreter with Queries with BaseEx
       val start = evalExpression(startExpr).asInstanceOf[Int]
       val count = evalExpression(countExpr).asInstanceOf[Int]
       process1.drop[Row](start).take(count)
+
+    case OrderBy(fields, false) =>
+      def mkOrder(fld: FieldWithDirection): Order[Row] = {
+        val order = new Order[Row] {
+          override def order(x: Row, y: Row): Ordering = {
+            val ord = fld.field.typ.asInstanceOf[ArgType[Any]].order
+            ord(x(fld.field.sym.name), y(fld.field.sym.name))
+          }
+        }
+        (fld.direction == ast.OrderBy.Desc) ? order | order.reverseOrder  //order is reversed again in the aggregation
+      }
+      implicit val ordering: scala.Ordering[Row] = fields.toEphemeralStream.map(mkOrder).fold.toScalaOrdering
+      val aggregator = new InfPriorityQueueAggregator[Row]
+
+      process1.lift(aggregator.prepare) |>
+        process1.reduce(aggregator.reduce) |>
+        process1.lift(aggregator.present) flatMap { (x: Seq[Row]) =>
+        Process.emitAll(x)
+      }
 
     case _ => super.evalQuery(q)
   }

@@ -8,6 +8,7 @@ import relaks.lang.dsl.extensions._
 import relaks.lang.dsl.extensions.ast._
 import relaks.lang.dsl.extensions.ast.logical.{LoadComprehension, QueryOp, SelectComprehension}
 import relaks.lang.impl
+import relaks.lang.ast
 import relaks.lang.impl.Row
 import relaks.lang.phases.rewriting.QueryRewritingPhases
 import relaks.optimizer.{NondetParams, NondetParam, BaseOptimizer, GridOptimizer}
@@ -64,7 +65,7 @@ abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
               case OrderBy(ordering, true) =>
                 //find value to optimize on
                 val outputSchema = OutputSchema.forTransform(lastTransform.get)
-                val FieldWithDirection(name, GroupBy.Asc) = ordering.head
+                val FieldWithDirection(Field(name, _), ast.OrderBy.Asc) = ordering.head
 
                 val toMinimizeIx = outputSchema.map(_._1).indexOf(name.name)
                 assert(toMinimizeIx >= 0, "Invalid optimization condition")

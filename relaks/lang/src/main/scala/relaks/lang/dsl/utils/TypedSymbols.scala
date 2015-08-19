@@ -1,6 +1,6 @@
 package relaks.lang.dsl.utils
 
-import relaks.lang.ast.{ArgType, TType}
+import relaks.lang.ast.{TypedField, Field, ArgType, TType}
 import shapeless.{HNil, Poly2, HList, ::}
 import shapeless.ops.hlist.{RightFolder, RightReducer}
 
@@ -34,9 +34,6 @@ trait TypedSymbols {
       }
     }
   }
-
-  sealed case class Field(sym: Symbol, typ: TType)
-  final class TypedField[T](sym: Symbol, typ: TType) extends Field(sym, typ)
 
   implicit class TypedSymbol(sym: Symbol) {
     def is[T: ArgType] = new TypedField[T](sym, implicitly[ArgType[T]])

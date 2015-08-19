@@ -48,13 +48,13 @@ trait TableUtils extends Symbols with Queries {
       case _ /> Transform(_, _, Query(q)) => findFields(q)
       case _ /> OptimizerResultTable(argTuple) => TupleWithNames.unapplyWithTypes(argTuple).get
       case NextQuery(next) => findFields(next)
+      case _ => Vector.empty
     }
 
     val apply: Expression => Vector[Field] = findFields andThen { namesTypes =>
       namesTypes.map { case (x, y) => Field(Symbol(x), y) }
     }
   }
-
 }
 
 trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
@@ -157,10 +157,18 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
       asCmp(Limit(arg.tree, start.tree, count.tree))
   }
 
-  implicit class OrderByComprehension[In <: Rep[Table], Out](arg: In)(implicit asCmp: BuildComprehension[In, Out]) {
+  trait GetFieldsWithTypes {
+    def getFieldsWithTypes(expr: Expression, fieldsVec: Vector[Symbol]) = {
+      val mappedFields = outputFields.apply(expr).view.map(f => f.sym -> f).toMap //TODO this won't work on untyped
+      fieldsVec.map(mappedFields)
+    }
+  }
+
+  implicit class OrderByComprehension[In <: Rep[Table], Out](arg: In)(implicit asCmp: BuildComprehension[In, Out]) extends GetFieldsWithTypes {
     def orderBy[P <: Product](fields: P)(implicit toVector: ToTraversable.Aux[P, Vector, Symbol]): Out = {
       val fieldsVec = toVector(fields)
-      val expr = OrderBy(arg.tree, fieldsVec.map(FieldWithDirection(_, GroupBy.Asc)), isExperimentTarget = true)(new UntypedTableType)
+      val fieldsWithTypes = getFieldsWithTypes(arg.tree, fieldsVec)
+      val expr = OrderBy(arg.tree, fieldsWithTypes.map(fld => FieldWithDirection(fld, OrderBy.Asc)), isExperimentTarget = false)(new UntypedTableType)
       asCmp(expr)
     }
 
@@ -176,7 +184,7 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
   }
 
   abstract class ProjectionFilter[In <: Rep[Table], Out](arg: In)(implicit asCmp: BuildComprehension[In, Out]) extends TupleGeneratorImpl {
-    def filter[P <: Product, FL <: Nat, F <: HList](fields: P)(f: Rep[Tup[F]] => Rep[Boolean])(implicit
+    def filter[P <: Product, FL <: Nat, F <: HList](fields: P)(f: Rep[Tup[F]] => Rep[Boolean])(implicit //TODO this is bonkers
                                                                                                  lenEv: tuple.Length.Aux[P, FL],
                                                                                                lenEnv2: hlist.Length.Aux[F, FL],
                                                                                                toVector: ToTraversable.Aux[P, Vector, Field]) = {
@@ -249,9 +257,13 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
   private type UnfinOpt[H <: HList] = UnfinishedGenTable[Tup[H]]
 
   implicit class UnfinishedOptimizerOps[H <: HList](arg: Rep[UnfinOpt[H]])
-                                                   (implicit mkCmp: AsTypedCmp[H]) {
+                                                   (implicit mkCmp: AsTypedCmp[H])
+    extends GetFieldsWithTypes {
         def by(field: Symbol) =
-         mkCmp(OrderBy(arg.tree, Vector(FieldWithDirection(field, GroupBy.Asc)), isExperimentTarget = true)(new UntypedTableType))
+         mkCmp(OrderBy(arg.tree,
+           Vector(FieldWithDirection(getFieldsWithTypes(arg.tree, Vector(field)).head, OrderBy.Asc)),
+           isExperimentTarget = true
+         )(new UntypedTableType))
 
   }
 

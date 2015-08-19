@@ -49,7 +49,7 @@ trait DrillInterpreter extends ComprehensionInterpreter {
     val generators = initial.collect {
       case Transform(g: Generator, _) => extract(g)
       case Filter(g: Generator, _) => extract(g)
-      case OrderBy(fields, _) => fields.map(f => f.field -> ScalaTypes.anyType)
+      case OrderBy(fields, _) => fields.map(f => f.field.sym -> f.field.typ)
     }
     generators.foldLeft(Set.empty[(Symbol, TType)]){_ ++ _}
   }

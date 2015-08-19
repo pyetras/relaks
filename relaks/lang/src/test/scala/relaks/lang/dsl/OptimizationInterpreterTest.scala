@@ -37,7 +37,7 @@ class OptimizationInterpreterTest extends FunSpec with Matchers with Inside {
       }
       val r = c filter { row =>
         row(1) > 1
-      } by 'var2 limit 3
+      } by 'var2 limit 3 orderBy ('var1, 'var2)
       store(r)
 
       val Some((rows, error)) = Program.run(r.tree)

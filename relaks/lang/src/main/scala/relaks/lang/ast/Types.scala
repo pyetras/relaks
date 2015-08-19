@@ -1,6 +1,6 @@
 package relaks.lang.ast
 
-import breeze.math.Field
+import breeze.math
 import relaks.lang.dsl.utils.TupleLU
 import shapeless.nat._
 import shapeless.ops.hlist.Length
@@ -95,7 +95,7 @@ sealed abstract class SimpleArgType[T: ClassTag] extends LiftedArgType[T]
 
 sealed class ScalaType[T: ClassTag](override implicit val order: Order[T] = null) extends SimpleArgType[T]
 
-class ScalaNumType[T : ClassTag : Order](implicit val field: Field[T]) extends ScalaType[T] with NumType
+class ScalaNumType[T : ClassTag : Order](implicit val field: math.Field[T]) extends ScalaType[T] with NumType
 
 object UnknownType extends TType {
   override val ct: WeakTypeTag[_] = null

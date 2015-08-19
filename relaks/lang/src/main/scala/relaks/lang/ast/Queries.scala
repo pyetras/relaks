@@ -78,15 +78,17 @@ sealed case class GroupBy(generator: GeneratorBase, table: Atom, group: Atom) ex
   override def stepTable: Option[Atom] = table.some
 }
 
-object GroupBy {
+object OrderBy {
   sealed trait OrderDirection
   object Asc extends OrderDirection
   object Desc extends OrderDirection
 }
 
+sealed case class Field(sym: Symbol, typ: TType)
+final class TypedField[T](sym: Symbol, typ: TType) extends Field(sym, typ)
 
-final case class FieldWithDirection(field: Symbol, direction: GroupBy.OrderDirection) {
-  override def toString: String = s"${if (direction == GroupBy.Asc) "↑" else "↓"}$field"
+final case class FieldWithDirection(field: Field, direction: OrderBy.OrderDirection) {
+  override def toString: String = s"${if (direction == OrderBy.Asc) "↑" else "↓"}${field.sym}"
 }
 
 sealed case class OrderBy(table: Atom, ordering: Vector[FieldWithDirection], isExperimentTarget: Boolean = false)
