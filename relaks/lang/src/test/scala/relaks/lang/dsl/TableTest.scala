@@ -5,7 +5,8 @@ import org.scalatest.{Matchers, Inside, LoneElement, Inspectors, FunSpec}
 import relaks.lang.ast._
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl.extensions.ast.logical._
-import relaks.lang.dsl.extensions.{SQLCompilers, TableExtensions}
+import relaks.lang.dsl.extensions.TableExtensions
+import relaks.lang.phases.compiler.SQLCompilers
 import relaks.lang.phases.rewriting.QueryRewritingPhases
 import relaks.lang.dsl.utils.TypedSymbols
 import shapeless._

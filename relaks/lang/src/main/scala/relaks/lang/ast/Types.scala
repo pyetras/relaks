@@ -76,6 +76,7 @@ object TupType {
 sealed class Table
 final class UntypedTable extends Table
 final class TypedTable[T] extends Table
+final class UnfinishedGenTable[T] extends Table
 
 sealed class UntypedTableType extends LiftedArgType[UntypedTable] {
   var constraints = Vector.empty[Any]

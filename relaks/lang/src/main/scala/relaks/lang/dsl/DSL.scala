@@ -24,7 +24,6 @@ trait DSL
   with TupleExtensions
   with NativeFunExtensions
   with TableExtensions
-  with TableIO
 
 
 trait DSLInterpreter extends DSL with QueryOpInterpreter with NativeInterpreter with StdOpInterpreter

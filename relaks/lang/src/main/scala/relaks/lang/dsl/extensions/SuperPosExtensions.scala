@@ -28,12 +28,12 @@ trait SuperPosExtensions extends ListExtensions with Symbols with SuperPosGenera
     }
   }
 
-  def optimize[H <: HList](varTup: Rep[Tup[H]])(implicit lenEv: hlist.Length[H]) = {
+  def optimize[H <: HList, Out](varTup: Rep[Tup[H]])
+                               (implicit lenEv: hlist.Length[H],
+                                mkCmp: BuildComprehension[Rep[UnfinishedGenTable[Tup[H]]], Out]) = {
     val expr = OptimizerResultTable(varTup.tree)
 //    val fields = TupleWithNames.unapplyWithTypes(varTup.tree).get.map { case (name, typ) => Field(Symbol(name), typ) }
-    new Rep[TypedTable[Tup[H]]] {
-      override val tree: Atom = expr
-    }
+    mkCmp(expr)
   }
 
 }
