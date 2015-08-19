@@ -39,11 +39,15 @@ trait TableExtensions extends TableIO with TableOps with TableUtils {
 
 trait TableUtils extends Symbols with Queries {
 
-  object outputNamesTypes extends Attribution {
-    val apply: Query => Vector[(String, TType)] = attr {
+  object outputFields extends Attribution {
+    private val findFields: Expression => Vector[(String, TType)] = attr {
       case _ /> Transform(_, _, _ /> Pure(_ /> row)) => TupleWithNames.unapplyWithTypes(row).get
-      case _ /> Transform(_, _, Query(q)) => apply(q)
-      case NextQuery(next) => apply(next)
+      case _ /> Transform(_, _, Query(q)) => findFields(q)
+      case NextQuery(next) => findFields(next)
+    }
+
+    val apply: Expression => Vector[Field] = findFields andThen { namesTypes =>
+      namesTypes.map { case (x, y) => Field(Symbol(x), y) }
     }
   }
 
@@ -56,86 +60,69 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
   type Row2[A, B] = Rep[Tup[A :: B :: HNil]]
   type Row3[A, B, C] = Rep[Tup[A :: B :: C :: HNil]]
 
-
-  class ProjectedTableComprehensions[FieldsLen <: Nat](private[extensions] val fields: Vector[Field],
-                                                       private[extensions] val query: Atom)
-    extends Rep[UntypedTable] {
-
-    override val tree: Expression = query
+  implicit class TypedTableOps[H <: HList](arg: Rep[TypedTable[Tup[H]]]) {
+    lazy val fields: Vector[Field] = outputFields.apply(arg.tree)
 
     private def tupleGenerator[F <: HList](filterFields: Vector[Field] = fields): (Generator, Rep[Tup[F]]) = {
       val gen = Generator.fromFields(filterFields)
       val tuple = gen.toTuple[F] //todo types
       (gen, tuple)
     }
+
+    def filter(f: Rep[Tup[H]] => Rep[Boolean]): Rep[TypedTable[Tup[H]]] = {
+      val (generator, rep) = tupleGenerator()
+      val cond = f(rep).tree
+      val filteredTable = Filter(generator, arg.tree, cond)
+      new Rep[TypedTable[Tup[H]]] {
+        override val tree: Atom = filteredTable
+      }
+    }
+
     private def flatMapImpl[A <: HList](f: Rep[Tup[A]] => Rep[_]) = {
       val (gen, tuple) = tupleGenerator()
       val mapper = f(tuple)
 
       //TODO this could return a typed table
-      val expr = Transform(gen, query, mapper.tree)
+      val expr = Transform(gen, arg.tree, mapper.tree)
       expr
     }
 
-    def flatMap[F <: HList](f: Rep[Tup[F]] => Rep[UntypedTable])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]): Rep[UntypedTable] = {
+    def flatMap[T <: HList](f: Rep[Tup[H]] => Rep[TypedTable[Tup[T]]]): Rep[TypedTable[Tup[T]]] = {
       val expr = flatMapImpl(f)
-      new Rep[UntypedTable] {
-        override val tree: Atom = expr(new UntypedTableType)  //TODO this must be an atom for some reason (probably because of the lack of sym memoization)
+      new Rep[TypedTable[Tup[T]]] {
+        override val tree: Atom = expr(new UntypedTableType) //TODO this could return a typed table
       }
     }
 
-    def flatMap[F <: HList, T <: HList](f: Rep[Tup[F]] => Rep[TypedTable[Tup[T]]])(implicit lenEv: hlist.Length.Aux[F, FieldsLen], lenOutEv: hlist.Length[T]) = {
-      val expr = flatMapImpl(f)
-      val names = outputNamesTypes.apply(expr)
-      new ProjectedTypedTableComprehensions[T](names.map { case (x, y) => Field(Symbol(x), y) }, expr(new UntypedTableType)) //TODO this could return a typed table
-    }
+//    def flatMap(f: Rep[Tup[H]] => Rep[UntypedTable]): Rep[UntypedTable] = {
+//      val expr = flatMapImpl(f)
+//      new Rep[UntypedTable] {
+//        override val tree: Atom = expr(new UntypedTableType)  //TODO this must be an atom for some reason (probably because of the lack of sym memoization)
+//      }
+//    }
 
-    def map[F <: HList, T <: HList](f: Rep[Tup[F]] => Rep[Tup[T]])(implicit lenEv: hlist.Length.Aux[F, FieldsLen], lenOutEv: hlist.Length[T]) = {
+    def map[F <: HList, T <: HList](f: Rep[Tup[H]] => Rep[Tup[T]]) = {
       flatMap(f andThen RowRep.apply)
     }
 
-    def withFilter(f: Rep[Tup[Nothing]] => Rep[Boolean]) = {
+    def withFilter(f: Rep[Tup[H]] => Rep[Boolean]): Rep[TypedTable[Tup[H]]] = {
       val (generator, rep) = tupleGenerator()
       val cond = f(rep).tree
       cond match {
-        case _/>Literal(true) => this //remove empty filters immediately, most likely occurs
-                                   // with the cast matcher _.isInstanceOf in for comprehensions
+        case _ /> Literal(true) => arg //remove empty filters immediately, most likely occurs
+        // with the cast matcher _.isInstanceOf in for comprehensions
         case _ => createFilterComprehension(generator, cond)
       }
     }
 
-    private def createFilterComprehension(generator: Generator, cond: Expression): ProjectedTableComprehensions[FieldsLen] = {
-      val filteredTable = Filter(generator, query, cond)
-      new ProjectedTableComprehensions[FieldsLen](fields, filteredTable)
+//    def withFilter(f: Rep[Tup[H]] => Rep[Boolean]) = this
+
+    private def createFilterComprehension(generator: Generator, cond: Expression): Rep[TypedTable[Tup[H]]] = {
+      val filteredTable = Filter(generator, arg.tree, cond)
+      new Rep[TypedTable[Tup[H]]] {
+        override val tree: Atom = filteredTable
+      }
     }
-
-//    def filter[F <: HList](f: Rep[Tup[F]] => Rep[Boolean])(implicit lenEv: hlist.Length.Aux[F, FieldsLen]) = {
-//      val (generator, rep) = tupleGenerator(fields)
-//      val cond = f(rep).tree
-//      createFilterComprehension(generator, cond)
-//    }
-  }
-
-  class ProjectedTypedTableComprehensions[H <: HList](private[extensions] val fields: Vector[Field], private[extensions] val query: Atom)
-                                                                (implicit val lenEnv: hlist.Length[H])
-    extends Rep[TypedTable[Tup[H]]] {
-
-    override val tree: TTree = query
-
-    implicit val lenEnvAux = new hlist.Length[H] {
-      override type Out = lenEnv.Out
-      override def apply(): lenEnv.Out = lenEnv.apply()
-    }
-
-    lazy val untypedComprehension = new ProjectedTableComprehensions[lenEnv.Out](fields, query)
-
-    def flatMap(f: Rep[Tup[H]] => Rep[UntypedTable]) = untypedComprehension.flatMap(f)
-    def flatMap[T <: HList](f: Rep[Tup[H]] => Rep[TypedTable[Tup[T]]])(implicit lenEnv: hlist.Length[T]) = untypedComprehension.flatMap(f)
-    def map[T <: HList](f: Rep[Tup[H]] => Rep[Tup[T]])(implicit lenEnv: hlist.Length[T]) = untypedComprehension.map(f)
-    val withFilter = (untypedComprehension.withFilter _) andThen fromUntypedTableComprehension //TODO this does not enforce types
-
-    private def fromUntypedTableComprehension(comprehensions: ProjectedTableComprehensions[lenEnv.Out]) =
-      new ProjectedTypedTableComprehensions[H](comprehensions.fields, comprehensions.query)
   }
 
   abstract class AsComprehension[+T <: Rep[Table], Out](val arg: T, val fields: Vector[Field]) {
@@ -171,7 +158,7 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
     }
   }
 
-  abstract class ProjectionFilter[In <: Rep[Table], Out](arg: AsComprehension[In, Out]) extends TupleGenerator {
+  class ProjectionFilter[In <: Rep[Table], Out](arg: AsComprehension[In, Out]) extends TupleGenerator {
     def filter[P <: Product, FL <: Nat, F <: HList](fields: P)(f: Rep[Tup[F]] => Rep[Boolean])(implicit
                                                                                                  lenEv: tuple.Length.Aux[P, FL],
                                                                                                lenEnv2: hlist.Length.Aux[F, FL],
@@ -183,44 +170,46 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
     }
   }
 
-  class ProjectionFilterComprehension[Out](arg: AsComprehension[Rep[UntypedTable], Out]) extends ProjectionFilter(arg)
+//  class ProjectionFilterComprehension[Out](arg: AsComprehension[Rep[UntypedTable], Out]) extends ProjectionFilter(arg)
 
-  implicit def projectionFilterComprehension[T <: Rep[UntypedTable], X](arg: T)
-                                                                       (implicit cmp: T => AsComprehension[Rep[UntypedTable], X]) =
-    new ProjectionFilterComprehension(arg)
+  implicit def projectionFilterComprehension[T <: Rep[Table], X](arg: T)
+                                                                       (implicit cmp: T => AsComprehension[Rep[Table], X]) =
+    new ProjectionFilter(cmp(arg))
 
-  class TypedFilterComprehension[H <: HList, Out](arg: AsComprehension[Rep[TypedTable[Tup[H]]], Out]) extends ProjectionFilter(arg) {
-    def filter(f: Rep[Tup[H]] => Rep[Boolean]) = {
-      val (generator, rep) = tupleGenerator(arg.fields)
-      val cond = f(rep).tree
-      val filteredTable = Filter(generator, arg.arg.tree, cond)
-      arg.create(arg.fields, filteredTable)
-    }
-  }
+//  class TypedFilterComprehension[H <: HList, Out](arg: AsComprehension[Rep[TypedTable[Tup[H]]], Out]) extends ProjectionFilter(arg) {
+//    def filter(f: Rep[Tup[H]] => Rep[Boolean]) = {
+//      val (generator, rep) = tupleGenerator(arg.fields)
+//      val cond = f(rep).tree
+//      val filteredTable = Filter(generator, arg.arg.tree, cond)
+//      arg.create(arg.fields, filteredTable)
+//    }
+//  }
 
   type MkAsCmp[-A, +B <: Rep[Table], C] = A => AsComprehension[B, C]
 
-  implicit def typedFilterComprehension1[X, H <: HList](arg: TypedOptimizerComprehensions[H])
-                                                       (implicit cmp: MkAsCmp[TypedOptimizerComprehensions[H], Rep[TypedTable[Tup[H]]], X]) =
-    new TypedFilterComprehension(arg)
+//  implicit def typedFilterComprehension1[X, H <: HList](arg: TypedOptimizerComprehensions[H])
+//                                                       (implicit cmp: MkAsCmp[TypedOptimizerComprehensions[H], Rep[TypedTable[Tup[H]]], X]) =
+//    new TypedFilterComprehension(arg)
 
-  implicit def typedFilterComprehension2[X, H <: HList](arg: ProjectedTypedTableComprehensions[H])
-                                                       (implicit cmp: MkAsCmp[ProjectedTypedTableComprehensions[H], Rep[TypedTable[Tup[H]]], X]) =
-    new TypedFilterComprehension(arg)
+//  implicit def typedFilterComprehension2[X, H <: HList](arg: Rep[TypedTable[Tup[H]]])
+//                                                       (implicit cmp: MkAsCmp[Rep[TypedTable[Tup[H]]], Rep[TypedTable[Tup[H]]], X]) =
+//    new TypedFilterComprehension(arg)
 
   implicit class ProjectionComprehension(arg: Rep[Table]) {
     def apply[P <: Product, FieldsLen <: Nat, L <: HList, S <: HList](schemaT: P)(implicit tupEv: IsTuple[P],
                                                                                  toHlist: Generic.Aux[P, L],
                                                                                  schema: TypedSymbolSchema.Aux[L, S],
-                                                                                  typC: TupTypeConstructor[S],
+                                                                                 typC: TupTypeConstructor[S],
                                                                                  lenEv: hlist.Length.Aux[S, FieldsLen],
-                                                                                 schemaLength: ToInt[FieldsLen]) = {
+                                                                                 schemaLength: ToInt[FieldsLen]): Rep[TypedTable[Tup[S]]] = {
       val fields = Tag.unwrap(schema(toHlist.to(schemaT)))
       val projection = Project.applyTyped[S](arg.tree, fields.map(f => f -> f.sym), typC(fields.map(_.typ)))
-      new ProjectedTypedTableComprehensions[S](fields, projection)
+      new Rep[TypedTable[Tup[S]]] {
+        override val tree: Atom = projection
+      }
     }
 
-    def apply[E](field: TypedField[E]): ProjectedTypedTableComprehensions[E :: HNil] =
+    def apply[E](field: TypedField[E]): Rep[TypedTable[Tup[E :: HNil]]] =
       apply(Tuple1(field))
 
   }
@@ -232,50 +221,53 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
     }
   }
 
-  implicit def typedOptimizerAsComprehension[H <: HList](arg: TypedOptimizerComprehensions[H]):
-  AsComprehension[TypedOptimizerComprehensions[H], TypedOptimizerComprehensions[H]] =
-    new AsComprehension[TypedOptimizerComprehensions[H], TypedOptimizerComprehensions[H]](arg, arg.fields) {
-      implicit val lenEnv = arg.lenEnv
-      override def create(fields: Vector[Field], query: Atom): TypedOptimizerComprehensions[H] =
-        new TypedOptimizerComprehensions[H](fields, query)
+//  implicit def typedOptimizerAsComprehension[H <: HList](arg: TypedOptimizerComprehensions[H]):
+//  AsComprehension[TypedOptimizerComprehensions[H], TypedOptimizerComprehensions[H]] =
+//    new AsComprehension[TypedOptimizerComprehensions[H], TypedOptimizerComprehensions[H]](arg, arg.fields) {
+//      implicit val lenEnv = arg.lenEnv
+//      override def create(fields: Vector[Field], query: Atom): TypedOptimizerComprehensions[H] =
+//        new TypedOptimizerComprehensions[H](fields, query)
+//    }
+
+  type AsTypedCmp[S <: HList] = AsComprehension[Rep[TypedTable[Tup[S]]], Rep[TypedTable[Tup[S]]]]
+
+  implicit def typedAsComprehension[H <: HList](arg: Rep[TypedTable[Tup[H]]]):
+  AsComprehension[Rep[TypedTable[Tup[H]]], Rep[TypedTable[Tup[H]]]] =
+    new AsComprehension[Rep[TypedTable[Tup[H]]], Rep[TypedTable[Tup[H]]]](arg, null) {
+      override def create(fields: Vector[Field], query: Atom): Rep[TypedTable[Tup[H]]] =
+        new Rep[TypedTable[Tup[H]]] {
+          override val tree: Atom = query
+        }
     }
 
-  implicit def typedAsComprehension[H <: HList](arg: ProjectedTypedTableComprehensions[H]):
-  AsComprehension[ProjectedTypedTableComprehensions[H], ProjectedTypedTableComprehensions[H]] =
-    new AsComprehension[ProjectedTypedTableComprehensions[H], ProjectedTypedTableComprehensions[H]](arg, arg.fields) {
-      implicit val lenEnv = arg.lenEnv
-      override def create(fields: Vector[Field], query: Atom): ProjectedTypedTableComprehensions[H] =
-        new ProjectedTypedTableComprehensions[H](fields, query)
-    }
-
-  class TypedOptimizerComprehensions[H <: HList](private[extensions] val fields: Vector[Field], query: Atom)
-                                           (implicit val lenEnv: hlist.Length[H])
-    extends Rep[TypedTable[Tup[H]]] {
-
-    def by(field: Symbol) =
-      new ProjectedTypedTableComprehensions[H](
-        fields,
-        OrderBy(tree, Vector(FieldWithDirection(field, GroupBy.Asc)), isExperimentTarget = true)(new UntypedTableType))
-
-    private def fromTypedTableComprehension[T <: HList](t: ProjectedTypedTableComprehensions[T]) = {
-      implicit val lenEv = t.lenEnv
-      new TypedOptimizerComprehensions[T](t.fields, t.query)
-    }
-    lazy val typedComp = new ProjectedTypedTableComprehensions[H](fields, query)
-
-//    def flatMap(f: (Rep[Tup[H]]) => Rep[UntypedTable]): Rep[UntypedTable] = typedComp.flatMap(f)
-    //TODO implement regular flatmap
-    def flatMap[T <: HList](f: Rep[Tup[H]] => Rep[TypedTable[Tup[T]]])(implicit lenEnv: hlist.Length[T]) =
-      fromTypedTableComprehension(typedComp.flatMap(f))
-
-    def map[T <: HList](f: (Rep[Tup[H]]) => Rep[Tup[T]])(implicit lenEnv: hlist.Length[T]) =
-      fromTypedTableComprehension(typedComp.map(f))
-
-//    val withFilter: ((Rep[Tup[Nothing]]) => Rep[Boolean]) => ProjectedTypedTableComprehensions[H] = _
-    //TODO implement withfilter
-
-    override val tree: TTree = query
-  }
+//  class TypedOptimizerComprehensions[H <: HList](private[extensions] val fields: Vector[Field], query: Atom)
+//                                           (implicit val lenEnv: hlist.Length[H])
+//    extends Rep[TypedTable[Tup[H]]] {
+//
+//    def by(field: Symbol) =
+//      new ProjectedTypedTableComprehensions[H](
+//        fields,
+//        OrderBy(tree, Vector(FieldWithDirection(field, GroupBy.Asc)), isExperimentTarget = true)(new UntypedTableType))
+//
+//    private def fromTypedTableComprehension[T <: HList](t: ProjectedTypedTableComprehensions[T]) = {
+//      implicit val lenEv = t.lenEnv
+//      new TypedOptimizerComprehensions[T](t.fields, t.query)
+//    }
+//    lazy val typedComp = new ProjectedTypedTableComprehensions[H](fields, query)
+//
+////    def flatMap(f: (Rep[Tup[H]]) => Rep[UntypedTable]): Rep[UntypedTable] = typedComp.flatMap(f)
+//    //TODO implement regular flatmap
+//    def flatMap[T <: HList](f: Rep[Tup[H]] => Rep[TypedTable[Tup[T]]])(implicit lenEnv: hlist.Length[T]) =
+//      fromTypedTableComprehension(typedComp.flatMap(f))
+//
+//    def map[T <: HList](f: (Rep[Tup[H]]) => Rep[Tup[T]])(implicit lenEnv: hlist.Length[T]) =
+//      fromTypedTableComprehension(typedComp.map(f))
+//
+////    val withFilter: ((Rep[Tup[Nothing]]) => Rep[Boolean]) => ProjectedTypedTableComprehensions[H] = _
+//    //TODO implement withfilter
+//
+//    override val tree: TTree = query
+//  }
 
 //  class UntypedOptimizerComprehensions(override val tree: Expression) extends Rep[UntypedTable] { self =>
 //    def by(field: Symbol): Rep[UntypedTable] = new Rep[UntypedTable] {

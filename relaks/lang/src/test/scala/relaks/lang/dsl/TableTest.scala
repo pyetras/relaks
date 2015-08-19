@@ -181,6 +181,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         val q = a(('ax.is[Int], 'ay.is[Int])) map { (xy: Row2[Int, Int]) =>
           (xy(0), xy(1))
         } orderBy Tuple1('x0)
+
         val r = q.filter(Tuple1('x1.is[Int]))({(iter: Row[Int]) => iter(0) <= 10})
 
         val transformed = buildComprehensions(r.tree).get
