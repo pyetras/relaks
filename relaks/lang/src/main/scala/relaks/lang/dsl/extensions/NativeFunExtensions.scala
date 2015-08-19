@@ -67,6 +67,10 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
 
   trait Productized[H <: HList, R] {
     def apply(h: H): R
+
+    def pure[Arg <: HList, T](implicit converter: Converter.Aux[R, T],
+                              fnFromProduct: FnFromProduct[H => Expression],
+                              mapper: Mapper.Aux[translate.type, H, Arg]) = to(this)
   }
 
   implicit def productize[F, H <: HList, R](f: F)(implicit fnToProduct: FnToProduct.Aux[F, H => R]) = new Productized[H, R] {
@@ -74,11 +78,9 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
   }
 
   //seems that the compiler has problem inferring R: NotLifted, thus the productized object (one less jump)
-  def to[F, H <: HList, R, Arg <: HList, T](f: Productized[H, R])(implicit
+  def to[H <: HList, R, Arg <: HList, T](f: Productized[H, R])(implicit
                                                   converter: Converter.Aux[R, T], fnFromProduct: FnFromProduct[H => Expression],
                                                   mapper: Mapper.Aux[translate.type, H, Arg]) =
     new CallWord[T, Arg](fnFromProduct((x: H) => converter.apply(f(x)).tree), converter.typ)
-
-  def to2[F, H <: HList, R: NotLifted, Arg <: HList, T](f: F)(implicit fnToProduct: FnToProduct.Aux[F, H => R]) = null
 
 }

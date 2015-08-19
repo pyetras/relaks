@@ -47,7 +47,7 @@ class DrillInterpreterTest extends FunSpec with Matchers with Inside {
         }
 
         val b : CallWord[collection.mutable.Buffer[impl.Row], TypedTable[Tup[String :: Int :: HNil]] :: HNil] = to(f _) //apply tupleToRep(Tuple1(a))
-        val c = b apply(Tuple1(a))
+        val c = (f _).pure.apply(Tuple1(a))
         val result = evalExpression(buildComprehensions(c.tree).get)
 
         result should equal(buffer)
