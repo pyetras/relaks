@@ -74,7 +74,7 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
     /**
      * Static (compile time) getter
      */
-    def apply(i: Nat)(implicit toInt: ToInt[i.N], at: At[B1, i.N]) : Rep[at.Out] = extract[at.Out](toInt())
+    def apply[T](i: Nat)(implicit toInt: ToInt[i.N], at: At.Aux[B1, i.N, T]) : Rep[T] = extract[T](toInt())
 
     /**
      * Dynamic (runtime) getter
@@ -194,6 +194,28 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
   implicit def singleFieldToRep[K, V, Out <: HList](field: FieldType[K, V])
                                                    (implicit lttr: LabelledTupleToRep.Aux[FieldType[K, V] :: HNil, Out]): Rep[Tup[Out]] =
     lttr(new LabelledTuple(field :: HNil))
+
+  trait AsTuple[T] {
+    type Out <: HList
+    def apply(r: Rep[T]): Rep[Tup[Out]]
+  }
+
+  object AsTuple {
+    type Aux[T, O <: HList] = AsTuple[T] { type Out = O }
+    def apply[T](implicit asTuple: AsTuple[T]): Aux[T, asTuple.Out] = asTuple
+    implicit def repToTuple[T](implicit ev: T =:!= Tup[_]): Aux[T, T :: HNil] = new AsTuple[T] {
+      override type Out = T :: HNil
+      override def apply(r: Rep[T]): Rep[Tup[Out]] = new Rep[Tup[T :: HNil]] {
+        override val tree: TTree = TupleConstructor(Vector(r.tree))
+      }
+    }
+
+    implicit def tupleNoOp[H <: HList]: Aux[Tup[H], H] = new AsTuple[Tup[H]] {
+      override type Out = H
+      override def apply(r: Rep[Tup[H]]): Rep[Tup[H]] = r
+    }
+  }
+
 
 }
 

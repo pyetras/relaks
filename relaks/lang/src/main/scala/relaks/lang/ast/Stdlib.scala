@@ -22,6 +22,8 @@ trait Stdlib {
     val && = Operator("&&")
     val at = Operator("[")
 
+    val list_map = Operator("list_map")
+
     object CmpOp {
       def unapply(expression: Expression) = expression match {
         case Stdlib.< => expression.some

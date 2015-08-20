@@ -80,12 +80,18 @@ object TupleConstructor {
 
 object TupleWithNames {
   import scalaz.Scalaz._
+  import scalaz._
   def unapply(expr: Expression): Option[(Vector[Expression], Vector[String])] = expr match {
     case t: TupleConstructor => Some((t.tuple, t.names))
     case _ => None
   }
   def unapplyWithTypes(row: Expression): Option[Vector[(String, TType)]] = unapply(row)
     .map(_.zipped.map { case (expr, name) => (name, expr.tpe)})
+
+  private val toFields = { namesTypes: Vector[(String, TType)] =>
+    namesTypes.map { case (x, y) => Field(Symbol(x), y) } }
+
+  def unapplyFields = (unapplyWithTypes _) andThen toFields.lift
 }
 
 sealed trait NondetGenerator extends Expression {

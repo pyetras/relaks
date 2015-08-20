@@ -122,7 +122,7 @@ trait QueryRewritingPhases extends LazyLogging with Symbols with Queries with Ta
   }
 
 
-  def buildComprehensions = {
+  def buildComprehensions: Expression => Option[Expression] = {
     def buildComprehensionsImpl: Expression ==> Atom = {
       case Some(sym) /> _ if ComprehensionBuilder.comprehension(sym).nonEmpty =>
         ComprehensionBuilder.comprehension(sym).get

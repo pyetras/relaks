@@ -2,6 +2,7 @@ package relaks.lang.phases.interpreter
 
 import java.sql.Statement
 
+import org.kiama.==>
 import relaks.lang.ast.Expression
 import relaks.lang.dsl.extensions.ast.logical.QueryOp.QueryOp
 import relaks.lang.dsl.extensions.ast.logical.QueryOp.QueryOp
@@ -140,15 +141,5 @@ trait DrillInterpreter extends ComprehensionInterpreter {
       }
   }
 
-  val operatorsProcess: PartialFunction[Expression, Process1[impl.Row, impl.Row]] = {
-    case _/> SelectComprehension(_, _, _, _, _, seq) =>
-      seq.foldl(process1.id[impl.Row])(acc => op => acc |> evalQuery(op))
-  }
-
-  private val generatorPlusOps = {
-    val id = implicitly[Arrow[PartialFunction]].id[Expression]
-    (id &&& id) >>> rowsProcess *** operatorsProcess >>> { case (generator, ops) => generator |> ops }
-  }
-
-  override protected[lang] def evalComprehensionPartial = generatorPlusOps orElse super.evalComprehensionPartial
+  override protected[lang] def evalComprehensionPartial = generatorPlusOps(rowsProcess) orElse super.evalComprehensionPartial
 }

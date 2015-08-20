@@ -26,7 +26,7 @@ trait DSL
   with TableExtensions
 
 
-trait DSLInterpreter extends DSL with QueryOpInterpreter with NativeInterpreter with StdOpInterpreter
+trait DSLInterpreter extends DSL with QueryOpInterpreter with NativeInterpreter with StdOpInterpreter with ListInterpreter
 
 abstract class DSLOptimizerInterpreter(optimizer: BaseOptimizer = GridOptimizer) extends OptimizationInterpreter(optimizer)
   with DSLInterpreter
