@@ -83,4 +83,9 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
                                                   mapper: Mapper.Aux[translate.type, H, Arg]) =
     new CallWord[T, Arg](fnFromProduct((x: H) => converter.apply(f(x)).tree), converter.typ)
 
+  class RepMap[T, A](arg: Rep[T])(implicit mapper: Mapper.Aux[translate.type, T :: HNil, A :: HNil]) {
+    def map[B, R](f: A => B)(implicit converter: Converter.Aux[B, R]): Rep[R] = new Rep[R] {
+      override val tree: Expression = ApplyNative((x: A) => converter.apply(f(x)).tree, TupleConstructor(Vector(arg.tree)))
+    }
+  }
 }

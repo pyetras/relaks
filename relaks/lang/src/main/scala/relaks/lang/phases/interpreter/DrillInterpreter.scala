@@ -87,7 +87,8 @@ trait DrillInterpreter extends ComprehensionInterpreter {
       val projectSet = initialOps(seq)
       assert(projectSet.map(_._1).size == projectSet.size, "multiple fields of different types currently not supported") //TODO
 
-      val projection = toProjection(projectSet)
+      val projectL = projectSet.toSeq
+      val projection = toProjection(projectL)
 
       val query = s"SELECT ${projection} FROM dfs.`${path}`"
 
@@ -125,10 +126,10 @@ trait DrillInterpreter extends ComprehensionInterpreter {
       }
 
       if (projection != "*"){
-        val schema = projectSet.toVector.map(x => x._1.name -> x._2)
+        val schema = projectL.map(x => x._1.name -> x._2).toVector
         rows |> process1.lift { wrs =>
           logger.debug("got drill row")
-          new impl.Row((1 to projectSet.size).map(i => wrs.any(i)).toVector, schema)
+          new impl.Row((1 to projectL.size).map(i => wrs.any(i)).toVector, schema)
         }
       } else {
         rows |> process1.lift { wrs =>
@@ -140,6 +141,7 @@ trait DrillInterpreter extends ComprehensionInterpreter {
         }
       }
   }
+
 
   override protected[lang] def evalComprehensionPartial = generatorPlusOps(rowsProcess) orElse super.evalComprehensionPartial
 }

@@ -39,4 +39,8 @@ trait TypedSymbols {
     def is[T: ArgType] = new TypedField[T](sym, implicitly[ArgType[T]])
     def ::[T: ArgType] = is[T]
   }
+
+  implicit class TypedString(str: String) {
+    def ::[T: ArgType] = Symbol(str).is[T]
+  }
 }
