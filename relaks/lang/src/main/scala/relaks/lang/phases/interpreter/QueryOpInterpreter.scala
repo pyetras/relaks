@@ -19,7 +19,7 @@ trait QueryOpInterpreter extends BaseQueryOpInterpreter with Queries with BaseEx
 
   private def inEnv[T](gen: Generator)(f: => T)(inputRow: Row) = {
     push(gen.symsToFields
-      .map {case (sym, name) => (sym, new Literal(inputRow(name.name))(sym.tpe)) })
+      .map {case (sym, name) => (sym, new Literal(inputRow.get(sym.tpe.asInstanceOf[ArgType[_]])(name.name))(sym.tpe)) })
     val result = f
     pop()
     result

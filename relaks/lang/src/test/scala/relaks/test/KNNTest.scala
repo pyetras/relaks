@@ -3,7 +3,7 @@ package relaks.test
 import breeze.linalg.{Vector, norm, zipValues}
 import breeze.math.Ring
 import breeze.numerics._
-import org.scalatest.{FunSpec, Inside, Matchers}
+import org.scalatest.{Tag, FunSpec, Inside, Matchers}
 import relaks.lang.ast.{Tup, UntypedTup}
 import relaks.lang.dsl.extensions.ast.logical.{Comprehension, ComprehensionPrinters}
 import relaks.lang.dsl.{DSLOptimizerInterpreter, Rep}
@@ -11,6 +11,7 @@ import relaks.lang.impl.TableImpl
 import relaks.lang.phases.interpreter.{DrillInterpreter, ListComprehensionInterpreter}
 import relaks.lib.mtree.{DistanceFunction, MTree}
 import relaks.optimizer.SpearmintOptimizer
+import relaks.lang.impl
 import shapeless._
 
 /**
@@ -18,7 +19,7 @@ import shapeless._
  */
 class KNNTest extends FunSpec with Matchers with Inside {
   describe("knn experiment") {
-    it("should work") {
+    it("should work", Tag("relaks.Integration")) {
       object Program extends DSLOptimizerInterpreter(SpearmintOptimizer) with DrillInterpreter with ListComprehensionInterpreter with ComprehensionPrinters
       import Program._
 
@@ -58,11 +59,11 @@ class KNNTest extends FunSpec with Matchers with Inside {
 //        "columns[1]".::[Double], "columns[2]".::[Double], "columns[3]".::[Double], "columns[4]".::[Double], "columns[5]".::[Double],
 //        "columns[6]".::[Double], "columns[7]".::[Double], "columns[8]".::[Double], "columns[9]".::[Double],
 //        "columns[10]".::[Int], "columns[11]".::[Int])*/
-      val res = ds/*.filter(Tuple1("columns[11]".::[Int]))( (row:Row[Int]) =>
+      val res = ds.filter(Tuple1("columns[11]".::[Int]))( (row:Row[Int]) =>
         row(0) > 1
-      )*/.map((row: Rep[UntypedTup]) =>
-        row.liftMap(rowi => {
-          (rowi[Double](0 to 9).asRep as 'fetaures, 1 as 'class)
+      ).map((row: Rep[UntypedTup]) =>
+        row.liftMap((rowi:impl.UntypedRow) => {
+          (rowi[Double](0 to 9).asRep as 'fetaures, rowi.get[Int](10) as 'class)
 //          (Vector(1.0, 2.0).asRep as 'fetures, 1 as 'class)
         })
         )

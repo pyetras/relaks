@@ -1,5 +1,6 @@
 package relaks.lang.dsl
 
+import com.twitter.bijection.Injection
 import relaks.lang.ast._
 import relaks.lang.dsl.utils._
 import shapeless.ops.hlist.Length
@@ -8,6 +9,7 @@ import shapeless.{<:!<, HList, Nat}
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
+import scala.util.Try
 
 
 import scalaz.Order
@@ -30,7 +32,8 @@ trait ScalaTypeImplis {
   implicit def notNotA[A](implicit liftedArgType: LiftedArgType[A]) = new NotLifted[A] {} //adds ambiguity
 
 //  implicit def otherType[T: WeakTypeTag](implicit notLifted: NotLifted[T]): NativeArgType[T] = new NativeArgType[T]
-  implicit def otherType[T: WeakTypeTag](implicit lifted: LiftedArgType[T] = null, order: Order[T] = null): ArgType[T] = if (lifted != null) lifted else new NativeArgType[T]
+  implicit val inj = Injection.build[String, Null](x => null)(x => Try("(null)"))
+  implicit def otherType[T: WeakTypeTag](implicit lifted: LiftedArgType[T] = null, order: Order[T] = null, toText: Injection[T, String] = null): ArgType[T] = if (lifted != null) lifted else new NativeArgType[T]
 
   def listType[T: WeakTypeTag](implicit typ: ArgType[T]): ListType[T] = new ListType[T]
 

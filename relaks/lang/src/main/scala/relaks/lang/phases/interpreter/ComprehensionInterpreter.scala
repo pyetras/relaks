@@ -6,7 +6,7 @@ import relaks.lang.ast.{ListType, TableFromList, Literal, Expression}
 import relaks.lang.dsl.extensions.ast.Symbols
 import relaks.lang.dsl.extensions.ast.logical.{LoadComprehension, SelectComprehension, QueryOp}
 import relaks.lang.dsl.extensions.{ListInterpreter, ListExtensions, TupleInterpreter, TableIO}
-import relaks.lang.impl.{Schema, TableImpl, Row}
+import relaks.lang.impl.{VectorRow, Schema, TableImpl, Row}
 import relaks.lang.phases.rewriting.QueryRewritingPhases
 import relaks.lang.impl
 import relaks.optimizer.OptimizerError
@@ -83,11 +83,11 @@ trait ListComprehensionInterpreter extends ComprehensionInterpreter with ListInt
   private def rowsFromList: Expression ==> Process[Task, Row] = {
     case _/>SelectComprehension(LoadComprehension(TableFromList(listExpr)), _ +: _, _, _, _, _) =>
       val lst = evalListExpression(listExpr)
-      val schema = Vector(("x0", listExpr.tpe.asInstanceOf[ListType[Any]].childType))
+      val schema = Schema(Vector(("x0", listExpr.tpe.asInstanceOf[ListType[Any]].childType)))
 
       //TODO rewrite this as an agent? writer?
       lst.foldRight(Process.empty[Task, Any])(x => acc => Process.emit(x) ++ acc) |> process1.lift { x =>
-        new Row(Vector(x), Schema(schema))
+        new VectorRow(Vector(x), schema)
       }
   }
 

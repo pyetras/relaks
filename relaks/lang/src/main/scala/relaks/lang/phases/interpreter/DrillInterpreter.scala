@@ -10,7 +10,7 @@ import relaks.lang.dsl.extensions.ast.logical.QueryOp.QueryOp
 import relaks.lang.dsl.extensions.ast.logical.QueryOp.QueryOp
 import relaks.lang.dsl.extensions.ast.logical.{QueryOp, LoadComprehension, SelectComprehension}
 import relaks.lang.dsl.extensions.{TupleInterpreter, SuperPosAnalysis}
-import relaks.lang.impl.{Schema, Row}
+import relaks.lang.impl.{VectorRow, CsvAllRow, Schema, Row}
 import relaks.lang.phases.rewriting.QueryRewritingPhases
 import relaks.optimizer.NondetParams
 import relaks.lang.impl
@@ -135,13 +135,13 @@ trait DrillInterpreter extends ComprehensionInterpreter {
         val schema = Schema(projectL.map(x => x._1.name -> x._2).toVector)
         rows |> process1.lift { wrs =>
           logger.debug("got drill row")
-          new impl.Row((1 to projectL.size).map(i => wrs.any(i)).toVector, schema)
+          new VectorRow((1 to projectL.size).map(i => wrs.any(i)).toVector, schema)
         }
       } else {
         rows |> process1.lift { wrs =>
           val array = wrs.any(1).asInstanceOf[JsonStringArrayList[Text]]
-          val (vals, schema) = (0 until array.size()).map(i => array.get(i).toString -> (s"columns[$i]" -> ScalaTypes.stringType)).toVector.unzip
-          new impl.Row(vals, Schema(schema))
+          val vals = (0 until array.size()).map(i => array.get(i).toString).toVector
+          new CsvAllRow(vals, array.size())
         }
       }
   }

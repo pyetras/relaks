@@ -1,6 +1,7 @@
 package relaks.lang.ast
 
 import breeze.math
+import com.twitter.bijection.Injection
 import relaks.lang.dsl.utils.TupleLU
 import shapeless.nat._
 import shapeless.ops.hlist.Length
@@ -23,7 +24,7 @@ sealed trait TType {
 }
 trait NumType
 
-sealed abstract class ArgType[T: WeakTypeTag](implicit val order: Order[T] = null) extends TType { self =>
+sealed abstract class ArgType[T: WeakTypeTag](implicit val order: Order[T] = null, val toText: Injection[T, String] = null) extends TType { self =>
   override def toString = s"$containerName[$typeArgName]"
 
   override lazy val ct = implicitly[WeakTypeTag[T]]
@@ -41,7 +42,7 @@ sealed abstract class ArgType[T: WeakTypeTag](implicit val order: Order[T] = nul
   override def equals(obj: scala.Any): Boolean = canEqual(obj) && obj.asInstanceOf[ArgType[_]].ct.tpe =:= ct.tpe
 }
 
-sealed class NativeArgType[T: WeakTypeTag](override implicit val order: Order[T] = null) extends ArgType[T]
+sealed class NativeArgType[T: WeakTypeTag](override implicit val order: Order[T] = null, override implicit val toText: Injection[T, String] = null) extends ArgType[T]
 
 sealed class LiftedArgType[T: WeakTypeTag] extends ArgType[T] //represents types explicitly lifted to reps
 
@@ -63,8 +64,7 @@ final class TupType[T <: HList : WeakTypeTag](val length: Int, val lowerBound: T
 }
 
 object TupType {
-  def fromElements[T <: HList : WeakTypeTag](exprs: Vector[Expression]): TupType[T] =
-    new TupType[T](exprs.size, ScalaTypes.anyType /*TODO*/, exprs.map(_.tpe))
+  def fromElements[T <: HList : WeakTypeTag](exprs: Vector[Expression]): TupType[T] = new TupType[T](exprs.size, ScalaTypes.anyType /*TODO*/, exprs.map(_.tpe))
 }
 
 sealed trait Table
@@ -87,9 +87,9 @@ sealed abstract class TypedTableType[T <: HList : TypeTag] extends LiftedArgType
 
 sealed abstract class SimpleArgType[T: ClassTag] extends LiftedArgType[T]
 
-sealed class ScalaType[T: ClassTag](override implicit val order: Order[T] = null) extends SimpleArgType[T]
+sealed class ScalaType[T: ClassTag](override implicit val order: Order[T] = null, override implicit val toText: Injection[T, String] = null) extends SimpleArgType[T]
 
-class ScalaNumType[T : ClassTag : Order](implicit val field: math.Field[T]) extends ScalaType[T] with NumType
+class ScalaNumType[T : ClassTag : Order](implicit val field: math.Field[T], override implicit val toText: Injection[T, String]) extends ScalaType[T] with NumType
 
 object UnknownType extends TType {
   override val ct: WeakTypeTag[_] = null

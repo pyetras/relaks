@@ -7,7 +7,7 @@ import relaks.lang.dsl.AST._
 import relaks.lang.dsl._
 import relaks.lang.dsl.extensions.ast.Symbols
 import relaks.lang.dsl.utils.{NamesToStrings, FillNat, TupleLU, UnliftType}
-import relaks.lang.impl.{Schema, Row}
+import relaks.lang.impl.{VectorRow, Schema, Row}
 import relaks.lang.phases.interpreter.BaseExprInterpreter
 import shapeless._
 import shapeless.labelled.FieldType
@@ -99,8 +99,6 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
       }
     }
   }
-
-//  implicit def tupleToTupleOps[H <: HList](p: Rep[Tup[H]]): TupleOperations[H] = new TupleOperations[H](p)
 
   /**
    * this will lift any type T to a Rep[T]
@@ -246,7 +244,7 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
 trait TupleInterpreter extends BaseExprInterpreter with Symbols {
   def evalTupleExpression: PartialFunction[Expression, Row] = {
     case _/>(tup: TupleConstructor) =>
-      new Row(tup.tuple.map(evalExpression), Schema(tup.names zip tup.tpe.asInstanceOf[TupType[_]].childrenTypes)) //TODO cache schema somewhere
+      new VectorRow(tup.tuple.map(evalExpression), Schema(tup.names zip tup.tpe.asInstanceOf[TupType[_]].childrenTypes)) //TODO cache schema somewhere
   }
 
   override def evalExpression(expr: Expression): Any = evalTupleExpression.applyOrElse(expr, super.evalExpression)
