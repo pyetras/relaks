@@ -117,6 +117,8 @@ trait Queries extends Symbols with ToTypedTreeOps with TypedSymbols {
     }
   }
 
+  case class EmptyGenerator(row: Sym) extends Generator(Map.empty[Sym, Symbol])
+
   object GenPlusFilter {
     def unapply(opt: Option[(GeneratorBase, Atom)]) = for {
       (g: Generator, filter) <- opt

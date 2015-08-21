@@ -44,6 +44,7 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
     implicit def not[X, Y]: Not[Case[X, Y]] = new Not[Case[X, Y]]
 
     implicit def notNot[X, Y](implicit c: Case[_, Y]): Not[Case[X, Y]] = new Not[Case[X, Y]]
+    implicit def notNot2[X, Y](implicit c: Case[X, _]): Not[Case[X, Y]] = new Not[Case[X, Y]]
 
     class Case[X, Y]
 
@@ -52,7 +53,10 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
 
     implicit def typedTableTranslation[H <: HList] = new Case[TypedTable[Tup[H]], TypedTableImpl[H]]
 
-    implicit val rowTranslation = new Case[Tup[_], impl.Row]
+    implicit val rowTranslation = new Case[Tupl, impl.Row]
+    implicit val untypedRowTranslation = new Case[UntypedTup, impl.UntypedRow]
+
+//    implicit def notUnfinishedGenTranslation = new Case[Nothing, U]
   }
 //  object translate extends Poly1 {
 //    class HasTranslation[T, X]
@@ -77,18 +81,21 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
     }
   }
 
-  trait Converter[R] {
+  trait Converter[-R] {
     type Out
     val typ: TType
     def apply(r: R): Rep[Out]
   }
 
-  trait UnliftedConverter[R] extends Converter[R]
-
   object Converter {
-    type Aux[R, T] = Converter[R] { type Out = T }
-    type Aux2[R, T] = UnliftedConverter[R] { type Out = T }
+    type Aux[-R, T] = Converter[R] { type Out = T }
     def apply[R](implicit converter: Converter[R]): Aux[R, converter.Out] = converter
+
+    implicit def conv0[T: ArgType]: Aux[Rep[T], T] = new Converter[Rep[T]] {
+      override type Out = T
+      override def apply(r: Rep[T]): Rep[T] = r
+      override val typ: TType = implicitly[ArgType[T]]
+    }
 
     implicit def conv1[R, T](implicit fn: R => Rep[T], argType: ArgType[T]): Aux[R, T] =
       new Converter[R] {
@@ -123,9 +130,10 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
                                                   translation: Translation.Aux[H, Arg]) =
     new CallWord[T, Arg](fnFromProduct((x: H) => converter.apply(f(x)).tree), converter.typ)
 
-  implicit class RepMap[T, A](arg: Rep[T])(implicit translation: Translation.Aux[T :: HNil, A :: HNil]) {
-    def map[B, R](f: A => B)(implicit converter: Converter.Aux[B, R]): Rep[R] = new Rep[R] {
-      override val tree: Expression = ApplyNative((x: A) => converter.apply(f(x)).tree, TupleConstructor(Vector(arg.tree)))
-    }
+  implicit class RepMap[T, A](arg: Rep[T])(implicit translation: Translation.Aux[A :: HNil, T :: HNil]) {
+    def liftMap[B, R](f: A => B)(implicit converter: Converter.Aux[B, R]): Rep[R] =
+      new Rep[R] {
+        override val tree: Expression = ApplyNative((x: A) => converter.apply(f(x)).tree, TupleConstructor(Vector(arg.tree)))
+      }
   }
 }

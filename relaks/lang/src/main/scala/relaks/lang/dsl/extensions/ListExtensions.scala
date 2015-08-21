@@ -21,25 +21,25 @@ import scala.reflect.ClassTag
 trait ListExtensions extends AnyExtensions with ASTSyntax with Symbols with TableExtensions with TupleExtensions {
 
   object List {
-    def apply[T](xs: Rep[T]*)(implicit typ: ListType[T]) : Rep[List[T]] = {
-      val t: Atom = ListConstructor(xs.map(_.tree))(typ)
+    def apply[T: ArgType](xs: Rep[T]*) : Rep[List[T]] = {
+      val t: Atom = ListConstructor(xs.map(_.tree))(new ListType[T])
       new Rep[List[T]] {
         override val tree: Expression = t
       }
     }
   }
 
-  implicit def listToRep[T: ClassTag](list: List[T])(implicit tpe: ListType[T]): Rep[List[T]] = new Rep[List[T]] {
-    override val tree: Atom = new Literal(list)(tpe) //Literal is atom
+  implicit def listToRep[T: ArgType](list: List[T]): Rep[List[T]] = new Rep[List[T]] {
+    override val tree: Atom = new Literal(list)(new ListType[T]) //Literal is atom
   }
 
-  class ListOperations[T: ListType](arg1: Rep[List[T]]) {
-    def map[F: ListType](f: Rep[T => F]): Rep[List[F]] = new Rep[List[F]] {
-      override val tree = relaks.lang.ast.Apply(Stdlib.list_map, scala.List(arg1.tree, f.tree))(implicitly[ListType[F]])
+  class ListOperations[T: ArgType](arg1: Rep[List[T]]) {
+    def map[F: ArgType](f: Rep[T => F]): Rep[List[F]] = new Rep[List[F]] {
+      override val tree = relaks.lang.ast.Apply(Stdlib.list_map, scala.List(arg1.tree, f.tree))(new ListType[F])
     }
 
-    def asTable[H <: HList](implicit asTuple: AsTuple.Aux[T, H], listType: ListType[Tup[H]], mkCmp: BuildComprehension[TableRep[H], TableRep[H]]): Rep[TypedTable[Tup[H]]] = {
-      val generator = Generator.fromFields(Vector(Field('x0, implicitly[ListType[T]].childType)))
+    def asTable[H <: HList](implicit asTuple: AsTuple.Aux[T, H], mkCmp: BuildComprehension[TableRep[H], TableRep[H]]): Rep[TypedTable[Tup[H]]] = {
+      val generator = Generator.fromFields(Vector(Field('x0, implicitly[ArgType[T]])))
       val fnarg = generator.toTuple[T :: HNil](0)
       val transform = Transform(generator, TableFromList(arg1.tree), RowRep(asTuple(fnarg)).tree) //TODO change this to a list map when fn representations are available
       mkCmp(transform)
@@ -47,7 +47,7 @@ trait ListExtensions extends AnyExtensions with ASTSyntax with Symbols with Tabl
 
   }
 
-  implicit def listToListOps[T: ListType](l: Rep[List[T]]): ListOperations[T] = new ListOperations[T](l)
+  implicit def listToListOps[T: ArgType](l: Rep[List[T]]): ListOperations[T] = new ListOperations[T](l)
 }
 
 trait ListInterpreter extends BaseExprInterpreter {

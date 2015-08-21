@@ -6,9 +6,10 @@ import relaks.lang.ast.{ListType, TableFromList, Literal, Expression}
 import relaks.lang.dsl.extensions.ast.Symbols
 import relaks.lang.dsl.extensions.ast.logical.{LoadComprehension, SelectComprehension, QueryOp}
 import relaks.lang.dsl.extensions.{ListInterpreter, ListExtensions, TupleInterpreter, TableIO}
-import relaks.lang.impl.{TableImpl, Row}
+import relaks.lang.impl.{Schema, TableImpl, Row}
 import relaks.lang.phases.rewriting.QueryRewritingPhases
 import relaks.lang.impl
+import relaks.optimizer.OptimizerError
 
 import scalaz._
 import Scalaz._
@@ -37,7 +38,10 @@ trait ComprehensionInterpreter
     val rowsWithError = stream
       .observe(sink.lift(r => Task.now(logger.info(s"Got row: $r"))))
       .map((r: impl.Row) => scala.List(r)).scanMonoid //collect partial results in a grid
-      .attempt[Task, Throwable]() //emit an error
+      .attempt[Task, Throwable]({
+        case t: OptimizerError => Process.emit(t)
+        case e => throw e
+      }) //emit an error
       .zipWithPrevious.collect {
         case (_, \/-(rows)) => (rows, none[Throwable])
         case (Some(\/-(rows)), -\/(throwable)) => (rows, throwable.some)
@@ -83,7 +87,7 @@ trait ListComprehensionInterpreter extends ComprehensionInterpreter with ListInt
 
       //TODO rewrite this as an agent? writer?
       lst.foldRight(Process.empty[Task, Any])(x => acc => Process.emit(x) ++ acc) |> process1.lift { x =>
-        new Row(Vector(x), schema)
+        new Row(Vector(x), Schema(schema))
       }
   }
 

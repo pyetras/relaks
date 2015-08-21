@@ -7,7 +7,7 @@ import relaks.lang.dsl.AST._
 import relaks.lang.dsl._
 import relaks.lang.dsl.extensions.ast.Symbols
 import relaks.lang.dsl.utils.{NamesToStrings, FillNat, TupleLU, UnliftType}
-import relaks.lang.impl.Row
+import relaks.lang.impl.{Schema, Row}
 import relaks.lang.phases.interpreter.BaseExprInterpreter
 import shapeless._
 import shapeless.labelled.FieldType
@@ -24,7 +24,7 @@ import scalaz.Tag
  * Created by Pietras on 16/04/15.
  */
 
-trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with LabelledTuples {
+trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with LabelledTuples with NativeFunExtensions {
 
   object Tup {
 
@@ -32,7 +32,7 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
      * Functor for mapping HList of type (Nat, Rep[Tup[_] ]) to a proper Rep[_]
       */
     private object toReps extends Poly1 {
-      implicit def f[N <: Nat, T<:HList](implicit att: At[T, N], toInt: ToInt[N]) =
+      implicit def f[N <: Nat, T <: HList](implicit att: At[T, N], toInt: ToInt[N]) =
         at[(N, Rep[Tup[T]])](t => t._2.extract[att.Out](toInt()))
     }
 
@@ -61,7 +61,7 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
     }
   }
 
-  class TupleOperations[B1 <: HList](val arg1: Rep[Tup[B1]]) {
+  implicit class TupleOperations[B1 <: HList](val arg1: Rep[Tup[B1]]) {
     lazy val (luType, productTypes) = arg1.getTpe match {
       case t: TupType[B1] => (t.lowerBound, t.childrenTypes)
       case _ => (UnknownType, new Seq[TType]{
@@ -100,15 +100,16 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
     }
   }
 
-  implicit def tupleToTupleOps[H <: HList](p: Rep[Tup[H]]): TupleOperations[H] = new TupleOperations[H](p)
+//  implicit def tupleToTupleOps[H <: HList](p: Rep[Tup[H]]): TupleOperations[H] = new TupleOperations[H](p)
 
   /**
    * this will lift any type T to a Rep[T]
     */
-  private object asRep extends Poly1 {
+  object asRep extends Poly1 {
     implicit def lifted[T <: Rep[_]] = at[T](x => x)
     implicit def unlifted[T: ArgType](implicit c: T => Rep[T]) = at[T](x => c(x))
   }
+
 
   trait HListToNode[L <: HList] {
     type Out <: HList
@@ -134,15 +135,6 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
       }
   }
 
-  def tupleToRep2[P <: Product, H <: HList, R <: HList, LU, Mapped <: HList](p: P)
-                                                               (implicit ev: Generic.Aux[P, H],
-                                                                tev: IsTuple[P], ul: UnliftType.Aux[H, Rep, R],
-                                                                evlu: TupleLU[R, LU],
-                                                                typC: TupTypeConstructor[R],
-                                                                mapper: Mapper.Aux[asRep.type, H, Mapped],
-                                                                traversable: ToTraversable.Aux[Mapped, List, Rep[_]]) = null
-
-
   implicit def tupleToRep[P <: Product, H <: HList, R <: HList](p: P)
                                                                (implicit ev: Generic.Aux[P, H],
                                                                 tev: IsTuple[P], toNode: HListToNode.Aux[H, R]): Rep[Tup[R]] = {
@@ -152,6 +144,24 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
       override val tree: Expression = TupleConstructor(exprs)(typ)
     }
   }
+
+  implicit def tupleToRepConverter[P <: Product, H <: HList, R <: HList]
+                                                               (implicit ev: Generic.Aux[P, H],
+                                                                tev: IsTuple[P], toNode: HListToNode.Aux[H, R]): Converter.Aux[P, Tup[R]] = {
+
+    new Converter[P] {
+      override type Out = Tup[R]
+      override def apply(r: P): Rep[Out] = {
+        val hlist = ev.to(r)
+        val (exprs, ty) = toNode(hlist)
+        new Rep[Tup[R]] {
+          override val tree: Expression = TupleConstructor(exprs)(ty)
+        }
+      }
+      override val typ: TType = UnknownType
+    }
+  }
+
 
   trait LabelledTupleToRep[R <: HList] {
     type Out <: HList
@@ -187,9 +197,23 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
 
   implicit def tupleWithLabelsToRep[P <: Product, L <: HList, R <: HList, Out <: HList](tup: P)(implicit ev1: IsTuple[P],
                                                                      toHlist: Generic.Aux[P, L],
-                                                                     evR: Mapper[isRecord.type, L],
+                                                                     evR: Mapper[isField.type, L],
                                                                      lttr: LabelledTupleToRep.Aux[L, Out]): Rep[Tup[Out]] =
     lttr(new LabelledTuple(toHlist.to(tup)))
+
+  implicit def tupleWithLabelsToConverter[P <: Product, L <: HList, R <: HList, O <: HList](implicit ev1: IsTuple[P],
+                                                                                                toHlist: Generic.Aux[P, L],
+                                                                                                evR: Mapper[isField.type, L],
+                                                                                                lttr: LabelledTupleToRep.Aux[L, O]): Converter.Aux[P, Tup[O]] =
+    new Converter[P] {
+      override type Out = Tup[O]
+      override def apply(tup: P): Rep[Out] = lttr(new LabelledTuple(toHlist.to(tup)))
+      override val typ: TType = UnknownType
+    }
+
+
+
+
 
   implicit def singleFieldToRep[K, V, Out <: HList](field: FieldType[K, V])
                                                    (implicit lttr: LabelledTupleToRep.Aux[FieldType[K, V] :: HNil, Out]): Rep[Tup[Out]] =
@@ -222,7 +246,7 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
 trait TupleInterpreter extends BaseExprInterpreter with Symbols {
   def evalTupleExpression: PartialFunction[Expression, Row] = {
     case _/>(tup: TupleConstructor) =>
-      new Row(tup.tuple.map(evalExpression), tup.names zip tup.tpe.asInstanceOf[TupType[_]].childrenTypes)
+      new Row(tup.tuple.map(evalExpression), Schema(tup.names zip tup.tpe.asInstanceOf[TupType[_]].childrenTypes)) //TODO cache schema somewhere
   }
 
   override def evalExpression(expr: Expression): Any = evalTupleExpression.applyOrElse(expr, super.evalExpression)

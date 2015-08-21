@@ -40,7 +40,7 @@ trait LabelledTuples extends LabelledImplicitConversions {
     }
   }
 
-  object isRecord extends Poly1 {
+  object isField extends Poly1 {
     implicit def aField[K, V] = at[FieldType[K, V]](x => ???)
   }
 
@@ -54,7 +54,7 @@ class AnyAs[T](val t: T) extends AnyVal {
 trait LabelledImplicitConversions { this: LabelledTuples =>
   implicit def fromTupleWithLabels[P <: Product, L <: HList](tup: P)(implicit //ev1: IsTuple[P], TODO: ?
                                                                      toHlist: Generic.Aux[P, L],
-                                                                     evR: Mapper[isRecord.type, L]): LabelledTuple[L] =
+                                                                     evR: Mapper[isField.type, L]): LabelledTuple[L] =
     new LabelledTuple(toHlist.to(tup))
 
   implicit def fromSingleField[K, V](field: FieldType[K, V]): LabelledTuple[FieldType[K, V] :: HNil] = new LabelledTuple(field :: HNil)

@@ -1,5 +1,6 @@
 package relaks.lang.ast
 
+import relaks.lang.dsl.ScalaTypeImplis
 import relaks.optimizer.NondetParam
 import shapeless.HNil
 

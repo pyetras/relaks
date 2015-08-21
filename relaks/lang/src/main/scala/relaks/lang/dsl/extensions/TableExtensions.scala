@@ -150,6 +150,15 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
   TypedTableOps[H, OptimizerRep] =
     new TypedTableOps[H, OptimizerRep](arg)
 
+  implicit class UntypedTableOps[Out[_ <: HList]](arg: Rep[UntypedTable])(implicit mkCmp: BuildComprehensionTyped[_, TableRep[_], Out]){
+    def map[H <: HList](f: Rep[UntypedTup] => Rep[Tup[H]]): Out[H] = {
+      val fnarg = freshRep[UntypedTup](UnknownType)
+      val generator = EmptyGenerator(fnarg.tree.asInstanceOf[Sym])
+      val transform = Transform(generator, arg.tree, RowRep(f(fnarg)).tree)
+      mkCmp(transform)
+    }
+  }
+
   implicit class LimitComprehension[In <: Rep[Table], Out](arg: In)(implicit asCmp: BuildComprehension[In, Out]) {
     def limit(count: Rep[Int]) =
       asCmp(Limit(arg.tree, Literal(0), count.tree))
@@ -184,10 +193,8 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
   }
 
   abstract class ProjectionFilter[In <: Rep[Table], Out](arg: In)(implicit asCmp: BuildComprehension[In, Out]) extends TupleGeneratorImpl {
-    def filter[P <: Product, FL <: Nat, F <: HList](fields: P)(f: Rep[Tup[F]] => Rep[Boolean])(implicit //TODO this is bonkers
-                                                                                                 lenEv: tuple.Length.Aux[P, FL],
-                                                                                               lenEnv2: hlist.Length.Aux[F, FL],
-                                                                                               toVector: ToTraversable.Aux[P, Vector, Field]) = {
+    def filter[P <: Product, F <: HList](fields: P)(f: Rep[Tup[F]] => Rep[Boolean])(implicit tupEv: IsTuple[P],
+                                                                                    toVector: ToTraversable.Aux[P, Vector, Field]) = {
       val (generator, rep) = tupleGenerator(toVector(fields))
       val cond = f(rep).tree
       val filteredTable = Filter(generator, arg.tree, cond)

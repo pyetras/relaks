@@ -24,6 +24,12 @@ libraryDependencies += "org.scalanlp" %% "breeze" % "0.12-SNAPSHOT"
 
 libraryDependencies += "com.twitter" %% "algebird-core" % "0.11.0"
 
+libraryDependencies += "com.twitter" %% "bijection-core" % "0.8.1"
+
 libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.12.2" % "test"
 
 resolvers += "Concurrent Maven Repo" at "http://conjars.org/repo"
+
+scalacOptions += "-deprecation"
+
+//scalacOptions += "-Xlog-implicits"

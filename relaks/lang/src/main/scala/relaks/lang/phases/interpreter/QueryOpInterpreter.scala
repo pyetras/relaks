@@ -26,6 +26,14 @@ trait QueryOpInterpreter extends BaseQueryOpInterpreter with Queries with BaseEx
   }
 
   override def evalQuery(q: QueryOp): Process1[Row, Row] = q match {
+    case Transform(gen: EmptyGenerator, select) =>
+      process1.lift { (row: Row) =>
+        push(List(gen.row -> new Literal(row)))
+        val result = evalExpression(select).asInstanceOf[Row]
+        pop()
+        result
+      }
+
     case Transform(gen: Generator, select) => //TODO dodac cache dla row schema do wierzcholka Transform
       process1.lift(inEnv(gen) {
           evalExpression(select).asInstanceOf[Row]

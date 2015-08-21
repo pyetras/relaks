@@ -2,13 +2,15 @@ package relaks.lang.phases.interpreter
 
 import java.sql.Statement
 
+import local.org.apache.drill.exec.util.JsonStringArrayList
+import local.org.apache.hadoop.io.Text
 import org.kiama.==>
 import relaks.lang.ast.Expression
 import relaks.lang.dsl.extensions.ast.logical.QueryOp.QueryOp
 import relaks.lang.dsl.extensions.ast.logical.QueryOp.QueryOp
 import relaks.lang.dsl.extensions.ast.logical.{QueryOp, LoadComprehension, SelectComprehension}
 import relaks.lang.dsl.extensions.{TupleInterpreter, SuperPosAnalysis}
-import relaks.lang.impl.Row
+import relaks.lang.impl.{Schema, Row}
 import relaks.lang.phases.rewriting.QueryRewritingPhases
 import relaks.optimizer.NondetParams
 import relaks.lang.impl
@@ -47,12 +49,16 @@ trait DrillInterpreter extends ComprehensionInterpreter {
 
     val extract = (g: Generator) => g.symsToFields.iterator.map { case (sym, name) => name -> sym.tpe }
 
-    val generators = initial.collect {
+    val generators = initial.toStream.collect {
       case Transform(g: Generator, _) => extract(g)
       case Filter(g: Generator, _) => extract(g)
       case OrderBy(fields, _) => fields.map(f => f.field.sym -> f.field.typ)
     }
-    generators.foldLeft(Set.empty[(Symbol, TType)]){_ ++ _}
+
+    generators
+      .map(_.toSet)
+      .foldLeft1Opt((acc, gen) => acc.isEmpty ? acc | acc ++ gen) //return empty if first (transforms) generator is empty
+      .getOrElse(Set.empty)
   }
 
   private[lang] def makeCast(typ: TType): (Symbol => String) = {
@@ -126,18 +132,16 @@ trait DrillInterpreter extends ComprehensionInterpreter {
       }
 
       if (projection != "*"){
-        val schema = projectL.map(x => x._1.name -> x._2).toVector
+        val schema = Schema(projectL.map(x => x._1.name -> x._2).toVector)
         rows |> process1.lift { wrs =>
           logger.debug("got drill row")
           new impl.Row((1 to projectL.size).map(i => wrs.any(i)).toVector, schema)
         }
       } else {
         rows |> process1.lift { wrs =>
-          val row = wrs.array(0)
-          val rs = row.getResultSet
-          val ncols = rs.getMetaData.getColumnCount
-          val (vals, schema) = (1 to ncols).map(i => wrs.any(i) -> (s"columns[$i]" -> ScalaTypes.anyType)).toVector.unzip
-          new impl.Row(vals, schema)
+          val array = wrs.any(1).asInstanceOf[JsonStringArrayList[Text]]
+          val (vals, schema) = (0 until array.size()).map(i => array.get(i).toString -> (s"columns[$i]" -> ScalaTypes.stringType)).toVector.unzip
+          new impl.Row(vals, Schema(schema))
         }
       }
   }
