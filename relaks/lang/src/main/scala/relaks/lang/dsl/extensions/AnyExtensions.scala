@@ -19,7 +19,7 @@ trait AnyExtensions extends ASTSyntax with BoolExtensions {
 
     def !==(arg2: Rep[B1]) = arg1 != arg2
 
-    def ==(arg2: Rep[B1]): Rep[Boolean] = throw new NotImplementedError("You probably meant to use ===")
+    def ==(arg2: Rep[B1]): Rep[Nothing] = throw new NotImplementedError("You probably meant to use ===")
 
   }
 

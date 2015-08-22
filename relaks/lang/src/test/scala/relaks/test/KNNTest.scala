@@ -1,6 +1,7 @@
 package relaks.test
 
-import breeze.linalg.{Vector, norm, zipValues}
+import breeze.linalg._
+import breeze.linalg
 import breeze.math.Ring
 import breeze.numerics._
 import org.scalatest.{Tag, FunSpec, Inside, Matchers}
@@ -12,7 +13,7 @@ import relaks.lang.phases.interpreter.{DrillInterpreter, ListComprehensionInterp
 import relaks.lib.mtree.{DistanceFunction, MTree}
 import relaks.optimizer.SpearmintOptimizer
 import relaks.lang.impl
-import shapeless._
+import scala.collection.JavaConverters._
 
 /**
  * Created by Pietras on 09.08.15.
@@ -23,72 +24,64 @@ class KNNTest extends FunSpec with Matchers with Inside {
       object Program extends DSLOptimizerInterpreter(SpearmintOptimizer) with DrillInterpreter with ListComprehensionInterpreter with ComprehensionPrinters
       import Program._
 
-      def euclidDistance[T](implicit ring: Ring[T], sq: sqrt.Impl[T, Double]) = new DistanceFunction[Vector[T]] {
-        override def calculate(data1: Vector[T], data2: Vector[T]): Double = {
-          val diff = data1 - data2
-          sqrt(diff.dot(diff))
-        }
+      case class FeatureVec(features: Vector[Double], klass: Int)
+
+      def normDistance(n: Double) = new DistanceFunction[FeatureVec] {
+        override def calculate(data1: FeatureVec, data2: FeatureVec): Double = norm(data1.features - data2.features, n)
       }
 
-
-      def manhattanDistance[T : Numeric](implicit ring: Ring[T], n: norm.Impl2[Vector[T], Double, Double]) = new DistanceFunction[Vector[T]] {
-        override def calculate(data1: Vector[T], data2: Vector[T]): Double = norm(data1 - data2, 1.0)
-      }
-
-      def hammingDistance = new DistanceFunction[Vector[Int]] {
-        override def calculate(data1: Vector[Int], data2: Vector[Int]): Double = {
-          if (data1.length != data2.length) throw new Exception("cannot compute hamming distance for vectors of different length")
+      def hammingDistance = new DistanceFunction[FeatureVec] {
+        override def calculate(data1: FeatureVec, data2: FeatureVec): Double = {
+          if (data1.features.length != data2.features.length) throw new Exception("cannot compute hamming distance for vectors of different length")
           var distance = 0
-          zipValues(data1, data2).foreach {(x1, x2) => if (x1 != x2) distance+=1}
+          zipValues(data1.features, data2.features).foreach {(x1, x2) => if (x1 != x2) distance+=1}
           distance
         }
       }
 
-      def makeTree(dist: DistanceFunction[Vector[Double]], train: TableImpl) = {
+      def makeTree(dist: DistanceFunction[FeatureVec], train: TableImpl) = {
         val tree = new MTree(dist, null)
+        train.toIterator.foreach(row => tree.add(row(0).asInstanceOf[FeatureVec]))
         tree
       }
 
-      def knn(k: Int, tree: MTree[Vector[Double]], test: TableImpl) = {
+      def knn(k: Int, tree: MTree[FeatureVec], test: TableImpl) = {
+        val confMatrix = DenseMatrix.zeros[Double](11, 11)
+        test.toIterator.foreach { row =>
+          val fv = row(0).asInstanceOf[FeatureVec]
+          val query = tree.getNearestByLimit(fv, k)
+          val votes = query.iterator().asScala
+            .foldLeft(Map.empty[Int, Int].withDefaultValue(0))((acc, vote) => acc + (vote.data.klass -> (acc(vote.data.klass) + 1)))
 
+          val voted = votes.maxBy({ case (klass, count) => count })._1
+          confMatrix(fv.klass, voted) += 1.0
+        }
+        println(confMatrix)
+        confMatrix
       }
 
 
-      val distFn = choose from List(euclidDistance[Double].asRep, manhattanDistance[Double].asRep)
-      val ds = load("/Users/Pietras/Downloads/train-vowels.csv")/*("columns[0]".::[Double],
-//        "columns[1]".::[Double], "columns[2]".::[Double], "columns[3]".::[Double], "columns[4]".::[Double], "columns[5]".::[Double],
-//        "columns[6]".::[Double], "columns[7]".::[Double], "columns[8]".::[Double], "columns[9]".::[Double],
-//        "columns[10]".::[Int], "columns[11]".::[Int])*/
-      val res = ds.filter(Tuple1("columns[11]".::[Int]))( (row:Row[Int]) =>
-        row(0) > 1
-      ).map((row: Rep[UntypedTup]) =>
-        row.liftMap((rowi:impl.UntypedRow) => {
-          (rowi[Double](0 to 9).asRep as 'fetaures, rowi.get[Int](10) as 'class)
-//          (Vector(1.0, 2.0).asRep as 'fetures, 1 as 'class)
-        })
-        )
-//      val res: Rep[Tup[Vector[Double] :: Int :: HNil]] = (Vector(1.0, 2.0).asRep as 'fetures, 1 as 'class)
+      val distFn = choose from List(normDistance(1).asRep, normDistance(2).asRep, hammingDistance.asRep)
+      val k = choose between 1 and 5
+      val ds = load("/Users/Pietras/Downloads/train-vowels.csv")
 
-//      ret
+      def dataSet(filter: Row[Int] => Rep[Boolean]) = ds.filter(Tuple1("columns[11]".::[Int]))(filter).map({(row: Rep[UntypedTup]) =>
+        val vec = row.liftMap(rowi => FeatureVec(rowi[Double](0 to 9), rowi.get[Int](10)))
+        vec as 'features
+      })
+      val test = dataSet(row => row(0) === 1)
+      val train = dataSet(row => row(0) !== 1)
 
-//      val i: Rep[Int] = 1
-//      val ii = i.liftMap(x => x + 10)
+      val tree = (makeTree _).pure.apply((distFn, train))
 
-//      val res = ds map { row =>
-//        (List(row(0), row(1), row(2), row(3), row(4), row(5), row(6), row(7), row(8), row(9)) as 'features, row(10) as 'class, row(11) as 'fold)
-//      } limit 10
+      val confMatrix: Rep[DenseMatrix[Double]] = (knn _).pure.apply((k, tree, test))
 
-//      val test = load("test.csv")
+      val experiment = optimize(Tuple1(confMatrix)) map { case Tup(Tuple1(m: Rep[DenseMatrix[Double]])) =>
+        m.liftMap(mx => -f1_accuracy(mx)._1) as 'result
+      } by 'result
 
-//      val tree = to (makeTree _) apply (euclidDistance[Double].asRep, train)
-//      val results = to (knn _) apply (5, tree, test)
-//
-//      println(tree.toString)
-      val _/>(c: Comprehension) = buildComprehensions(res.tree).get
-      println(ComprehensionPrinter.apply(c))
-      store(res limit 10)
+      store(experiment limit(10))
       dump()
-//      println(evalExpression(ii.tree))
     }
   }
 }

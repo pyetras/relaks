@@ -28,7 +28,7 @@ abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
   with SuperPosInterpreter
   with LazyLogging {
   private val evalOptimizerComprehension: PartialFunction[Expression, Process[Task, impl.Row]] = {
-    case _/>(c @ SelectComprehension(LoadComprehension(OptimizerResultTable(vars)), transforms, filters, limits, orderbys, sequence)) =>
+    case _/>(c @ SelectComprehension(input@LoadComprehension(OptimizerResultTable(vars)), transforms, filters, limits, orderbys, sequence)) =>
       import QueryOp._
 
       val superPosed = new SuperPosed(new GraphTree(vars))
@@ -64,7 +64,7 @@ abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
             op match {
               case OrderBy(ordering, true) =>
                 //find value to optimize on
-                val outputSchema = OutputSchema.forTransform(lastTransform.get)
+                val outputSchema = lastTransform.map(OutputSchema.forTransform).getOrElse(OutputSchema.forComprehension(input))
                 val FieldWithDirection(Field(name, _), ast.OrderBy.Asc) = ordering.head
 
                 val toMinimizeIx = outputSchema.map(_._1).indexOf(name.name)

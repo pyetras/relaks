@@ -61,7 +61,9 @@ trait QueryRewritingPhases extends LazyLogging with Symbols with Queries with Ta
     }
 
     val forComprehension: Comprehension => Vector[(String, TType)] = attr {
-      case SelectComprehension(input, transforms, _, _, _, _) => this.forTransform(transforms.last)
+      case SelectComprehension(input, transforms, _, _, _, _) => transforms.lastOption.map(forTransform).getOrElse(forComprehension(input))
+      case LoadComprehension(OptimizerResultTable(argTuple)) => TupleWithNames.unapplyWithTypes(argTuple).get
+      case _ => Vector.empty
     }
   }
 

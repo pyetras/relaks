@@ -24,7 +24,7 @@ import scalaz.Tag
  * Created by Pietras on 16/04/15.
  */
 
-trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with LabelledTuples with NativeFunExtensions {
+trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with LabelledTuples with NativeFunExtensions with IHateScala {
 
   object Tup {
 
@@ -143,22 +143,22 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
     }
   }
 
-  implicit def tupleToRepConverter[P <: Product, H <: HList, R <: HList]
-                                                               (implicit ev: Generic.Aux[P, H],
-                                                                tev: IsTuple[P], toNode: HListToNode.Aux[H, R]): Converter.Aux[P, Tup[R]] = {
-
-    new Converter[P] {
-      override type Out = Tup[R]
-      override def apply(r: P): Rep[Out] = {
-        val hlist = ev.to(r)
-        val (exprs, ty) = toNode(hlist)
-        new Rep[Tup[R]] {
-          override val tree: Expression = TupleConstructor(exprs)(ty)
-        }
-      }
-      override val typ: TType = UnknownType
-    }
-  }
+//  implicit def tupleToRepConverter[P <: Product, H <: HList, R <: HList]
+//                                                               (implicit ev: Generic.Aux[P, H],
+//                                                                tev: IsTuple[P], toNode: HListToNode.Aux[H, R]): Converter.Aux[P, Tup[R]] = {
+//
+//    new Converter[P] {
+//      override type Out = Tup[R]
+//      override def apply(r: P): Rep[Out] = {
+//        val hlist = ev.to(r)
+//        val (exprs, ty) = toNode(hlist)
+//        new Rep[Tup[R]] {
+//          override val tree: Expression = TupleConstructor(exprs)(ty)
+//        }
+//      }
+//      override val typ: TType = UnknownType
+//    }
+//  }
 
 
   trait LabelledTupleToRep[R <: HList] {
@@ -199,15 +199,15 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
                                                                      lttr: LabelledTupleToRep.Aux[L, Out]): Rep[Tup[Out]] =
     lttr(new LabelledTuple(toHlist.to(tup)))
 
-  implicit def tupleWithLabelsToConverter[P <: Product, L <: HList, R <: HList, O <: HList](implicit ev1: IsTuple[P],
-                                                                                                toHlist: Generic.Aux[P, L],
-                                                                                                evR: Mapper[isField.type, L],
-                                                                                                lttr: LabelledTupleToRep.Aux[L, O]): Converter.Aux[P, Tup[O]] =
-    new Converter[P] {
-      override type Out = Tup[O]
-      override def apply(tup: P): Rep[Out] = lttr(new LabelledTuple(toHlist.to(tup)))
-      override val typ: TType = UnknownType
-    }
+//  implicit def tupleWithLabelsToConverter[P <: Product, L <: HList, R <: HList, O <: HList](implicit ev1: IsTuple[P],
+//                                                                                                toHlist: Generic.Aux[P, L],
+//                                                                                                evR: Mapper[isField.type, L],
+//                                                                                                lttr: LabelledTupleToRep.Aux[L, O]): Converter.Aux[P, Tup[O]] =
+//    new Converter[P] {
+//      override type Out = Tup[O]
+//      override def apply(tup: P): Rep[Out] = lttr(new LabelledTuple(toHlist.to(tup)))
+//      override val typ: TType = UnknownType
+//    }
 
 
 

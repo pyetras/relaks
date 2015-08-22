@@ -46,7 +46,7 @@ final case class SelectComprehension(from: Comprehension,
 }
 
 object QueryOp {
-  sealed trait QueryOp
+  sealed trait QueryOp extends Expression
 
   case class Transform(generator: GeneratorBase, select: Atom) extends QueryOp
   case class Filter(generator: GeneratorBase, filter: Atom) extends QueryOp

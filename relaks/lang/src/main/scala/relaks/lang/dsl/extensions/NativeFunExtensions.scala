@@ -6,7 +6,7 @@ import relaks.lang.dsl.Rep
 import relaks.lang.impl
 import relaks.lang.impl.{TypedTableImpl, UntypedTableImpl, Row, TableImpl}
 import shapeless.ops.hlist.Mapper
-import shapeless.{HNil, ::, Poly1, HList}
+import shapeless._
 import shapeless.ops.function.{FnFromProduct, FnToProduct}
 import shapeless.syntax.std.function._
 import scala.language.implicitConversions
@@ -97,19 +97,25 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
       override val typ: TType = implicitly[ArgType[T]]
     }
 
-    implicit def conv1[R, T](implicit fn: R => Rep[T], argType: ArgType[T]): Aux[R, T] =
-      new Converter[R] {
-        type Out = T
-        override val typ: TType = argType
-        override def apply(r: R): Rep[T] = fn(r)
-      }
+//    implicit def conv1[R, T](implicit fn: R => Rep[T], argType: ArgType[T]): Aux[R, T] =
+//      new Converter[R] {
+//        type Out = T
+//        override val typ: TType = argType
+//        override def apply(r: R): Rep[T] = fn(r)
+//      }
 
-    implicit def conv2[R: NotLifted](implicit atyp: ArgType[R]): Aux[R, R] =
+    implicit def conv2[R: ArgType](implicit ev: R <:!< Rep[_]): Aux[R, R] =
       new Converter[R] {
         override type Out = R
-        override val typ: TType = atyp
+        override val typ: TType = implicitly[ArgType[R]]
         override def apply(r: R): Rep[Out] = r.asRep
       }
+
+    implicit def convNull: Aux[Null, Null] = new Converter[Null] {
+      override type Out = Null
+      override def apply(r: Null): Rep[Out] = new Rep[Null] { override val tree = Literal(null) }
+      override val typ: TType = implicitly[ArgType[Null]]
+    }
   }
 
   trait Productized[H <: HList, R] {
@@ -133,7 +139,7 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
   implicit class RepMap[T, A](arg: Rep[T])(implicit translation: Translation.Aux[A :: HNil, T :: HNil]) {
     def liftMap[B, R](f: A => B)(implicit converter: Converter.Aux[B, R]): Rep[R] =
       new Rep[R] {
-        override val tree: Expression = ApplyNative((x: A) => converter.apply(f(x)).tree, TupleConstructor(Vector(arg.tree)))
+        override val tree: Expression = ApplyNative((x: A) => converter.apply(f(x)).tree, TupleConstructor(Vector(arg.tree)))(converter.typ)
       }
   }
 }

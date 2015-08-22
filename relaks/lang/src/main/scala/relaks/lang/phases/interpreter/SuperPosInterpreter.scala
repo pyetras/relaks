@@ -4,6 +4,8 @@ import relaks.lang.ast.{Expression, NondetGeneratorList, NondetGeneratorRange, S
 import relaks.lang.dsl.extensions.{SuperPosAnalysis, SuperPosExtensions}
 import relaks.optimizer.{ChooseOneOf, ContinuousRange, DiscreteRange, NondetParam}
 
+import scalaz.EphemeralStream
+
 /**
  * Created by Pietras on 13.08.15.
  */
@@ -19,6 +21,6 @@ trait SuperPosInterpreter extends SuperPosExtensions with SuperPosAnalysis { thi
       }
     case _/> NondetGeneratorList(list) =>
       val lst = evalExpression(list)
-      new ChooseOneOf[Any](lst.asInstanceOf[Seq[_]])
+      new ChooseOneOf[Any](lst.asInstanceOf[EphemeralStream[_]].toList)
   }
 }

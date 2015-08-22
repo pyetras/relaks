@@ -19,6 +19,10 @@ trait StdOpInterpreter extends BaseExprInterpreter with Stdlib {
   }
 
   private val evalStdOp: PartialFunction[Expression, Any] = {
+    case _/>Apply(Stdlib.==, lExpr :: rExpr :: Nil) =>
+      val l = evalExpression(lExpr)
+      val r = evalExpression(rExpr)
+      l == r
     case _/>Apply(Stdlib.CmpOp(op), lExpr :: rExpr :: Nil) =>
       val l = evalExpression(lExpr)
       val r = evalExpression(rExpr)
@@ -34,6 +38,8 @@ trait StdOpInterpreter extends BaseExprInterpreter with Stdlib {
         case Stdlib./ => field./(l, r)
         case Stdlib.* => field.*(l, r)
       }
+    case _/>Apply(Stdlib.!, expr :: Nil) =>
+      !evalExpression(expr).asInstanceOf[Boolean]
   }
 
   override def evalExpression(expr: Expression): Any = evalStdOp.applyOrElse(expr, super.evalExpression)

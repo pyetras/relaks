@@ -16,7 +16,7 @@ import relaks.lang.dsl.AST.syntax._
 import relaks.lang.dsl._
 import relaks.lang.dsl.extensions.ast._
 import relaks.lang.dsl.extensions.ast.logical.{QueryOp, LoadComprehension, SelectComprehension}
-import relaks.lang.dsl.utils.{TypedSymbols, TreePrettyPrintable}
+import relaks.lang.dsl.utils.{UnliftType, TypedSymbols, TreePrettyPrintable}
 import relaks.lang.impl.Row
 import relaks.lang.phases.interpreter.{BaseQueryOpInterpreter, BaseExprInterpreter}
 import shapeless._
@@ -57,16 +57,28 @@ trait TableUtils extends Symbols with Queries {
   }
 }
 
-trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
-
+trait IHateScala {
   type TableRep[H <: HList] = Rep[TypedTable[Tup[H]]]
-  type OptimizerRep[H <: HList] = Rep[UnfinOpt[H]]
+  type OptimizerRep[H <: HList] = Rep[UnfinishedGenTable[Tup[H]]]
+
+  implicit def unliftTRType[H <: HList, L <: HList, R <: HList]
+  (implicit ev: UnliftType.Aux[L, Rep, R]) :
+  UnliftType.Aux[TableRep[H] :: L, Rep, TypedTable[Tup[H]] :: R] =
+    new UnliftType[TableRep[H] :: L, Rep] { type Out = TypedTable[Tup[H]] :: R }
+
+  implicit def unliftORType[H <: HList, L <: HList, R <: HList]
+  (implicit ev: UnliftType.Aux[L, Rep, R]) :
+  UnliftType.Aux[OptimizerRep[H] :: L, Rep, UnfinishedGenTable[Tup[H]] :: R] =
+    new UnliftType[OptimizerRep[H] :: L, Rep] { type Out = UnfinishedGenTable[Tup[H]] :: R }
+}
+
+trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils with IHateScala {
 
   trait BuildComprehensionTyped[H <: HList, +In <: Rep[Table], Out[_ <: HList]] {
     def apply[T <: HList](e: Atom): Out[T]
   }
 
-  implicit def buildTypedTable[H <: HList]: BuildComprehensionTyped[H, TableRep[H], TableRep] =
+  implicit def buildTypedTable[H <: HList]: BuildComprehensionTyped[H,TableRep[H], TableRep] =
     new BuildComprehensionTyped[H, TableRep[H], TableRep] {
       override def apply[T <: HList](e: Atom): TableRep[T] = new Rep[TypedTable[Tup[T]]] {
         override val tree: Atom = e
@@ -83,7 +95,7 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils {
   trait BuildComprehension[+T <: Rep[Table], Out] {
     def apply(query: Atom): Out
   }
-  
+
   private type AsTypedCmp[S <: HList] = BuildComprehension[Rep[TypedTable[Tup[S]]], Rep[TypedTable[Tup[S]]]]
 
   implicit def untypedAsComprehension: BuildComprehension[Rep[UntypedTable], Rep[UntypedTable]] =

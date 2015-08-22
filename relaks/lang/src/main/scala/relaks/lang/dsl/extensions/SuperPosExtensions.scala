@@ -41,12 +41,13 @@ trait SuperPosExtensions extends ListExtensions with Symbols with SuperPosGenera
 trait SuperPosAnalysis extends Symbols with Analysis {
 
   class SuperPosed(tree: GraphTree) extends Attribution { self =>
-    val superPosDeps: Expression => Set[Sym] = {
+    val superPosDeps: Any => Set[Sym] = {
       attr {
         case _ /> OptimizerResultTable(_) => Set.empty
         case Some(sym) /> (_: NondetGenerator) => Set(sym)
         case Fresh(_) => Set.empty[Sym]
         case _ /> (link) => tree.child(link).map(self.superPosDeps).foldLeft(Set.empty[Sym]){_ ++ _}
+        case _ => Set.empty
       }
     }
 

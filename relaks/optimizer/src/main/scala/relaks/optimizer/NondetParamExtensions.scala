@@ -56,9 +56,13 @@ object NondetParamExtensions {
           val d = str.toDouble
           assert(d <= to.asInstanceOf[Double] && d >= from.asInstanceOf[Double], "parameter not within bounds")
           d
-        case DiscreteRange(from, to, step) =>
+        case DiscreteRange(from, to, step) if step != 1 =>
           val i = from + str.toInt*step
           assert(i <= to && i >= from, "parameter not within bounds")
+          i
+        case RangeLikeSpace(from, to)  if mapTypeName() == "int" =>
+          val i = str.toInt
+          assert(i <= to.asInstanceOf[Int] && i >= from.asInstanceOf[Int], "parameter not within bounds")
           i
       }
 
