@@ -1,8 +1,11 @@
 package relaks.lang.phases.interpreter
 
+import com.twitter.algebird.Averager
 import com.twitter.algebird.mutable.InfPriorityQueueAggregator
+import org.kiama.==>
 import relaks.lang.ast._
-import relaks.lang.dsl.extensions.ast.Queries
+import relaks.lang.dsl.ScalaTypeImplis
+import relaks.lang.dsl.extensions.ast.{Aggregator, Aggregate, Queries}
 import relaks.lang.dsl.extensions.ast.logical.QueryOp
 import relaks.lang.impl.Row
 import relaks.lang.ast
@@ -14,7 +17,7 @@ import scalaz.stream._
 /**
  * Created by Pietras on 12.08.15.
  */
-trait QueryOpInterpreter extends BaseQueryOpInterpreter with Queries with BaseExprInterpreter {
+trait QueryOpInterpreter extends BaseQueryOpInterpreter with Queries with BaseExprInterpreter with ComprehensionInterpreter with ScalaTypeImplis {
   import QueryOp._
 
   private def inEnv[T](gen: Generator)(f: => T)(inputRow: Row) = {
@@ -71,8 +74,19 @@ trait QueryOpInterpreter extends BaseQueryOpInterpreter with Queries with BaseEx
     case _ => super.evalQuery(q)
   }
 
+  def evalAggregator: Expression ==> Any = {
+    case _/> Aggregate(Aggregator.Avg, cmp) =>
+      val stream = evalComprehension(cmp)
+      val aggregator = Averager
+      val process = stream |> process1.lift(row => row.get[Double](0)) |>
+      process1.lift(aggregator.prepare) |>
+      process1.reduce(aggregator.reduce) |>
+      process1.lift(aggregator.present)
+      process.runLast.run.orNull
+  }
+
   override def evalExpression(expr: Expression): Any = expr match {
     case _/>Pure(e) => evalExpression(e)
-    case _ => super.evalExpression(expr)
+    case _ => evalAggregator.applyOrElse(expr, super.evalExpression)
   }
 }

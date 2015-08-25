@@ -85,6 +85,16 @@ class ListTest extends FunSpec with Matchers with Inside {
         rows.map(_(0)) should equal (scala.List(1, 2, 3, 4, 5, 6))
       }
 
+      it("should compute average") {
+        object Program extends ListComprehensionInterpreter with DSLInterpreter
+        import Program._
+
+        val l = List(1, 2, 3, 4, 5)
+        val avg: Rep[Double] = l.asTable.avg
+        val d = Program.evalExpression(buildComprehensions(avg.tree).get)
+        d should equal(3.0)
+      }
+
       it("should interpret a list of tuples to comprehension expression") {
         pending
       }

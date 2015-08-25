@@ -209,3 +209,11 @@ trait Queries extends Symbols with ToTypedTreeOps with TypedSymbols {
   }
 
 }
+
+sealed case class Aggregate(fun: Aggregator, query: Atom) extends Expression
+
+sealed trait Aggregator
+object Aggregator {
+  object Avg extends Aggregator
+}
+

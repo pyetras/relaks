@@ -111,7 +111,7 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
         override def apply(r: R): Rep[Out] = r.asRep
       }
 
-    implicit def convNull: Aux[Null, Null] = new Converter[Null] {
+    implicit def convNull: Aux[Null, Null] = new Converter[Null] { //todo will this ever be used?
       override type Out = Null
       override def apply(r: Null): Rep[Out] = new Rep[Null] { override val tree = Literal(null) }
       override val typ: TType = implicitly[ArgType[Null]]

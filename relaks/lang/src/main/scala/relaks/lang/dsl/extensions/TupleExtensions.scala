@@ -24,43 +24,7 @@ import scalaz.Tag
  * Created by Pietras on 16/04/15.
  */
 
-trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with LabelledTuples with NativeFunExtensions with IHateScala {
-
-  object Tup {
-
-    /**
-     * Functor for mapping HList of type (Nat, Rep[Tup[_] ]) to a proper Rep[_]
-      */
-    private object toReps extends Poly1 {
-      implicit def f[N <: Nat, T <: HList](implicit att: At[T, N], toInt: ToInt[N]) =
-        at[(N, Rep[Tup[T]])](t => t._2.extract[att.Out](toInt()))
-    }
-
-
-    /**
-     * @param r tuple tree node
-     *
-     * @tparam T type of the tuple representation
-     * @tparam N length of the tuple - 1
-     * @tparam Seq seq of nats from 0 to N
-     * @tparam Zipped reversed Seq zipped with r
-     * @tparam Reversed seq reversed
-     * @tparam Mapped hlist mapped to Rep[_] values
-     * @return
-     */
-    def unapply[T <: HList, N <: Nat, Seq <: HList, Zipped <: HList, Reversed <: HList, Mapped <: HList](r: Rep[Tup[T]])(implicit
-                                                                      len: Length.Aux[T, Succ[N]],
-                                                                      seq: FillNat.Aux[N, Seq],
-                                                                      rev: Reverse.Aux[Seq, Reversed],
-                                                                      zip: ZipConst.Aux[Rep[Tup[T]], Reversed, Zipped],
-                                                                      mapper: Mapper.Aux[toReps.type, Zipped, Mapped],
-                                                                      tupler: Tupler[Mapped]) = r.tree match {
-      case TupleConstructor(lst) =>
-        Some(seq().reverse.zipConst(r).map(toReps).tupled)
-      case _ => None
-    }
-  }
-
+trait TupleOps extends Symbols with AnyExtensions with ASTSyntax {
   implicit class TupleOperations[B1 <: HList](val arg1: Rep[Tup[B1]]) {
     lazy val (luType, productTypes) = arg1.getTpe match {
       case t: TupType[B1] => (t.lowerBound, t.childrenTypes)
@@ -80,7 +44,7 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
      * Dynamic (runtime) getter
      */
     def at[LUB](i: Rep[Int])(implicit ev: TupleLU[B1, LUB]): Rep[LUB] = new Rep[LUB] { //FIXME jakos?
-      override val tree: Expression = Apply(Stdlib.at, List(arg1.tree, i.tree))(luType)
+    override val tree: Expression = Apply(Stdlib.at, List(arg1.tree, i.tree))(luType)
     }
 
     private[dsl] def extract[Out](i: Int): Rep[Out] = {
@@ -99,6 +63,50 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
       }
     }
   }
+
+}
+
+trait TupleUtils extends TupleOps {
+  object Tup {
+
+    /**
+     * Functor for mapping HList of type (Nat, Rep[Tup[_] ]) to a proper Rep[_]
+     */
+    private object toReps extends Poly1 {
+      implicit def f[N <: Nat, T <: HList](implicit att: At[T, N], toInt: ToInt[N]) =
+        at[(N, Rep[Tup[T]])](t => t._2.extract[att.Out](toInt()))
+    }
+
+
+    /**
+     * @param r tuple tree node
+     *
+     * @tparam T type of the tuple representation
+     * @tparam N length of the tuple - 1
+     * @tparam Seq seq of nats from 0 to N
+     * @tparam Zipped reversed Seq zipped with r
+     * @tparam Reversed seq reversed
+     * @tparam Mapped hlist mapped to Rep[_] values
+     * @return
+     */
+    def unapply[T <: HList, N <: Nat, Seq <: HList, Zipped <: HList, Reversed <: HList, Mapped <: HList](r: Rep[Tup[T]])(implicit
+                                                                                                                         len: Length.Aux[T, Succ[N]],
+                                                                                                                         seq: FillNat.Aux[N, Seq],
+                                                                                                                         rev: Reverse.Aux[Seq, Reversed],
+                                                                                                                         zip: ZipConst.Aux[Rep[Tup[T]], Reversed, Zipped],
+                                                                                                                         mapper: Mapper.Aux[toReps.type, Zipped, Mapped],
+                                                                                                                         tupler: Tupler[Mapped]) = r.tree match {
+      case TupleConstructor(lst) =>
+        Some(seq().reverse.zipConst(r).map(toReps).tupled)
+      case _ => None
+    }
+  }
+
+}
+
+trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with LabelledTuples with NativeFunExtensions with IHateScala with TupleOps with TupleUtils {
+
+
 
   /**
    * this will lift any type T to a Rep[T]

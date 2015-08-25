@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonGenerator
 import com.fasterxml.jackson.core.JsonParser.Feature
 import com.fasterxml.jackson.databind.{SerializationFeature, ObjectMapper}
 import com.fasterxml.jackson.databind.module.SimpleModule
+import com.twitter.bijection.Injection
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.calcite.rel.core.JoinRelType
 import org.kiama.attribution.Attribution
@@ -72,7 +73,7 @@ trait IHateScala {
     new UnliftType[OptimizerRep[H] :: L, Rep] { type Out = UnfinishedGenTable[Tup[H]] :: R }
 }
 
-trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils with IHateScala {
+trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils with IHateScala with TupleExtensions with NativeFunExtensions {
 
   trait BuildComprehensionTyped[H <: HList, +In <: Rep[Table], Out[_ <: HList]] {
     def apply[T <: HList](e: Atom): Out[T]
@@ -161,6 +162,15 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils wi
                                                                    (implicit mkCmp: BuildComprehensionTyped[H, OptimizerRep[H], OptimizerRep]):
   TypedTableOps[H, OptimizerRep] =
     new TypedTableOps[H, OptimizerRep](arg)
+
+  implicit class AvgTableOps[T](arg: Rep[TypedTable[Tup[T :: HNil]]])(implicit conv: Injection[T, Double]) {
+    def avg: Rep[Double] = {
+      val query = arg.map { case Tup(Tuple1(value: Rep[T])) => value.liftMap(x => conv(x)) as 'x0 }
+      new Rep[Double] {
+        val tree: Atom = Aggregate(Aggregator.Avg, query.tree)(implicitly[ArgType[Double]])
+      }
+    }
+  }
 
   implicit class UntypedTableOps[Out[_ <: HList]](arg: Rep[UntypedTable])(implicit mkCmp: BuildComprehensionTyped[_, TableRep[_], Out]){
     def map[H <: HList](f: Rep[UntypedTup] => Rep[Tup[H]]): Out[H] = {

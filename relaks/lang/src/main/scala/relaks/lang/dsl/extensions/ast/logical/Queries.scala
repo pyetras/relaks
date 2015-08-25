@@ -18,6 +18,7 @@ import scala.runtime.ScalaRunTime
 /**
  * Created by Pietras on 12.08.15.
  */
+
 sealed trait Comprehension extends Expression
 sealed case class LoadComprehension(loadExpression: SourceQuery) extends Comprehension
 
