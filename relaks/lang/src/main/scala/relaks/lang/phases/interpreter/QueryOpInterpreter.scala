@@ -5,7 +5,7 @@ import com.twitter.algebird.mutable.InfPriorityQueueAggregator
 import org.kiama.==>
 import relaks.lang.ast._
 import relaks.lang.dsl.ScalaTypeImplis
-import relaks.lang.dsl.extensions.ast.{Aggregator, Aggregate, Queries}
+import relaks.lang.dsl.extensions.ast.{Queries}
 import relaks.lang.dsl.extensions.ast.logical.QueryOp
 import relaks.lang.impl.Row
 import relaks.lang.ast

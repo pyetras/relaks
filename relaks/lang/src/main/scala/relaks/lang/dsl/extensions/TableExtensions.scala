@@ -149,7 +149,7 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils wi
 //    }
 
     def map[F <: HList, T <: HList](f: Rep[Tup[H]] => Rep[Tup[T]]) = {
-      flatMap(f andThen RowRep.apply)
+      flatMap(f andThen SingleRow.apply)
     }
   }
 
@@ -176,12 +176,12 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils wi
     def map[H <: HList](f: Rep[UntypedTup] => Rep[Tup[H]]): Out[H] = {
       val fnarg = freshRep[UntypedTup](UnknownType)
       val generator = EmptyGenerator(fnarg.tree.asInstanceOf[Sym])
-      val transform = Transform(generator, arg.tree, RowRep(f(fnarg)).tree)
+      val transform = Transform(generator, arg.tree, SingleRow(f(fnarg)).tree)
       mkCmp(transform)
     }
   }
 
-  implicit class LimitComprehension[In <: Rep[Table], Out](arg: In)(implicit asCmp: BuildComprehension[In, Out]) {
+  implicit class LimitOps[In <: Rep[Table], Out](arg: In)(implicit asCmp: BuildComprehension[In, Out]) {
     def limit(count: Rep[Int]) =
       asCmp(Limit(arg.tree, Literal(0), count.tree))
     def limit(start: Rep[Int], count: Rep[Int]) =
@@ -195,7 +195,7 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils wi
     }
   }
 
-  implicit class OrderByComprehension[In <: Rep[Table], Out](arg: In)(implicit asCmp: BuildComprehension[In, Out]) extends GetFieldsWithTypes {
+  implicit class OrderByOps[In <: Rep[Table], Out](arg: In)(implicit asCmp: BuildComprehension[In, Out]) extends GetFieldsWithTypes {
     def orderBy[P <: Product](fields: P)(implicit toVector: ToTraversable.Aux[P, Vector, Symbol]): Out = {
       val fieldsVec = toVector(fields)
       val fieldsWithTypes = getFieldsWithTypes(arg.tree, fieldsVec)

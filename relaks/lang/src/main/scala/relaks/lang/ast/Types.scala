@@ -69,7 +69,7 @@ object TupType {
 
 sealed trait Table
 sealed trait UntypedTable extends Table
-sealed trait TypedTable[T] extends Table
+sealed trait TypedTable[+T] extends Table
 sealed trait UnfinishedGenTable[T] extends Table
 
 sealed class UntypedTableType extends LiftedArgType[UntypedTable] {

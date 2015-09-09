@@ -21,7 +21,7 @@ import scala.collection.JavaConverters._
 class KNNTest extends FunSpec with Matchers with Inside {
   describe("knn experiment") {
     it("should work", Tag("relaks.Integration")) {
-      object Program extends DSLOptimizerInterpreter with DrillInterpreter with ListComprehensionInterpreter with ComprehensionPrinters
+      object Program extends DSLOptimizerInterpreter(SpearmintOptimizer) with DrillInterpreter with ListComprehensionInterpreter with ComprehensionPrinters
       import Program._
 
       case class FeatureVec(features: Vector[Double], klass: Int)
@@ -56,7 +56,7 @@ class KNNTest extends FunSpec with Matchers with Inside {
           val voted = votes.maxBy({ case (klass, count) => count })._1
           confMatrix(fv.klass, voted) += 1.0
         }
-
+        println(confMatrix)
         confMatrix
       }
 
@@ -69,24 +69,18 @@ class KNNTest extends FunSpec with Matchers with Inside {
         val vec = row.liftMap(rowi => FeatureVec(rowi[Double](0 to 9), rowi.get[Int](10)))
         vec as 'features
       })
+      val test = dataSet(row => row(0) === 1)
+      val train = dataSet(row => row(0) !== 1)
 
-      val experiment = optimize((distFn, k)) map { case Tup(dist, k) =>
-        val avgF1 = List(1, 2, 3, 4).asTable.map { case Tup(Tuple1(fold)) =>
+      val tree = (makeTree _).pure.apply((distFn, train))
 
-          val test = dataSet(row => row(0) === fold)
-          val train = dataSet(row => row(0) !== fold)
+      val confMatrix: Rep[DenseMatrix[Double]] = (knn _).pure.apply((k, tree, test))
 
-          val tree = (makeTree _).pure.apply((dist, train))
-
-          val confMatrix: Rep[DenseMatrix[Double]] = (knn _).pure.apply((k, tree, test))
-
-          confMatrix.liftMap(mx => -f1_accuracy(mx)._1) as 'result
-        }.avg
-
-        (k as 'k, dist as 'distFn, avgF1 as 'result)
+      val experiment = optimize(Tuple1(confMatrix)) map { case Tup(Tuple1(m: Rep[DenseMatrix[Double]])) =>
+        m.liftMap(mx => -f1_accuracy(mx)._1) as 'result
       } by 'result
 
-      store(experiment)
+      store(experiment limit(10))
       dump()
     }
   }

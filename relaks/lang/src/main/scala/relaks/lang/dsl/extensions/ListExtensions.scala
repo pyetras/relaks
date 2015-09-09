@@ -41,7 +41,7 @@ trait ListExtensions extends AnyExtensions with ASTSyntax with Symbols with Tabl
     def asTable[H <: HList](implicit asTuple: AsTuple.Aux[T, H], mkCmp: BuildComprehension[TableRep[H], TableRep[H]]): Rep[TypedTable[Tup[H]]] = {
       val generator = Generator.fromFields(Vector(Field('x0, implicitly[ArgType[T]])))
       val fnarg = generator.toTuple[T :: HNil](0)
-      val transform = Transform(generator, TableFromList(arg1.tree), RowRep(asTuple(fnarg)).tree) //TODO change this to a list map when fn representations are available
+      val transform = Transform(generator, TableFromList(arg1.tree), SingleRow(asTuple(fnarg)).tree) //TODO change this to a list map when fn representations are available
       mkCmp(transform)
     }
 

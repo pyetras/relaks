@@ -24,13 +24,9 @@ trait Leaf extends Product {
   override def canEqual(that: Any): Boolean = this.getClass == that.getClass
 }
 
-sealed case class Program(stmts: Seq[Tree]) extends Tree
-
 trait Expression extends Tree
 
 trait Atom extends Expression
-
-case class Identifier(name: String) extends Atom
 
 class Literal(val value: Any) extends Atom with Leaf {
   override def mainToString = s"`${value.toString}`"

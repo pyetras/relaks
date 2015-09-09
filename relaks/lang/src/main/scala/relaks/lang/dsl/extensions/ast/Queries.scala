@@ -20,13 +20,13 @@ trait Queries extends Symbols with ToTypedTreeOps with TypedSymbols {
     def apply(table: Atom, map: Vector[(Symbol, Symbol)]): Transform = {
       val generator = Generator.fromUntypedFields(map.map(_._1))
       val names = map.map(_._2.name)
-      Transform(generator, table, RowRep(generator.toTupleWithNames[HNil](names, UnknownType)).tree)
+      Transform(generator, table, SingleRow(generator.toTupleWithNames[HNil](names, UnknownType)).tree)
     }
 
     def applyTyped[S <: HList](table: Atom, map: Vector[(Field, Symbol)], tupTyp: TType): Transform = {
       val generator = Generator.fromFields(map.map(_._1))
       val names = map.map(_._2.name)
-      Transform(generator, table, RowRep(generator.toTupleWithNames[S](names, tupTyp)).tree)
+      Transform(generator, table, SingleRow(generator.toTupleWithNames[S](names, tupTyp)).tree)
     }
   }
 
@@ -202,18 +202,10 @@ trait Queries extends Symbols with ToTypedTreeOps with TypedSymbols {
     }
   }
 
-  object RowRep {
+  object SingleRow {
     def apply[T <: HList](t: Rep[Tup[T]]): Rep[TypedTable[Tup[T]]] = new Rep[TypedTable[Tup[T]]] {
       override val tree: Expression = Pure(t.tree)(new UntypedTableType)
     }
   }
 
 }
-
-sealed case class Aggregate(fun: Aggregator, query: Atom) extends Expression
-
-sealed trait Aggregator
-object Aggregator {
-  object Avg extends Aggregator
-}
-

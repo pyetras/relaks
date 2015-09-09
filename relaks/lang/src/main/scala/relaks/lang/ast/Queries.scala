@@ -16,9 +16,7 @@ sealed trait Query extends Expression with PrettyPrintable {
 
 
 sealed trait SourceQuery extends Query
-trait GeneratorBase {
-  //  def fuseWith(other: GeneratorBase): GeneratorBase
-}
+trait GeneratorBase
 
 sealed trait SingleSourceTransformation extends Query {
   override def sources: Seq[Atom] = stepTable.toSeq
@@ -96,6 +94,13 @@ sealed case class OrderBy(table: Atom, ordering: Vector[FieldWithDirection], isE
   override def mainToString: String = withArgs(super.mainToString, ordering.toString)
 
   override def stepTable: Option[Atom] = table.some
+}
+
+sealed case class Aggregate(fun: Aggregator, query: Atom) extends Expression
+
+sealed trait Aggregator
+object Aggregator {
+  object Avg extends Aggregator
 }
 
 sealed case class Pure(value: Atom) extends Expression

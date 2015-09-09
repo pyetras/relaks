@@ -33,7 +33,7 @@ class SpearmintOptimizerTest extends FunSpec with Matchers with Inside {
       override protected def applyUpdate(optimizerResult: OptimizerResult): Task[Unit] =
         q.enqueueOne(s"apply update").flatMap(x => Task.delay { Thread.sleep(waitUpdate) })
 
-      override protected def readNextPending(): Task[Unit \/ Params] = Task.now(\/-(Map.empty))
+      override protected lazy val readPending: Process[Task, Unit \/ Params] = Process.eval(Task.now(\/-(Map.empty)) : Task[Unit \/ Params])
 
       def initSp = initializeSpearmint
     }

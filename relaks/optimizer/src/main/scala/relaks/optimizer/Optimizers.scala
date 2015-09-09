@@ -37,18 +37,23 @@ trait BaseOptimizer extends NondetParams {
   def apply(maxParallel: Int, spaceDesc: ParamsSpace, strategy: ExperimentStrategy): Optimizer
 }
 
+trait FatalOptimizerError extends Exception
 trait OptimizerError extends Exception
 class OptimizerConvergedError extends RuntimeException("Optimizer converged") with OptimizerError
 
 trait GridOptimizer extends BaseOptimizer {
   class GrOptimizer(spaceDesc: ParamsSpace, strategy: ExperimentStrategy) extends Optimizer {
-    // a lazy generator for cartesian product of variable space
-    var generator = spaceDesc.foldLeft(Seq(Seq.empty[(String, Any)])) ((acc, keyval) =>
-      acc.view.flatMap((seq) => keyval._2.view.map((el) => seq :+ (keyval._1, el))))
-
-
-    override def paramStream: Process[Task, Params] = Process.unfold(generator) { (lst) =>
-      lst.headOption.map(params => (params.toMap, lst.tail))
+    override def paramStream: Process[Task, Params] = {
+      // a lazy generator for cartesian product of variable space
+      def go(acc: Params, rest: Seq[(String, NondetParam[Any])]): Process[Task, Params] =
+        rest match {
+          case Seq() => Process.emit(acc)
+          case (name, vals) +: tail => vals.view.foldLeft(Process.empty[Task, Map[String, Any]]) {
+            (proc, value) =>
+              proc ++ go(acc + (name -> value), tail)
+          }
+        }
+      Process.suspend(go(Map.empty, spaceDesc.toStream))
     }
 
     override def update: Sink[Task, OptimizerResult] = sink.lift(x => Task.now(()))
@@ -59,11 +64,16 @@ trait GridOptimizer extends BaseOptimizer {
 
 object GridOptimizer extends GridOptimizer
 
+//todo make optimizer a monad
 trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearmint with LazyLogging {
   import org.json4s.jackson.JsonMethods._
   import util.syntax._
 
-  class Spearmint(spaceDesc: ParamsSpace, strategy: ExperimentStrategy, maxParallel: Int) extends Optimizer {
+  class Spearmint(spaceDesc: ParamsSpace,
+                  strategy: ExperimentStrategy,
+                  maxParallel: Int,
+                  convergeAfter: Int = 10,
+                  scriptArgs: String = "--method=GPEIChooser") extends Optimizer {
     private val spearmintResultMemo = mutable.LinkedHashMap.empty[Params, OptimizerResult]
     private val spearmintEvals = mutable.MutableList.empty[Params]
     private var spearmintPending = Set.empty[Params]
@@ -78,13 +88,15 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
       val printer = new PrintWriter(resultsPath.toFile)
       (spearmintEvals.map(spearmintResultMemo).map(resultsToResultsString) ++ spearmintPending.map(pendingToResultsString)).foreach(printer.println)
       printer.close()
-    }//.flatMap(x => io.linesR(resultsPath.toString).to(sink.lift(x => Task.now(logger.debug(x)))).run)
+    }
+
     /**
-     * @return dumps results.dat and runs spearmint
+     * dumps results.dat and runs spearmint
+     * @return spearmint process exit code
      */
     protected def runSpearmint: Task[Int] = { //TODO make this a val by making streamprocess command lazy
       val script = this.getClass.getResource("/runSpearmint.sh").getPath
-      val proc = StreamProcess.shell(s"sh $script --method=GPEIChooser $directoryPath")
+      val proc = StreamProcess.shell(s"sh $script $scriptArgs $directoryPath")
         .withOutput(sink.lift(line => Task.now(logger.debug(line))), sink.lift(line => Task.now(logger.debug(line))))
       updateResults.flatMap(x => proc)
     }
@@ -97,82 +109,63 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
       Process.eval(Task.delay { compact(render(spaceDesc.toSpearmintJson)) }).through(fileLineWriter).run
     }
 
-    private val ticketQueue = async.unboundedQueue[Unit]
-
     //pending updates
-    private val updateQueue = async.unboundedQueue[OptimizerResult]
+    private val updateTicketQueue = async.unboundedQueue[OptimizerResult \/ Unit]
     
     protected lazy val paramGenerator: Process[Task, Params] = {
+
       //initialize ticket queue
-
-      val ticketInit: Task[Unit] = ticketQueue.enqueueAll(for (_ <- 1 to maxParallel) yield ())
+      val ticketInit: Task[Unit] = updateTicketQueue.enqueueAll(for (_ <- 1 to maxParallel) yield ().right)
       val init: Task[Unit] = initializeSpearmint.flatMap(_ => ticketInit)
-
-      /**
-       * grab from updated or initial guesses or already applied updates
-       * dequeue available blocks (never returns empty)
-       *
-       * TODO: implement this using akka actor and Process.eval(Task.async(...))
-       * this actor can be stateful, restorable etc
-       */
-      val updatesOrFresh: Process[Task, Seq[OptimizerResult] \/ Unit] =
-        Process.repeatEval {
-          for {
-            sizeOpt <- updateQueue.size.continuous.take(1).runLast
-            nextOpt <-
-              if (sizeOpt.getOrElse(???) == 0)
-                wye(updateQueue.dequeueAvailable, ticketQueue.dequeue)(wye.either).take(1).runLast
-              else
-                updateQueue.dequeueAvailable.map(_.left[Unit]).take(1).runLast
-          } yield nextOpt.getOrElse(???)
-        }
 
       //if there are any updates available apply them first
       //tries to update as many as possible before making another guess
-      def applyUpdatesAndTickets(res: Seq[OptimizerResult] \/ Unit): Task[Unit] = res match {
-        case -\/(resultlst) =>
-          //println("got updated")
-          //apply all updates
-          val update = resultlst.foldLeft(Task.now(()))((task, result) => task.flatMap(x => applyUpdate(result)))
+      val updateWithTicket: Process[Task, Seq[OptimizerResult \/ Unit]] =
+        updateTicketQueue.dequeueAvailable//.pipe(chunkUntil(seq => seq.exists(_.isRight))).map(_.flatten)
 
-          //put back updates.length - 1 tickets to ticketQueue TODO: it should ensure the tickets are returned in case of error
-          update.flatMap { x =>
-            val generator: Process[Task, Unit] = Process.constant(()).take(resultlst.length - 1)
-            generator.to(ticketQueue.enqueue).run
-          }
-        case \/-(()) =>
-          //println("got ticket")
-          Task.now(())
+      val applyUpdates: Process[Task, Unit] = updateWithTicket.flatMap { seq =>
+        val updates = seq.collect {
+          case -\/(u) => u
+        }
+        val update = updates.foldLeft(Task.now(()))((task, result) => task.flatMap(x => applyUpdate(result)))
+
+        val tickets = seq.filter(_.isRight)
+
+        val safeTicket = Process.eval(Task.now(())).take(1)
+          .onFailure(throwable =>
+            Process
+              .eval_(updateTicketQueue.enqueueOne(().right)
+                .flatMap(_ => Task.fail(throwable)))
+          )
+
+        val leftTickets = (updates.indices.map(_ => ().right[OptimizerResult]) ++ tickets).tail
+
+        Process.eval(update.flatMap(_ => updateTicketQueue.enqueueAll(leftTickets))).take(1).drain ++
+          safeTicket
       }
+
 
       /**
        * to be called after spearmint update. If a call to readNextPending
        * returns a unit loops runSpearmint until a new params are generated
        */
-      def getNextParams(code: Int): Task[Params] = {
+      def getNextParams: Task[Params] = { //TODO why this doesn't work as val???
         def go(code: Int, accumulator: Int): Task[Params] = {
-          if (accumulator > 10)
+          if (accumulator > convergeAfter)
             Task.fail(new OptimizerConvergedError)
           else
             code match {
-              case 0 => readNextPending().flatMap {
+              case 0 => readPending.take(1).runLast.map(_.get).flatMap {
                 case -\/(()) => runSpearmint flatMap (code => Task.suspend(go(code, accumulator + 1)))
                 case \/-(params) => Task.now(params)
               }
-              case code@_ => Task.fail(new RuntimeException(s"spearmint finished with nonzero exit code $code")) //TODO Exception type
+              case code@_ => Task.fail(new RuntimeException(s"spearmint finished with nonzero exit code $code") with FatalOptimizerError)
             }
         }
-        go(code, 0)
+        runSpearmint flatMap (code => go(code, 0))
       }
 
-      for {
-        //insert all initially available tickets and run spearmint
-        _ <- Process.eval(init)
-        //apply updates...
-        res <- updatesOrFresh
-        //and then run spearmint
-        results <- Process eval applyUpdatesAndTickets(res).flatMap(_ => runSpearmint flatMap getNextParams)
-      } yield results
+      Process.eval_(init) ++ applyUpdates.evalMap(_ => getNextParams)
     }
 
     /**
@@ -186,7 +179,7 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
       Task.suspend {
         logger.debug(s"spearmint: appending update $optimizerResult")
         if (!spearmintPending.contains(optimizerResult.params)) {
-          Task fail new IllegalArgumentException(s"Params ${optimizerResult.params} are not known to be pending evaluation")
+          Task fail new IllegalArgumentException(s"Params ${optimizerResult.params} are not known to be pending evaluation") with FatalOptimizerError
         } else {
           spearmintPending = spearmintPending - optimizerResult.params
 
@@ -194,7 +187,7 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
           spearmintResultMemo += (optimizerResult.params -> optimizerResult)
           spearmintEvals += optimizerResult.params
           if (prevSize == spearmintResultMemo.size)
-            Task fail new IllegalArgumentException(s"Params ${optimizerResult.params} evaluated more than once") // redundant, checked in readNextPending TODO exception type
+            Task fail new IllegalArgumentException(s"Params ${optimizerResult.params} evaluated more than once") with FatalOptimizerError
           else
             Task.now(())
         }
@@ -210,37 +203,40 @@ trait SpearmintOptimizer extends BaseOptimizer with NondetParamExtensions.Spearm
      *         why would it do that? no idea, happens pretty often with
      *         GPEIChooser and branin
      */
-    protected def readNextPending(): Task[Unit \/ Params] = {
+    protected lazy val readPending: Process[Task, Unit \/ Params] = {
       //read results.dat, filter pending files
-      val pendings = io.linesR(resultsPath.toString)/*.observe(sink.lift(x => Task.now(logger.debug(x))))*/.map(_.split(" ")).filter(_(0) == "P")
+      val pendings = io.linesR(resultsPath.toString).map(_.split(" ")).filter(_(0) == "P")
         .map(spaceDesc.paramsFromSpearmintResults)
-        .flatMap(x => Process.eval(tryToTask(x))).runLog
+        .flatMap(x => Process.eval(tryToTask(x)))
 
       //find one that is not in the pendingSet
-      pendings.flatMap { paramsl =>
-        paramsl.toSet.diff(spearmintPending).headOption match {
-          case Some(param) =>
-            logger.debug(s"got new params $param")
-            if (spearmintResultMemo.contains(param)) {
-              logger.warn(s"spearmint tried to evaluate $param again")
-              spearmintEvals += param
-              Task.now(-\/(()))
-            } else {
-              spearmintPending = spearmintPending + param
-              Task.now(\/-(param))
-            }
-          case None => Task.fail(new RuntimeException("No new pending params"))
-        }
-      }
+      pendings.filter(p => !spearmintPending.contains(p)).awaitOption
+        .evalMap({
+        case Some(param) =>
+          logger.debug(s"got new params $param")
+          if (spearmintResultMemo.contains(param)) {
+            logger.warn(s"spearmint tried to evaluate $param again")
+            spearmintEvals += param
+            Task.now(-\/(()))
+          } else {
+            spearmintPending = spearmintPending + param
+            Task.now(\/-(param))
+          }
+        case None => Task.fail(new RuntimeException("No new pending params") with FatalOptimizerError)
+      })
     }
 
     override def paramStream: Process[Task, Params] = paramGenerator
 
-    override val update: Sink[Task, OptimizerResult] = updateQueue.enqueue
+    override val update: Sink[Task, OptimizerResult] = updateTicketQueue.enqueue.contramap(x => x.left)
   }
 
   override def apply(maxParallel: Int, spaceDesc: ParamsSpace, strategy: ExperimentStrategy): Optimizer =
     new Spearmint(spaceDesc, strategy, maxParallel)
+
+  def apply(maxParallel: Int, spaceDesc: ParamsSpace, strategy: ExperimentStrategy,
+                     convergeAfter: Int, spearmintArgs: String): Optimizer =
+    new Spearmint(spaceDesc, strategy, maxParallel, convergeAfter, spearmintArgs)
 }
 
 object SpearmintOptimizer extends SpearmintOptimizer

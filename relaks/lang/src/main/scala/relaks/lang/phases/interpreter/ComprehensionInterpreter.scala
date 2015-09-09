@@ -84,10 +84,9 @@ trait ListComprehensionInterpreter extends ComprehensionInterpreter with ListInt
     case _/>SelectComprehension(LoadComprehension(TableFromList(listExpr)), _ +: _, _, _, _, _) =>
       val lst = evalListExpression(listExpr)
       val schema = Schema(Vector(("x0", listExpr.tpe.asInstanceOf[ListType[Any]].childType)))
-
-      //TODO rewrite this as an agent? writer?
-      lst.foldRight(Process.empty[Task, Any])(x => acc => Process.emit(x) ++ acc) |> process1.lift { x =>
-        new VectorRow(Vector(x), schema)
+      Process.unfold(lst) { acc =>
+        val headTailOpt = (acc.headOption, acc.tailOption).bisequence[Option, Any, EphemeralStream[Any]]
+        headTailOpt.map { case (v, tail) => (new VectorRow(Vector(v), schema), tail) }
       }
   }
 
