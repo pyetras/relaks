@@ -9,7 +9,7 @@ import relaks.lang.ast.Expression
 import relaks.lang.dsl.extensions.ast.logical.QueryOp.QueryOp
 import relaks.lang.dsl.extensions.ast.logical.QueryOp.QueryOp
 import relaks.lang.dsl.extensions.ast.logical.{QueryOp, LoadComprehension, SelectComprehension}
-import relaks.lang.dsl.extensions.{TupleInterpreter, SuperPosAnalysis}
+import relaks.lang.dsl.extensions.{TupleInterpreter, HyperparamAnalysis}
 import relaks.lang.impl.{VectorRow, CsvAllRow, Schema, Row}
 import relaks.lang.phases.rewriting.QueryRewritingPhases
 import relaks.optimizer.NondetParams

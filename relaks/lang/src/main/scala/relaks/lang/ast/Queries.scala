@@ -89,13 +89,18 @@ final case class FieldWithDirection(field: Field, direction: OrderBy.OrderDirect
   override def toString: String = s"${if (direction == OrderBy.Asc) "↑" else "↓"}${field.sym}"
 }
 
-sealed case class OrderBy(table: Atom, ordering: Vector[FieldWithDirection], isExperimentTarget: Boolean = false)
+sealed case class OrderBy(table: Atom, ordering: Vector[FieldWithDirection])
   extends Query with SingleSourceTransformation {
   override def mainToString: String = withArgs(super.mainToString, ordering.toString)
 
   override def stepTable: Option[Atom] = table.some
 }
 
+sealed class OptimizeBy(override val table: Atom, override val ordering: Vector[FieldWithDirection])
+  extends OrderBy(table, ordering)
+object OptimizeBy {
+  def apply(table: Atom, ordering: Vector[FieldWithDirection]) = new OptimizeBy(table, ordering)
+}
 sealed case class Aggregate(fun: Aggregator, query: Atom) extends Expression
 
 sealed trait Aggregator

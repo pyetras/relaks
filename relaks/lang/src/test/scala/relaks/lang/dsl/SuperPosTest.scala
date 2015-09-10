@@ -17,7 +17,7 @@ import scalaz.{Failure, Success}
 class SuperPosTest extends FunSpec with Matchers with Inside {
   def prog() = {
     object Program extends Symbols
-    with SuperPosExtensions
+    with HyperparamExtensions
     with AnyExtensions
     with BoolExtensions
     with OrderExtensions
@@ -25,7 +25,7 @@ class SuperPosTest extends FunSpec with Matchers with Inside {
     with ListExtensions
     with TupleExtensions
     with NativeFunExtensions
-    with SuperPosAnalysis {
+    with HyperparamAnalysis {
       def superPosed(n: Expression): Boolean = new SuperPosed(new GraphTree(n)).isSuperPosed(n)
     }
 

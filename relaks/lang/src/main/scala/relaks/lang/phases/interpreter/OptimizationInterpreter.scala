@@ -24,8 +24,8 @@ import Scalaz._
 abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
   extends ComprehensionInterpreter
   with NondetParams
-  with SuperPosAnalysis
-  with SuperPosInterpreter
+  with HyperparamAnalysis
+  with HyperparamInterpreter
   with LazyLogging {
   private val evalOptimizerComprehension: PartialFunction[Expression, Process[Task, impl.Row]] = {
     case _/>(c @ SelectComprehension(input@LoadComprehension(OptimizerResultTable(vars)), transforms, filters, limits, orderbys, sequence)) =>

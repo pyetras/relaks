@@ -42,4 +42,4 @@ trait BaseContCompiler extends BaseCompiler with Symbols {
   }
 }
 
-trait ContCompiler extends BaseContCompiler with NumericContCompiler with SuperPosContCompiler
+trait ContCompiler extends BaseContCompiler with NumericContCompiler with HyperparamContCompiler

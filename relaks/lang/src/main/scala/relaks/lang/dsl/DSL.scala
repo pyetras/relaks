@@ -15,7 +15,7 @@ import scala.language.implicitConversions
 trait DSL
   extends ASTSyntax
   with Symbols
-  with SuperPosExtensions
+  with HyperparamExtensions
   with AnyExtensions
   with BoolExtensions
   with OrderExtensions

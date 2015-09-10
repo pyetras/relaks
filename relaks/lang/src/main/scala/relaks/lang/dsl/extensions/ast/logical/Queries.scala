@@ -6,7 +6,6 @@ package relaks.lang.dsl.extensions.ast.logical
 
 import relaks.lang
 import relaks.lang.ast._
-import relaks.lang.dsl.extensions.ast.logical.QueryOp
 import relaks.lang.dsl.extensions.ast.logical.QueryOp.QueryOp
 import relaks.lang.dsl.extensions.ast.{Queries, Symbols}
 import scalaz._
@@ -58,7 +57,7 @@ object QueryOp {
     case (op: lang.ast.Filter) => Filter(op.generator, op.filter).some
     case (op: lang.ast.Transform) => Transform(op.generator, op.select).some
     case (op: lang.ast.Limit) => Limit(op.start, op.count).some
-    case (op: lang.ast.OrderBy) => OrderBy(op.ordering, op.isExperimentTarget).some
+    case (op: lang.ast.OrderBy) => OrderBy(op.ordering, op.isInstanceOf[OptimizeBy]).some
   }
 
   private object Inner {

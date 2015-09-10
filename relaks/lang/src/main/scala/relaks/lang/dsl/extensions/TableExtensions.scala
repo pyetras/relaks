@@ -1,32 +1,18 @@
 package relaks.lang.dsl.extensions
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.core.JsonParser.Feature
-import com.fasterxml.jackson.databind.{SerializationFeature, ObjectMapper}
-import com.fasterxml.jackson.databind.module.SimpleModule
 import com.twitter.bijection.Injection
-import com.typesafe.scalalogging.LazyLogging
-import org.apache.calcite.rel.core.JoinRelType
 import org.kiama.attribution.Attribution
-import org.kiama.relation.GraphTree
-import org.kiama.==>
-import org.kiama.rewriting.{Rewriter, Strategy}
 import relaks.lang.ast._
 import relaks.lang.dsl.AST._
 import relaks.lang.dsl.AST.syntax._
 import relaks.lang.dsl._
 import relaks.lang.dsl.extensions.ast._
-import relaks.lang.dsl.extensions.ast.logical.{QueryOp, LoadComprehension, SelectComprehension}
 import relaks.lang.dsl.utils.{UnliftType, TypedSymbols, TreePrettyPrintable}
-import relaks.lang.impl.Row
-import relaks.lang.phases.interpreter.{BaseQueryOpInterpreter, BaseExprInterpreter}
 import shapeless._
 import shapeless.ops.nat.ToInt
 import shapeless.ops.tuple.ToTraversable
 import shapeless.ops.{hlist, tuple}
 
-import scala.collection.immutable.Stack
-import scala.collection.mutable
 import scala.language.{higherKinds, existentials, implicitConversions}
 import scalaz.Scalaz._
 import scalaz._
@@ -199,7 +185,7 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils wi
     def orderBy[P <: Product](fields: P)(implicit toVector: ToTraversable.Aux[P, Vector, Symbol]): Out = {
       val fieldsVec = toVector(fields)
       val fieldsWithTypes = getFieldsWithTypes(arg.tree, fieldsVec)
-      val expr = OrderBy(arg.tree, fieldsWithTypes.map(fld => FieldWithDirection(fld, OrderBy.Asc)), isExperimentTarget = false)(new UntypedTableType)
+      val expr = OrderBy(arg.tree, fieldsWithTypes.map(fld => FieldWithDirection(fld, OrderBy.Asc)))(new UntypedTableType)
       asCmp(expr)
     }
 
@@ -289,9 +275,8 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils wi
                                                    (implicit mkCmp: AsTypedCmp[H])
     extends GetFieldsWithTypes {
         def by(field: Symbol) =
-         mkCmp(OrderBy(arg.tree,
-           Vector(FieldWithDirection(getFieldsWithTypes(arg.tree, Vector(field)).head, OrderBy.Asc)),
-           isExperimentTarget = true
+         mkCmp(OptimizeBy(arg.tree,
+           Vector(FieldWithDirection(getFieldsWithTypes(arg.tree, Vector(field)).head, OrderBy.Asc))
          )(new UntypedTableType))
 
   }

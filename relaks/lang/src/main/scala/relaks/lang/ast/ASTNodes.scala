@@ -91,11 +91,9 @@ object TupleWithNames {
   def unapplyFields = (unapplyWithTypes _) andThen toFields.lift
 }
 
-sealed trait NondetGenerator extends Expression {
-  val name: String = "x"
-}
-sealed case class NondetGeneratorRange(from: Literal, to: Literal) extends NondetGenerator
-sealed case class NondetGeneratorList(s: Expression) extends NondetGenerator
+sealed trait HyperparamSpace extends Expression
+sealed case class HyperparamRange(from: Expression, to: Expression) extends HyperparamSpace
+sealed case class HyperparamList(s: Expression) extends HyperparamSpace
 
 sealed case class Once(a: Atom) extends Expression
 
@@ -114,10 +112,4 @@ trait NamedArgs { this: Apply =>
   val names: List[Option[String]]
 }
 
-case class Select(lhs: Expression, rhs: Expression) extends Expression {
-  val seq: NonEmptyList[Expression] = rhs match {
-    case s: Select => lhs <:: s.seq
-    case _ => NonEmptyList(lhs, rhs)
-  }
-}
 sealed case class Operator(name: String) extends Expression
