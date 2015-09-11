@@ -2,11 +2,11 @@ package relaks.lang.phases.interpreter
 
 import com.bethecoder.ascii_table.ASCIITable
 import com.typesafe.scalalogging.LazyLogging
-import org.kiama.relation.GraphTree
+import org.kiama.relation.DAGIr
 import relaks.lang.ast._
 import relaks.lang.dsl.extensions._
 import relaks.lang.dsl.extensions.ast._
-import relaks.lang.dsl.extensions.ast.logical.{LoadComprehension, QueryOp, SelectComprehension}
+import relaks.lang.dsl.extensions.ast.logical.{Select, LoadComprehension, QueryOp, SelectComprehension}
 import relaks.lang.impl
 import relaks.lang.ast
 import relaks.lang.impl.Row
@@ -28,11 +28,11 @@ abstract class OptimizationInterpreter(Optimizer: BaseOptimizer)
   with HyperparamInterpreter
   with LazyLogging {
   private val evalOptimizerComprehension: PartialFunction[Expression, Process[Task, impl.Row]] = {
-    case _/>(c @ SelectComprehension(input@LoadComprehension(OptimizerResultTable(vars)), transforms, filters, limits, orderbys, sequence)) =>
+    case _/>(c @ Select(input@LoadComprehension(OptimizerResultTable(vars)), transforms, filters, limits, orderbys, sequence)) =>
       import QueryOp._
 
-      val superPosed = new SuperPosed(new GraphTree(vars))
-      val paramSources = superPosed.superPosDeps(vars)
+      val superPosed = new Hyperparams(new DAGIr(vars))
+      val paramSources = superPosed.hyperparamDependencies(vars)
       val params = paramSources.toSeq.map(sym => sym -> evalSuperPosGenerator(sym))
       val paramsSpace = collection.mutable.LinkedHashMap(params.map(symParam => s"x${symParam._1.name}" -> symParam._2):_*)
 

@@ -1,7 +1,7 @@
 package relaks.lang.phases.interpreter
 
 import com.twitter.algebird.Averager
-import com.twitter.algebird.mutable.InfPriorityQueueAggregator
+import com.twitter.algebird.mutable.UnboundedPriorityQueueAggregator
 import org.kiama.==>
 import relaks.lang.ast._
 import relaks.lang.dsl.ScalaTypeImplis
@@ -22,7 +22,7 @@ trait QueryOpInterpreter extends BaseQueryOpInterpreter with Queries with BaseEx
 
   private def inEnv[T](gen: Generator)(f: => T)(inputRow: Row) = {
     push(gen.symsToFields
-      .map {case (sym, name) => (sym, new Literal(inputRow.get(sym.tpe.asInstanceOf[ArgType[_]])(name.name))(sym.tpe)) })
+      .map {case (sym, name) => (sym, new Literal(inputRow.get(name.name)(sym.tpe.asInstanceOf[ArgType[Any]]))(sym.tpe)) })
     val result = f
     pop()
     result
@@ -63,7 +63,7 @@ trait QueryOpInterpreter extends BaseQueryOpInterpreter with Queries with BaseEx
         (fld.direction == ast.OrderBy.Desc) ? order | order.reverseOrder  //order is reversed again in the aggregation
       }
       implicit val ordering: scala.Ordering[Row] = fields.toEphemeralStream.map(mkOrder).fold.toScalaOrdering
-      val aggregator = new InfPriorityQueueAggregator[Row]
+      val aggregator = new UnboundedPriorityQueueAggregator[Row]
 
       process1.lift(aggregator.prepare) |>
         process1.reduce(aggregator.reduce) |>

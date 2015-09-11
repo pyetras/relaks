@@ -26,23 +26,23 @@ class TupleTest extends FunSpec with Matchers with Inside with LoneElement {
     }
 
 //    it("should superpos type if necessary") {
-//      tup.getTpe.isSuperPosed should be(true)
-//      (1, 4: Rep[Int], true).getTpe.isSuperPosed should be(false)
+//      tup.getTpe.isHyperparam should be(true)
+//      (1, 4: Rep[Int], true).getTpe.isHyperparam should be(false)
 //    }
 
     it("should allow static access") {
       tup(0).tree should matchPattern { case Literal(1) => }
       tup(0).getTpe should equal(intType)
-//      tup(0).getTpe.isSuperPosed should be(false)
+//      tup(0).getTpe.isHyperparam should be(false)
 
-//      tup(2).getTpe.isSuperPosed should be(true)
+//      tup(2).getTpe.isHyperparam should be(true)
 //      inside(tup(2).getTpe) { case t:SuperPosArgType[_] => t.insideType should equal(intType) }
     }
 
     it("should allow dynamic access") {
       tup.at(0).tree should matchPattern { case Apply(Stdlib.at, x) => }
       val i: Rep[Int] = 0
-//      tup.at(i).getTpe.isSuperPosed should be(true)
+//      tup.at(i).getTpe.isHyperparam should be(true)
     }
 
     it("should not create a tuple with incorrect type") {

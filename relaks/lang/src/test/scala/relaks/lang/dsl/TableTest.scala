@@ -187,7 +187,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
 
         val transformed = buildComprehensions(r.tree).get
 
-        transformed should matchPattern { case _/> SelectComprehension(_, _ +: _ +: Seq(), _ +: Seq(), _, _ +: Seq(), Seq(_: QueryOp.Transform, _: QueryOp.Transform, _: QueryOp.OrderBy, _: QueryOp.Filter)) => }
+        transformed should matchPattern { case _/> Select(_, _ +: _ +: Seq(), _ +: Seq(), _, _ +: Seq(), Seq(_: QueryOp.Transform, _: QueryOp.Transform, _: QueryOp.OrderBy, _: QueryOp.Filter)) => }
       }
 
       it("should merge nested queries into Comprehension s") {
@@ -206,7 +206,7 @@ class TableTest extends FunSpec with Matchers with Inside with LoneElement with 
         import QueryOp._
         val _ /> (comprehension: SelectComprehension) = transformed
         println(ComprehensionPrinter(comprehension))
-        transformed should matchPattern { case _/> SelectComprehension(_: LoadComprehension, _ +: QueryOp.Transform(_, _/> (_: SelectComprehension)) +: Seq(), _, _, _, _) => }
+        transformed should matchPattern { case _/> Select(_: LoadComprehension, _ +: QueryOp.Transform(_, _/> (_: SelectComprehension)) +: Seq(), _, _, _, _) => }
       }
 
       it("should compute output schema for Comprehensions") {

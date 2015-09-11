@@ -4,7 +4,7 @@ import com.bethecoder.ascii_table.ASCIITable
 import org.kiama.==>
 import relaks.lang.ast.{ListType, TableFromList, Literal, Expression}
 import relaks.lang.dsl.extensions.ast.Symbols
-import relaks.lang.dsl.extensions.ast.logical.{LoadComprehension, SelectComprehension, QueryOp}
+import relaks.lang.dsl.extensions.ast.logical.{Select, LoadComprehension, SelectComprehension, QueryOp}
 import relaks.lang.dsl.extensions.{ListInterpreter, ListExtensions, TupleInterpreter, TableIO}
 import relaks.lang.impl.{VectorRow, Schema, TableImpl, Row}
 import relaks.lang.phases.rewriting.QueryRewritingPhases
@@ -65,7 +65,7 @@ trait ComprehensionInterpreter
   }
 
   protected val operatorsProcess: PartialFunction[Expression, Process1[impl.Row, impl.Row]] = {
-    case _/> SelectComprehension(_, _, _, _, _, seq) =>
+    case _/> Select(_, _, _, _, _, seq) =>
       seq.foldl(process1.id[impl.Row])(acc => op => acc |> evalQuery(op))
   }
 
@@ -81,7 +81,7 @@ trait ComprehensionInterpreter
 
 trait ListComprehensionInterpreter extends ComprehensionInterpreter with ListInterpreter {
   private def rowsFromList: Expression ==> Process[Task, Row] = {
-    case _/>SelectComprehension(LoadComprehension(TableFromList(listExpr)), _ +: _, _, _, _, _) =>
+    case _/>Select(LoadComprehension(TableFromList(listExpr)), _ +: _, _, _, _, _) =>
       val lst = evalListExpression(listExpr)
       val schema = Schema(Vector(("x0", listExpr.tpe.asInstanceOf[ListType[Any]].childType)))
       Process.unfold(lst) { acc =>

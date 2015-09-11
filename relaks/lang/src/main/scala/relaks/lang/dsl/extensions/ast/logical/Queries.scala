@@ -21,37 +21,34 @@ import scala.runtime.ScalaRunTime
 sealed trait Comprehension extends Expression
 sealed case class LoadComprehension(loadExpression: SourceQuery) extends Comprehension
 
-final case class SelectComprehension(from: Comprehension,
-                                     transform: Vector[QueryOp.Transform] = Vector.empty,
-                                     filter: Vector[QueryOp.Filter] = Vector.empty,
-                                     limit: Vector[QueryOp.Limit] = Vector.empty,
-                                     orderBy: Vector[QueryOp.OrderBy] = Vector.empty,
-                                     sequence: Vector[QueryOp] = Vector.empty) extends Comprehension {
+final case class SelectComprehension(from: Comprehension, operations: Vector[QueryOp] = Vector.empty) extends Comprehension {
   import QueryOp._
 
-//  val seqL = Lens.lensu[SelectComprehension, QueryOp]((cmp, ops) => cmp.copy(sequence = cmp.sequence :+ ops), _.sequence.first)
-//  val filterL = Lens.lensu[SelectComprehension, Filter]((cmp, ops) => cmp.copy(filter = ops), _.filter)
+  val filter = operations.toStream.collect { case op: Filter => op }
+  val transform = operations.toStream.collect { case op: Transform => op }
+  val limit = operations.toStream.collect { case op: Limit => op }
+  val orderBy = operations.toStream.collect { case op: OrderBy => op }
 
-  def append(queryOp: QueryOp): SelectComprehension = queryOp match {
-    case (op: Filter) => this.copy(filter = this.filter :+ op, sequence = this.sequence :+ op)
-    case (op: Transform) => this.copy(transform = this.transform :+ op, sequence = this.sequence :+ op)
-    case (op: Limit) => this.copy(limit = this.limit :+ op, sequence = this.sequence :+ op)
-    case (op: OrderBy) => this.copy(orderBy = this.orderBy :+ op, sequence = this.sequence :+ op)
-  }
+  def append(queryOp: QueryOp): SelectComprehension =
+    this.copy(operations = this.operations :+ queryOp)
 
   def appendAndCommit(queryOp: QueryOp): SelectComprehension = SelectComprehension(append(queryOp))
 
   override def mainToString: String = ScalaRunTime._toString(this)
+}
 
+object Select {
+  import QueryOp._
+  //Option[(Comprehension, Stream[Transform], Stream[Filter], Stream[Limit], Stream[OrderBy], Vector[QueryOp])]
+  def unapply(s: SelectComprehension) = (s.from, s.transform, s.filter, s.limit, s.orderBy, s.operations).some
 }
 
 object QueryOp {
   sealed trait QueryOp extends Expression
-
   case class Transform(generator: GeneratorBase, select: Atom) extends QueryOp
   case class Filter(generator: GeneratorBase, filter: Atom) extends QueryOp
   case class Limit(start: Atom, count: Atom) extends QueryOp
-  case class OrderBy(ordering: Vector[FieldWithDirection], isExperimentTarget: Boolean) extends QueryOp
+  case class OrderBy(ordering: Vector[FieldWithDirection], isExperimentObjective: Boolean) extends QueryOp
 
   def unapply(expr: Expression): Option[QueryOp] = expr match {
     case (op: lang.ast.Filter) => Filter(op.generator, op.filter).some
@@ -97,7 +94,7 @@ trait ComprehensionPrinters extends Symbols with Queries {
     private def nestl(f: => Doc) = nest(line <> f)
 
     private def cmpToDoc(comprehension: Comprehension): Doc = comprehension match {
-      case SelectComprehension(from, transform, filter, limit, orderBy, seq) =>
+      case Select(from, transform, filter, limit, orderBy, seq) =>
         group("from" <> nestl(cmpToDoc(from))) <@>
           group("select" <> nestl(group(vsep(transform.map(opToDoc))))) <>
           nonEmpty(filter)(line <> group("where" <> nestl(group(vsep(filter.map(opToDoc)))))) <>

@@ -8,9 +8,9 @@ import org.kiama.==>
 import relaks.lang.ast.Expression
 import relaks.lang.dsl.extensions.ast.logical.QueryOp.QueryOp
 import relaks.lang.dsl.extensions.ast.logical.QueryOp.QueryOp
-import relaks.lang.dsl.extensions.ast.logical.{QueryOp, LoadComprehension, SelectComprehension}
+import relaks.lang.dsl.extensions.ast.logical.{Select, QueryOp, LoadComprehension, SelectComprehension}
 import relaks.lang.dsl.extensions.{TupleInterpreter, HyperparamAnalysis}
-import relaks.lang.impl.{VectorRow, CsvAllRow, Schema, Row}
+import relaks.lang.impl._
 import relaks.lang.phases.rewriting.QueryRewritingPhases
 import relaks.optimizer.NondetParams
 import relaks.lang.impl
@@ -87,7 +87,7 @@ trait DrillInterpreter extends ComprehensionInterpreter {
   }
 
   private[lang] val rowsProcess: PartialFunction[Expression, Process[Task, impl.Row]] = {
-    case _/> SelectComprehension(LoadComprehension(LoadTableFromFs(path)), transforms, filters, limits, orderBys, seq) =>
+    case _/> Select(LoadComprehension(LoadTableFromFs(path)), transforms, filters, limits, orderBys, seq) =>
       implicit val session = new ActiveSession(connection, DBConnectionAttributes())
 
       val projectSet = initialOps(seq)
@@ -135,13 +135,13 @@ trait DrillInterpreter extends ComprehensionInterpreter {
         val schema = Schema(projectL.map(x => x._1.name -> x._2).toVector)
         rows |> process1.lift { wrs =>
           logger.debug("got drill row")
-          new VectorRow((1 to projectL.size).map(i => wrs.any(i)).toVector, schema)
+          new JDBCRow(wrs, schema)
         }
       } else {
         rows |> process1.lift { wrs =>
           val array = wrs.any(1).asInstanceOf[JsonStringArrayList[Text]]
           val vals = (0 until array.size()).map(i => array.get(i).toString).toVector
-          new CsvAllRow(vals, array.size())
+          new CsvAllRow(vals)
         }
       }
   }

@@ -3,7 +3,7 @@ package relaks.lang.dsl
 import org.scalatest._
 import relaks.lang.ast._
 import relaks.lang.dsl.extensions.ListInterpreter
-import relaks.lang.dsl.extensions.ast.logical.{LoadComprehension, SelectComprehension}
+import relaks.lang.dsl.extensions.ast.logical.{Select, LoadComprehension, SelectComprehension}
 import relaks.lang.phases.interpreter.ListComprehensionInterpreter
 import shapeless.{HNil, ::}
 
@@ -72,7 +72,7 @@ class ListTest extends FunSpec with Matchers with Inside {
 
         val cmp = buildComprehensions(tab.tree).get
 
-        cmp should matchPattern { case _/> SelectComprehension(LoadComprehension(TableFromList(_)), _ +: Seq(), Seq(), Seq(), Seq(), _) => }
+        cmp should matchPattern { case _/> Select(LoadComprehension(TableFromList(_)), _ +: Seq(), Seq(), Seq(), Seq(), _) => }
       }
 
       it("should interpret a list to comprehension expression") {

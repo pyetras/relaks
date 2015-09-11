@@ -7,7 +7,7 @@ import com.twitter.algebird.{Monoid, MonoidAggregator}
 /**
  * Created by Pietras on 19.08.15.
  */
-class InfPriorityQueueAggregator[A](implicit ord: Ordering[A])
+class UnboundedPriorityQueueAggregator[A](implicit ord: Ordering[A])
   extends MonoidAggregator[A, PriorityQueue[A], Seq[A]] {
   override val monoid = new InfPriorityQueueMonoid[A]
 

@@ -6,7 +6,7 @@ import relaks.lang.dsl.AST._
 import relaks.lang.dsl.extensions._
 import relaks.lang.dsl.extensions.ast.Symbols
 import shapeless._
-import org.kiama.relation.GraphTree
+import org.kiama.relation.DAGIr
 
 import scalaz.stream.process1
 import scalaz.{Failure, Success}
@@ -26,7 +26,7 @@ class SuperPosTest extends FunSpec with Matchers with Inside {
     with TupleExtensions
     with NativeFunExtensions
     with HyperparamAnalysis {
-      def superPosed(n: Expression): Boolean = new SuperPosed(new GraphTree(n)).isSuperPosed(n)
+      def superPosed(n: Expression): Boolean = new Hyperparams(new DAGIr(n)).isHyperparam(n)
     }
 
     import Program._
@@ -196,12 +196,11 @@ class SuperPosTest extends FunSpec with Matchers with Inside {
   }
 
   describe("SuperPos analyzer") {
-    it("should only accept superposed arguments to the `once` operator") {
+    it("should only accept superposed arguments to the `optimize` operator") {
       val (p, a, b) = prog()
       import p._
-      analyze(once(a).tree) should matchPattern { case Failure(_) => }
-      analyze(once(b).tree) should matchPattern { case Success(()) => }
+      analyze(optimize(Tuple1(a)).tree) should matchPattern { case Failure(_) => }
+      analyze(optimize(Tuple1(b)).tree) should matchPattern { case Success(()) => }
     }
-    it("should only accept superposed arguments to the `generate` operator") { pending }
   }
 }

@@ -1,7 +1,8 @@
 package relaks.lang.dsl.extensions
 
+import org.kiama.==>
 import org.kiama.attribution.Attribution
-import org.kiama.relation.GraphTree
+import org.kiama.relation.DAGIr
 import relaks.lang.ast._
 import relaks.lang.dsl._
 import relaks.lang.dsl.extensions.ast.Symbols
@@ -37,37 +38,39 @@ trait HyperparamExtensions extends ListExtensions with Symbols with HyperparamGe
 
 trait HyperparamAnalysis extends Symbols with Analysis {
 
-  class SuperPosed(tree: GraphTree) extends Attribution { self =>
-    val superPosDeps: Any => Set[Sym] = {
-      attr {
-        case _ /> OptimizerResultTable(_) => Set.empty
-        case Some(sym) /> (_: HyperparamSpace) => Set(sym)
-        case Fresh(_) => Set.empty[Sym]
-        case _ /> (link) => tree.child(link).map(self.superPosDeps).foldLeft(Set.empty[Sym]){_ ++ _}
-        case _ => Set.empty
-      }
+  class Hyperparams(tree: DAGIr) extends Attribution { self =>
+    val hyperparamDependencies: Any => Set[Sym] = attr {
+      case _ /> OptimizerResultTable(_) => Set.empty
+      case Some(sym) /> (_: HyperparamSpace) => Set(sym)
+      case Fresh(_) => Set.empty[Sym]
+      case _ /> (link) => tree.child(link).map(self.hyperparamDependencies).foldLeft(Set.empty[Sym])(_ ++ _)
+      case _ => Set.empty
     }
 
-    def isSuperPosed(expr: Expression) = self.superPosDeps(expr).nonEmpty
+    def isHyperparam(expr: Expression) = self.hyperparamDependencies(expr).nonEmpty
   }
 
   //TODO attribution
   def showSpace(superPos: Expression): Map[Int, Any] = ??? /*{
-    assert(superPos->isSuperPosed)
-    (superPos->superPosDeps map {
+    assert(superPos->isHyperparam)
+    (superPos->hyperparamDependencies map {
       case sym @ Expr(HyperparamList(Expr(lc @ ListConstructor(lst)))) => sym.asInstanceOf[Sym].name -> lc
       case sym @ Expr(HyperparamList(Expr(ll @ Literal(x)))) => sym.asInstanceOf[Sym].name -> ll
       case sym @ Expr(HyperparamRange(l, r)) => sym.asInstanceOf[Sym].name -> (l.value, r.value)
     }).toMap
   }*/
-
-  override protected def doAnalyze(root: Expression): ValidationNel[String, Unit] = root match {
-    case n @ Once(atom) =>
-      //TODO cache attribution
-      val spd = new SuperPosed(new GraphTree(root))
-      (if(spd.isSuperPosed(atom)) ().successNel else "argument of `once` must be superposed".failureNel) *> super.doAnalyze(n)
-    case n @ _ => super.doAnalyze(n)
+  private val optimizerValidation: (Expression, DAGIr) ==> ValidationNel[String, Unit] = {
+    case (OptimizerResultTable(tuple), ir: DAGIr) =>
+      val hyperparams = new Hyperparams(ir)
+      if (hyperparams.isHyperparam(tuple))
+        ().successNel
+      else
+        "argument of `optimize` must be superposed".failureNel
   }
+
+
+  override protected def doAnalyze(node: Expression, ir: DAGIr): ValidationNel[String, Unit]
+    = optimizerValidation.applyOrElse((node, ir), Function.const(().successNel)) *> super.doAnalyze(node, ir)
 }
 
 sealed trait HyperparamGenerators extends ListExtensions with Symbols {

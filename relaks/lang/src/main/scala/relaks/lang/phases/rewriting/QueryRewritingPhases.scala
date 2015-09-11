@@ -3,11 +3,11 @@ package relaks.lang.phases.rewriting
 import com.typesafe.scalalogging.LazyLogging
 import org.kiama._
 import org.kiama.attribution.Attribution
-import org.kiama.relation.GraphTree
+import org.kiama.relation.DAGIr
 import relaks.lang.ast._
 import relaks.lang.dsl.extensions.TableUtils
 import relaks.lang.dsl.extensions.ast._
-import relaks.lang.dsl.extensions.ast.logical.{Comprehension, LoadComprehension, QueryOp, SelectComprehension}
+import relaks.lang.dsl.extensions.ast.logical._
 import scalaz.Scalaz
 import Scalaz._
 
@@ -37,7 +37,7 @@ trait QueryRewritingPhases extends LazyLogging with Symbols with Queries with Ta
 
   import org.kiama.rewriting.Rewriter._
 
-  class LeafSyms(tree: GraphTree) extends Attribution { self =>
+  class LeafSyms(tree: DAGIr) extends Attribution { self =>
     val leafSyms: Expression => Set[Sym] = attr {
       case Expr(node) => tree.child(node).map(self.leafSyms).foldLeft(Set.empty[Sym]) {_ ++ _}
       case s: Sym => Set(s)
@@ -61,7 +61,7 @@ trait QueryRewritingPhases extends LazyLogging with Symbols with Queries with Ta
     }
 
     val forComprehension: Comprehension => Vector[(String, TType)] = attr {
-      case SelectComprehension(input, transforms, _, _, _, _) => transforms.lastOption.map(forTransform).getOrElse(forComprehension(input))
+      case Select(input, transforms, _, _, _, _) => transforms.lastOption.map(forTransform).getOrElse(forComprehension(input))
       case LoadComprehension(OptimizerResultTable(argTuple)) => TupleWithNames.unapplyWithTypes(argTuple).get
       case _ => Vector.empty
     }
@@ -103,7 +103,7 @@ trait QueryRewritingPhases extends LazyLogging with Symbols with Queries with Ta
 
         val Generator(parSyms, _) = gPar
         //TODO cache attribution
-        val filterSyms = new LeafSyms(new GraphTree(sel)).leafSyms(sel)
+        val filterSyms = new LeafSyms(new DAGIr(sel)).leafSyms(sel)
 
         if (filterSyms.intersect(parSyms.toSet).nonEmpty) {
           logger.debug("filter selector contains syms from both parent and child transformation")

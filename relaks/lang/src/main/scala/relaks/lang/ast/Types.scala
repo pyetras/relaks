@@ -3,6 +3,7 @@ package relaks.lang.ast
 import breeze.math
 import com.twitter.bijection.Injection
 import relaks.lang.dsl.utils.TupleLU
+import scalikejdbc.TypeBinder
 import shapeless.nat._
 import shapeless.ops.hlist.Length
 import shapeless.ops.nat.ToInt
@@ -24,7 +25,9 @@ sealed trait TType {
 }
 trait NumType
 
-sealed abstract class ArgType[T: WeakTypeTag](implicit val order: Order[T] = null, val toText: Injection[T, String] = null) extends TType { self =>
+sealed abstract class ArgType[T: WeakTypeTag](implicit val order: Order[T] = null,
+                                              val toText: Injection[T, String] = null,
+                                              val typeBinder: TypeBinder[T] = null) extends TType { self =>
   override def toString = s"$containerName[$typeArgName]"
 
   override lazy val ct = implicitly[WeakTypeTag[T]]
