@@ -8,7 +8,7 @@ import org.scalatest.{Tag, FunSpec, Inside, Matchers}
 import relaks.lang.ast.{Tup, UntypedTup}
 import relaks.lang.dsl.extensions.ast.logical.{Comprehension, ComprehensionPrinters}
 import relaks.lang.dsl.{DSLOptimizerInterpreter, Rep}
-import relaks.lang.impl.TableImpl
+import relaks.lang.impl.TableProcess
 import relaks.lang.phases.interpreter.{DrillInterpreter, ListComprehensionInterpreter}
 import relaks.lib.mtree.{DistanceFunction, MTree}
 import relaks.optimizer.SpearmintOptimizer
@@ -39,13 +39,13 @@ class KNNTest extends FunSpec with Matchers with Inside {
         }
       }
 
-      def makeTree(dist: DistanceFunction[FeatureVec], train: TableImpl) = {
+      def makeTree(dist: DistanceFunction[FeatureVec], train: impl.Table) = {
         val tree = new MTree(dist, null)
         train.toIterator.foreach(row => tree.add(row(0).asInstanceOf[FeatureVec]))
         tree
       }
 
-      def knn(k: Int, tree: MTree[FeatureVec], test: TableImpl) = {
+      def knn(k: Int, tree: MTree[FeatureVec], test: impl.Table) = {
         val confMatrix = DenseMatrix.zeros[Double](11, 11)
         test.toIterator.foreach { row =>
           val fv = row(0).asInstanceOf[FeatureVec]
@@ -72,9 +72,9 @@ class KNNTest extends FunSpec with Matchers with Inside {
       val test = dataSet(row => row(0) === 1)
       val train = dataSet(row => row(0) !== 1)
 
-      val tree = (makeTree _).pure.apply((distFn, train))
+      val tree = (makeTree _).pure.apply(distFn, train)
 
-      val confMatrix: Rep[DenseMatrix[Double]] = (knn _).pure.apply((k, tree, test))
+      val confMatrix: Rep[DenseMatrix[Double]] = (knn _).pure.apply(k, tree, test)
 
       val experiment = optimize(Tuple1(confMatrix)) map { case Tup(Tuple1(m: Rep[DenseMatrix[Double]])) =>
         m.liftMap(mx => -f1_accuracy(mx)._1) as 'result

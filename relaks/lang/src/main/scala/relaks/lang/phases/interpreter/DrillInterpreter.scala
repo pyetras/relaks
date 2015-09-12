@@ -62,7 +62,7 @@ trait DrillInterpreter extends ComprehensionInterpreter {
   }
 
   private[lang] def makeCast(typ: TType): (Symbol => String) = {
-        import ScalaTypes._
+    import ScalaTypes._
     (colname: Symbol) =>
       val drillt = typ match {
         case t if t == intType => "INT".some
@@ -87,7 +87,7 @@ trait DrillInterpreter extends ComprehensionInterpreter {
   }
 
   private[lang] val rowsProcess: PartialFunction[Expression, Process[Task, impl.Row]] = {
-    case _/> Select(LoadComprehension(LoadTableFromFs(path)), transforms, filters, limits, orderBys, seq) =>
+    case _/> Select(LoadComprehension(LoadTableFromFs(path)), _, _, _, _, seq) if path.endsWith(".csv") =>
       implicit val session = new ActiveSession(connection, DBConnectionAttributes())
 
       val projectSet = initialOps(seq)

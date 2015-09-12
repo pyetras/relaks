@@ -9,15 +9,15 @@ import relaks.lang.dsl.utils.ProcessIterator
 /**
  * Created by Pietras on 12.08.15.
  */
-trait TableBaseImpl {
+trait Table {
   def toIterator: Iterator[Row]
 }
 
-trait UntypedTableImpl extends TableBaseImpl
+trait UntypedTable extends Table
 
-trait TypedTableImpl[H <: HList] extends TableBaseImpl
+trait TypedTable[H <: HList] extends Table
 
-class TableImpl(rows: Process[Task, Row]) extends UntypedTableImpl with TypedTableImpl[HNil] {
+class TableProcess(rows: Process[Task, Row]) extends UntypedTable with TypedTable[HNil] {
   class TableIterator extends Iterator[Row] {
     lazy private val stepper = {
       Process.step(rows)

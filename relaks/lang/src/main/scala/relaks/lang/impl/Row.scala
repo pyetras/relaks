@@ -4,6 +4,7 @@ import com.twitter.bijection.Injection
 import relaks.lang.ast.{ScalaTypes, ArgType, TType}
 import breeze.linalg.{Vector => BrVec}
 import scalikejdbc.{WrappedResultSet, TypeBinder}
+import shapeless.HList
 
 import scala.reflect.ClassTag
 /**
@@ -15,7 +16,7 @@ case class Schema(schema: Vector[(String, TType)]) {
   val length = schema.length
 }
 
-trait UntypedRow {
+trait Row {
   private implicit val anyType = ScalaTypes.anyType
 
   def get[T: ArgType](i: Int): T
@@ -30,14 +31,15 @@ trait UntypedRow {
     for (i <- rng) arr += get[T](i)
     BrVec(arr.result())
   }
-}
 
-trait Row extends UntypedRow {
   def colNames: Seq[String]
   def values: Seq[Any]
 
   override def toString: String = values.toString()
 }
+
+trait UntypedRow extends Row
+trait TypedRow[H <: HList] extends Row
 
 trait SchemaDef { this: Row =>
   protected val schema: Schema
@@ -46,19 +48,19 @@ trait SchemaDef { this: Row =>
   protected def getIx(name: String) = schema.namesCols(name)
 }
 
-class VectorRow(override val values: Vector[Any], override protected val schema: Schema) extends Row with SchemaDef {
+class VectorRow(override val values: Vector[Any], override protected val schema: Schema) extends UntypedRow with SchemaDef {
   override def get[T: ArgType](i: Int): T = values(i).asInstanceOf[T]
   override def get[T: ArgType](name: String): T = values(getIx(name)).asInstanceOf[T]
 }
 
-class JDBCRow(rs: WrappedResultSet, override protected val schema: Schema) extends Row with SchemaDef {
+class JDBCRow(rs: WrappedResultSet, override protected val schema: Schema) extends UntypedRow with SchemaDef {
   private def typeBinder[T](implicit argType: ArgType[T]) = argType.typeBinder
   override def values: Seq[Any] = (1 to length).map(i => rs.any(i))
   override def get[T: ArgType](i: Int): T = rs.get[T](i + 1)(typeBinder[T])
   override def get[T: ArgType](name: String): T = rs.get[T](name)(typeBinder[T])
 }
 
-class CsvAllRow(override val values: Vector[String]) extends Row {
+class CsvAllRow(override val values: Vector[String]) extends UntypedRow {
   private val length = values.length
   override val colNames = (0 until length).view.map(i => s"columns[$i]").toVector
 

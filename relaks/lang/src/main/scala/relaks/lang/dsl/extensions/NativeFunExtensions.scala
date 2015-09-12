@@ -4,7 +4,7 @@ import relaks.lang.ast._
 import relaks.lang.dsl.AST.ASTSyntax
 import relaks.lang.dsl.Rep
 import relaks.lang.impl
-import relaks.lang.impl.{TypedTableImpl, UntypedTableImpl, Row, TableImpl}
+import relaks.lang.impl.TableProcess
 import shapeless.ops.hlist.Mapper
 import shapeless._
 import shapeless.ops.function.{FnFromProduct, FnToProduct}
@@ -16,61 +16,61 @@ import scala.language.implicitConversions
 trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
 
 
-  trait Translation[A <: HList] {
+  trait MapArgs[A <: HList] {
     type Out <: HList
   }
-  object Translation {
-    type Aux[A <: HList, B <: HList] = Translation[A] {type Out = B}
+  object MapArgs {
+    type Aux[A <: HList, B <: HList] = MapArgs[A] {type Out = B}
 
-    def apply[T <: HList](implicit t: Translation[T]): Aux[T, t.Out] = t
+    def apply[T <: HList](implicit t: MapArgs[T]): Aux[T, t.Out] = t
 
-    implicit def translateNil: Aux[HNil, HNil] = new Translation[HNil] {
+    implicit def translateNil: Aux[HNil, HNil] = new MapArgs[HNil] {
       type Out = HNil
     }
 
-    implicit def translate[A, B, HA <: HList, HB <: HList](implicit ev: Aux[HA, HB],
-                                                           c: Case[B, A]): Aux[A :: HA, B :: HB] =
-      new Translation[A :: HA] {
+    implicit def mapArg[A, B, HA <: HList, HB <: HList](implicit ev: Aux[HA, HB],
+                                                           c: Translation[B, A]): Aux[A :: HA, B :: HB] =
+      new MapArgs[A :: HA] {
         type Out = B :: HB
       }
 
-    implicit def translateId[A, HA <: HList, HB <: HList](implicit ev: Aux[HA, HB], nc: Not[Case[A, A]]): Aux[A :: HA, A :: HB]
-    = new Translation[A :: HA] {
+    implicit def mapArgId[A, HA <: HList, HB <: HList](implicit ev: Aux[HA, HB], nc: Not[Translation[A, A]]): Aux[A :: HA, A :: HB]
+    = new MapArgs[A :: HA] {
       type Out = A :: HB
     }
 
     class Not[X]
 
-    implicit def not[X, Y]: Not[Case[X, Y]] = new Not[Case[X, Y]]
+    implicit def not[X, Y]: Not[Translation[X, Y]] = new Not[Translation[X, Y]]
 
-    implicit def notNot[X, Y](implicit c: Case[_, Y]): Not[Case[X, Y]] = new Not[Case[X, Y]]
-    implicit def notNot2[X, Y](implicit c: Case[X, _]): Not[Case[X, Y]] = new Not[Case[X, Y]]
+    implicit def notNot[X, Y](implicit c: Translation[_, Y]): Not[Translation[X, Y]] = new Not[Translation[X, Y]]
+    implicit def notNot2[X, Y](implicit c: Translation[X, _]): Not[Translation[X, Y]] = new Not[Translation[X, Y]]
 
-    class Case[X, Y]
+    class Translation[X, Y]
 
-    implicit val tableTranslation = new Case[Table, TableImpl]
-    implicit val untypedTableTranslation = new Case[UntypedTable, UntypedTableImpl]
+    implicit val tableTranslation = new Translation[Table, impl.Table]
+    implicit val untypedTableTranslation = new Translation[UntypedTable, impl.UntypedTable]
 
-    implicit def typedTableTranslation[H <: HList] = new Case[TypedTable[Tup[H]], TypedTableImpl[H]]
+    implicit def typedTableTranslation[H <: HList] = new Translation[TypedTable[Tup[H]], impl.TypedTable[H]]
 
-    implicit val rowTranslation = new Case[Tupl, impl.Row]
-    implicit val untypedRowTranslation = new Case[UntypedTup, impl.UntypedRow]
+    implicit val rowTranslation = new Translation[Tupl, impl.Row]
+    implicit val untypedRowTranslation = new Translation[UntypedTup, impl.UntypedRow]
 
-//    implicit def notUnfinishedGenTranslation = new Case[Nothing, U]
+//    implicit def notUnfinishedGenTranslation = new Translation[Nothing, U]
   }
 //  object translate extends Poly1 {
 //    class HasTranslation[T, X]
 //    class HasIdentityTranslation[T] extends HasTranslation[T, T]
 //    implicit def idTranslation[T]: HasIdentityTranslation[T] = new HasIdentityTranslation[T]
 //
-//    def defineTranslation[B, A] = new Case[A] {
+//    def defineTranslation[B, A] = new Translation[A] {
 //      override type Result = B
 //      override val value: (::[A, HNil]) => Result = x => null.asInstanceOf[B]
 //    }
 //
-//    implicit val tableTranslation = defineTranslation[Table, TableImpl]
-//    implicit val untypedTableTranslation = defineTranslation[UntypedTable, UntypedTableImpl]
-//    implicit def typedTableTranslation[H <: HList] = defineTranslation[TypedTable[Tup[H]], TypedTableImpl[H]]
+//    implicit val tableTranslation = defineTranslation[Table, TableProcess]
+//    implicit val untypedTableTranslation = defineTranslation[UntypedTable, impl.UntypedTable]
+//    implicit def typedTableTranslation[H <: HList] = defineTranslation[TypedTable[Tup[H]], impl.TypedTable[H]]
 //    implicit val rowTranslation = defineTranslation[Tup[_], Row]
 //    implicit def translate[T, X](implicit translation: HasTranslation[T, X]) = at[T](x => null.asInstanceOf[X] : X)
 //  }
@@ -123,7 +123,7 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
 
     def pure[Arg <: HList, T](implicit converter: Converter.Aux[R, T],
                               fnFromProduct: FnFromProduct[H => Expression],
-                              translation: Translation.Aux[H, Arg]) = to(this)
+                              translation: MapArgs.Aux[H, Arg]) = to(this)
   }
 
   implicit def productize[F, H <: HList, R](f: F)(implicit fnToProduct: FnToProduct.Aux[F, H => R]) = new Productized[H, R] {
@@ -133,10 +133,10 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
   //seems that the compiler has problem inferring R: NotLifted, thus the productized object (one less jump)
   def to[H <: HList, R, Arg <: HList, T](f: Productized[H, R])(implicit
                                                   converter: Converter.Aux[R, T], fnFromProduct: FnFromProduct[H => Expression],
-                                                  translation: Translation.Aux[H, Arg]) =
+                                                  translation: MapArgs.Aux[H, Arg]) =
     new CallWord[T, Arg](fnFromProduct((x: H) => converter.apply(f(x)).tree), converter.typ)
 
-  implicit class RepMap[T, A](arg: Rep[T])(implicit translation: Translation.Aux[A :: HNil, T :: HNil]) {
+  implicit class RepMap[T, A](arg: Rep[T])(implicit translation: MapArgs.Aux[A :: HNil, T :: HNil]) {
     def liftMap[B, R](f: A => B)(implicit converter: Converter.Aux[B, R]): Rep[R] =
       new Rep[R] {
         override val tree: Expression = ApplyNative((x: A) => converter.apply(f(x)).tree, TupleConstructor(Vector(arg.tree)))(converter.typ)

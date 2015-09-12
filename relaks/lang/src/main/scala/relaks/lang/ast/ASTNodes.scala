@@ -44,7 +44,7 @@ object Literal {
   def unapply(literal: Literal) = Some(literal.value)
 }
 
-case class Native(value: Any) extends Atom with Leaf
+sealed case class Native(value: Any) extends Atom with Leaf
 
 //  object ListLiteral {
 //    def unapply(literal: Literal): Option[List[Any]] = literal.tpe match {

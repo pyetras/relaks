@@ -2,7 +2,6 @@ package relaks.lang.dsl
 
 import org.scalatest.{Inside, Matchers, FunSpec}
 import relaks.lang.ast.{Tup, TypedTable, Table}
-import relaks.lang.impl.{TypedTableImpl, TableImpl}
 import scalikejdbc.{ConnectionPool, WrappedResultSet}
 import relaks.lang.impl
 import shapeless._
@@ -42,7 +41,7 @@ class DrillInterpreterTest extends FunSpec with Matchers with Inside {
         } limit 10
 
         val buffer = collection.mutable.Buffer.empty[impl.Row]
-        def f(tbl: TypedTableImpl[String::Int::HNil]) = {
+        def f(tbl: impl.TypedTable[String::Int::HNil]) = {
           buffer ++= tbl.toIterator
         }
 

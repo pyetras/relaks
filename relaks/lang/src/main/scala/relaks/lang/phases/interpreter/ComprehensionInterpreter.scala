@@ -6,7 +6,7 @@ import relaks.lang.ast.{ListType, TableFromList, Literal, Expression}
 import relaks.lang.dsl.extensions.ast.Symbols
 import relaks.lang.dsl.extensions.ast.logical.{Select, LoadComprehension, SelectComprehension, QueryOp}
 import relaks.lang.dsl.extensions.{ListInterpreter, ListExtensions, TupleInterpreter, TableIO}
-import relaks.lang.impl.{VectorRow, Schema, TableImpl, Row}
+import relaks.lang.impl.{VectorRow, Schema, TableProcess, Row}
 import relaks.lang.phases.rewriting.QueryRewritingPhases
 import relaks.lang.impl
 import relaks.optimizer.OptimizerError
@@ -76,7 +76,7 @@ trait ComprehensionInterpreter
 
 
   override def evalExpression(expr: Expression): Any =
-    evalComprehensionPartial.andThen(proc => new TableImpl(proc)).applyOrElse(expr, super.evalExpression)
+    evalComprehensionPartial.andThen(proc => new TableProcess(proc)).applyOrElse(expr, super.evalExpression)
 }
 
 trait ListComprehensionInterpreter extends ComprehensionInterpreter with ListInterpreter {
