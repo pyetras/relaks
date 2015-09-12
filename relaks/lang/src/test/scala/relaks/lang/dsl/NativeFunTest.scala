@@ -20,7 +20,7 @@ class NativeFunTest extends FunSpec with Matchers with Inside {
       val a = x + y
       val z = to (branin _) apply (x, a)
 
-      z.tree should matchPattern  {case ApplyNative(branin, _/>(_: TupleConstructor)) => }
+      z.tree should matchPattern  {case _/>ApplyNative(branin, _/>(_: TupleConstructor)) => }
       z.getTpe should equal (ScalaTypes.doubleType) //test if it doesn't return NativeType (unlifted) by any chance
     }
 
@@ -34,7 +34,7 @@ class NativeFunTest extends FunSpec with Matchers with Inside {
       def f(a: A) = null
 
       val z = to(f _) apply Tuple1((new B).asRep)
-      z.tree should matchPattern { case ApplyNative(f, _) => }
+      z.tree should matchPattern { case _/>ApplyNative(f, _) => }
     }
 
     it("should translate Table type") {

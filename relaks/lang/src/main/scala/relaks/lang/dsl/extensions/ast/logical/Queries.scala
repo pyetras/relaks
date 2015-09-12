@@ -64,6 +64,14 @@ object QueryOp {
       case _ => None
     }
   }
+
+  object Closure {
+    def unapply(queryOp: QueryOp) = queryOp match {
+      case Transform(gen, select) => (gen, select).some
+      case Filter(gen, filter) => (gen, filter).some
+      case _ => None
+    }
+  }
 }
 
 trait ComprehensionPrinters extends Symbols with Queries {

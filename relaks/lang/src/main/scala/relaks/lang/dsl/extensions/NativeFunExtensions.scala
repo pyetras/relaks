@@ -3,6 +3,7 @@ package relaks.lang.dsl.extensions
 import relaks.lang.ast._
 import relaks.lang.dsl.AST.ASTSyntax
 import relaks.lang.dsl.Rep
+import relaks.lang.dsl.extensions.ast.Symbols
 import relaks.lang.impl
 import relaks.lang.impl.TableProcess
 import shapeless.ops.hlist.Mapper
@@ -13,7 +14,7 @@ import scala.language.implicitConversions
 /**
  * Created by Pietras on 23/06/15.
  */
-trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
+trait NativeFunExtensions extends ASTSyntax with AnyExtensions with Symbols {
 
 
   trait MapArgs[A <: HList] {
@@ -77,7 +78,7 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
 
   class CallWord[T, Arg <: HList](f: Any, typ: TType) {
     def apply[AC <: Arg](args: Rep[Tup[AC]]): Rep[T] = new Rep[T] {
-      override val tree: Expression = ApplyNative(f, args.tree)(typ)
+      override val tree: Atom = ApplyNative(f, args.tree)(typ)
     }
   }
 
@@ -139,7 +140,7 @@ trait NativeFunExtensions extends ASTSyntax with AnyExtensions {
   implicit class RepMap[T, A](arg: Rep[T])(implicit translation: MapArgs.Aux[A :: HNil, T :: HNil]) {
     def liftMap[B, R](f: A => B)(implicit converter: Converter.Aux[B, R]): Rep[R] =
       new Rep[R] {
-        override val tree: Expression = ApplyNative((x: A) => converter.apply(f(x)).tree, TupleConstructor(Vector(arg.tree)))(converter.typ)
+        override val tree: Atom = ApplyNative((x: A) => converter.apply(f(x)).tree, TupleConstructor(Vector(arg.tree)))(converter.typ)
       }
   }
 }

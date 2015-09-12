@@ -10,7 +10,7 @@ import scala.language.{implicitConversions, reflectiveCalls}
 /**
  * Created by Pietras on 16/04/15.
  */
-trait NumericExtensions extends ASTSyntax with Symbols {
+trait NumericExtensions extends ASTSyntax with Symbols with OpUtils {
   class NumericOperations[B1](val arg1: Rep[B1]) extends Operations[B1] {
     def + (arg2: Rep[B1]): Rep[B1] =
       op.arg2[B1].to[B1].toRep(Stdlib.+, arg1.tree, arg2.tree)

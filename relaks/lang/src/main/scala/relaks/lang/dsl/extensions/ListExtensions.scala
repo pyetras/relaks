@@ -24,7 +24,7 @@ trait ListExtensions extends AnyExtensions with ASTSyntax with Symbols with Tabl
     def apply[T: ArgType](xs: Rep[T]*) : Rep[List[T]] = {
       val t: Atom = ListConstructor(xs.map(_.tree))(new ListType[T])
       new Rep[List[T]] {
-        override val tree: Expression = t
+        override val tree: Atom = t
       }
     }
   }
@@ -35,7 +35,7 @@ trait ListExtensions extends AnyExtensions with ASTSyntax with Symbols with Tabl
 
   class ListOperations[T: ArgType](arg1: Rep[List[T]]) {
     def map[F: ArgType](f: Rep[T => F]): Rep[List[F]] = new Rep[List[F]] {
-      override val tree = relaks.lang.ast.Apply(Stdlib.list_map, scala.List(arg1.tree, f.tree))(new ListType[F])
+      override val tree: Atom = relaks.lang.ast.Apply(Stdlib.list_map, scala.List(arg1.tree, f.tree))(new ListType[F])
     }
 
     def asTable[H <: HList](implicit asTuple: AsTuple.Aux[T, H], mkCmp: BuildComprehension[TableRep[H], TableRep[H]]): Rep[TypedTable[Tup[H]]] = {

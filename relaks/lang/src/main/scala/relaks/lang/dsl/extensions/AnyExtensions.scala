@@ -9,7 +9,7 @@ import scala.language.{implicitConversions, reflectiveCalls}
 /**
  * Created by Pietras on 15/04/15.
  */
-trait AnyExtensions extends ASTSyntax with BoolExtensions {
+trait AnyExtensions extends ASTSyntax with BoolExtensions with OpUtils {
   class AnyOperations[B1](val arg1: Rep[B1]) extends Operations[B1] {
     def === (arg2: Rep[B1]): Rep[Boolean] =
       op.arg2[B1].to[Boolean].toRep(Stdlib.==, arg1.tree, arg2.tree)
@@ -24,7 +24,7 @@ trait AnyExtensions extends ASTSyntax with BoolExtensions {
   }
 
   implicit def anyToRep[B1](x: B1)(implicit tpe: ScalaType[B1]): Rep[B1] = new Rep[B1] {
-    override val tree: Expression = Literal(x)
+    override val tree = Literal(x)
   }
 
   implicit class AnyAsRep[T : NotLifted](x: T) {

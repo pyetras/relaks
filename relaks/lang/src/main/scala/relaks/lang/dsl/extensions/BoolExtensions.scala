@@ -9,7 +9,7 @@ import scala.language.{implicitConversions, reflectiveCalls}
 /**
  * Created by Pietras on 16/04/15.
  */
-trait BoolExtensions extends ASTSyntax with UnaryStdlibSyntax {
+trait BoolExtensions extends ASTSyntax with UnaryStdlibSyntax with OpUtils {
   class BoolOperations(val arg1: Rep[Boolean]) extends Operations[Boolean] {
     def unary_! = Stdlib.!.toRep[Boolean](arg1.tree)
 

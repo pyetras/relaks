@@ -31,7 +31,7 @@ class TupleTest extends FunSpec with Matchers with Inside with LoneElement {
 //    }
 
     it("should allow static access") {
-      tup(0).tree should matchPattern { case Literal(1) => }
+      tup(0).tree should matchPattern { case _/>Literal(1) => }
       tup(0).getTpe should equal(intType)
 //      tup(0).getTpe.isHyperparam should be(false)
 
@@ -40,7 +40,7 @@ class TupleTest extends FunSpec with Matchers with Inside with LoneElement {
     }
 
     it("should allow dynamic access") {
-      tup.at(0).tree should matchPattern { case Apply(Stdlib.at, x) => }
+      tup.at(0).tree should matchPattern { case _/>Apply(Stdlib.at, x) => }
       val i: Rep[Int] = 0
 //      tup.at(i).getTpe.isHyperparam should be(true)
     }
@@ -61,15 +61,17 @@ class TupleTest extends FunSpec with Matchers with Inside with LoneElement {
     describe("with labels") {
       it("should be created from single element with `as` syntax") {
         val t1: Rep[Tup[Int::HNil]] = 1 as "hello"
-        t1.tree.asInstanceOf[TupleConstructor].names.loneElement should equal("hello")
-        t1.tree.asInstanceOf[TupleConstructor].tuple should have length(1)
+        val _/> (constructor: TupleConstructor) = t1.tree
+        constructor.names.loneElement should equal("hello")
+        constructor.tuple should have length(1)
       }
 
       it("should be created from a tuple of elements with `as` syntax") {
         val tup = (1 as "text", "string" as "int")
         val t2: Rep[Tup[Int::String::HNil]] = tup
-        t2.tree.asInstanceOf[TupleConstructor].names should be (Vector("text", "int"))
-        t2.tree.asInstanceOf[TupleConstructor].tuple should have length(2)
+        val _/> (constructor: TupleConstructor) = t2.tree
+        constructor.names should be (Vector("text", "int"))
+        constructor.tuple should have length(2)
       }
     }
 

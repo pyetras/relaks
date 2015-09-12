@@ -81,7 +81,7 @@ trait Symbols extends LazyLogging { self =>
   }
 
   protected final def freshRep[T](typ: TType): Rep[T] = new Rep[T] {
-    override val tree: Expression = fresh(typ)
+    override val tree: Atom = fresh(typ)
   }
 
   private def saveDefinition(sym: Sym, expression: Expression) : Unit = {

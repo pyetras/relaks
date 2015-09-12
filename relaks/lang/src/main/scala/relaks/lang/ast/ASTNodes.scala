@@ -75,22 +75,6 @@ object TupleConstructor {
   }
 }
 
-object TupleWithNames {
-  import scalaz.Scalaz._
-  import scalaz._
-  def unapply(expr: Expression): Option[(Vector[Expression], Vector[String])] = expr match {
-    case t: TupleConstructor => Some((t.tuple, t.names))
-    case _ => None
-  }
-  def unapplyWithTypes(row: Expression): Option[Vector[(String, TType)]] = unapply(row)
-    .map(_.zipped.map { case (expr, name) => (name, expr.tpe)})
-
-  private val toFields = { namesTypes: Vector[(String, TType)] =>
-    namesTypes.map { case (x, y) => Field(Symbol(x), y) } }
-
-  def unapplyFields = (unapplyWithTypes _) andThen toFields.lift
-}
-
 sealed trait HyperparamSpace extends Expression
 sealed case class HyperparamRange(from: Expression, to: Expression) extends HyperparamSpace
 sealed case class HyperparamList(s: Expression) extends HyperparamSpace
@@ -102,14 +86,6 @@ object Apply {
   def apply(s: String, args: Expression*): Apply = Apply(Operator(s), args.toList)
 }
 
-sealed class ApplyNamed(fn: Expression, val names: List[Option[String]], args: Expression*)
-  extends Apply(fn, args.toList) with NamedArgs {
-}
-
 sealed case class ApplyNative(fn: Any, argTuple: Expression) extends Expression
-
-trait NamedArgs { this: Apply =>
-  val names: List[Option[String]]
-}
 
 sealed case class Operator(name: String) extends Expression

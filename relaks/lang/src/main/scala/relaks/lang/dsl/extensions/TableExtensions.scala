@@ -42,6 +42,22 @@ trait TableUtils extends Symbols with Queries {
       namesTypes.map { case (x, y) => Field(Symbol(x), y) }
     }
   }
+
+  object TupleWithNames {
+    import scalaz.Scalaz._
+    import scalaz._
+    def unapply(expr: Expression): Option[(Vector[Expression], Vector[String])] = expr match {
+      case _/>(t: TupleConstructor) => Some((t.tuple, t.names))
+      case _ => None
+    }
+    def unapplyWithTypes(row: Expression): Option[Vector[(String, TType)]] = unapply(row)
+      .map(_.zipped.map { case (expr, name) => (name, expr.tpe)})
+
+    private val toFields = { namesTypes: Vector[(String, TType)] =>
+      namesTypes.map { case (x, y) => Field(Symbol(x), y) } }
+
+    def unapplyFields = (unapplyWithTypes _) andThen toFields.lift
+  }
 }
 
 trait IHateScala {
@@ -88,7 +104,7 @@ trait TableOps extends Symbols with Queries with TypedSymbols with TableUtils wi
   implicit def untypedAsComprehension: BuildComprehension[Rep[UntypedTable], Rep[UntypedTable]] =
     new BuildComprehension[Rep[UntypedTable], Rep[UntypedTable]] {
       override def apply(query: Atom): Rep[UntypedTable] = new Rep[UntypedTable] {
-        override val tree: TTree = query
+        override val tree: Atom = query
       }
     }
 

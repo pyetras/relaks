@@ -44,17 +44,17 @@ trait TupleOps extends Symbols with AnyExtensions with ASTSyntax {
      * Dynamic (runtime) getter
      */
     def at[LUB](i: Rep[Int])(implicit ev: TupleLU[B1, LUB]): Rep[LUB] = new Rep[LUB] { //FIXME jakos?
-    override val tree: Expression = Apply(Stdlib.at, List(arg1.tree, i.tree))(luType)
+    override val tree: Atom = Apply(Stdlib.at, List(arg1.tree, i.tree))(luType)
     }
 
     private[dsl] def extract[Out](i: Int): Rep[Out] = {
       def access(i: Rep[Int], tpe: TType) = new Rep[Out] {
-        override val tree: Expression = Apply(Stdlib.at, List(arg1.tree, i.tree))(UnknownType)
+        override val tree: Atom = Apply(Stdlib.at, List(arg1.tree, i.tree))(UnknownType)
       }
 
       arg1.tree match {
         case Expr(TupleConstructor(seq)) => new Rep[Out] {
-          override val tree: Expression = seq(i)
+          override val tree: Atom = seq(i)
         }
         case (e: TTree) :@ (t: TType) => {//in case it doesn't have an actual value assigned (fresh for example)
           logger.warn("Static access to an uninitialized tuple")
@@ -96,7 +96,7 @@ trait TupleUtils extends TupleOps {
                                                                                                                          zip: ZipConst.Aux[Rep[Tup[T]], Reversed, Zipped],
                                                                                                                          mapper: Mapper.Aux[toReps.type, Zipped, Mapped],
                                                                                                                          tupler: Tupler[Mapped]) = r.tree match {
-      case TupleConstructor(lst) =>
+      case _/>TupleConstructor(lst) =>
         Some(seq().reverse.zipConst(r).map(toReps).tupled)
       case _ => None
     }
@@ -147,7 +147,7 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
     val hlist = ev.to(p)
     val (exprs, typ) = toNode(hlist)
     new Rep[Tup[R]] {
-      override val tree: Expression = TupleConstructor(exprs)(typ)
+      override val tree: Atom = TupleConstructor(exprs)(typ)
     }
   }
 
@@ -191,7 +191,7 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
         val hlist = values.apply(p.asHList)
         val (exprs, typ) = toNode(hlist)
         new Rep[Tup[Out]] {
-          override val tree: Expression = TupleConstructor(exprs, namesT(names()))(typ)
+          override val tree: Atom = TupleConstructor(exprs, namesT(names()))(typ)
         }
       }
     }
@@ -236,7 +236,7 @@ trait TupleExtensions extends Symbols with AnyExtensions with LazyLogging with L
     implicit def repToTuple[T](implicit ev: T =:!= Tup[_]): Aux[T, T :: HNil] = new AsTuple[T] {
       override type Out = T :: HNil
       override def apply(r: Rep[T]): Rep[Tup[Out]] = new Rep[Tup[T :: HNil]] {
-        override val tree: TTree = TupleConstructor(Vector(r.tree))
+        override val tree: Atom = TupleConstructor(Vector(r.tree))
       }
     }
 

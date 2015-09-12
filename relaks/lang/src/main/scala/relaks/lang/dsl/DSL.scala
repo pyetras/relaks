@@ -3,6 +3,7 @@ package relaks.lang.dsl
 import relaks.lang.dsl.AST.ASTSyntax
 import relaks.lang.dsl.extensions._
 import relaks.lang.dsl.extensions.ast.Symbols
+import relaks.lang.dsl.extensions.ast.logical.ComprehensionPrinters
 import relaks.lang.phases.interpreter._
 import relaks.optimizer.{NondetParams, NondetParam, BaseOptimizer, GridOptimizer}
 
@@ -33,3 +34,7 @@ abstract class DSLOptimizerInterpreter(optimizer: BaseOptimizer = GridOptimizer)
 
 abstract class DSLDrillInterpreter extends DrillInterpreter
   with DSLInterpreter
+
+abstract class Relaks(optimizer: BaseOptimizer = GridOptimizer)
+  extends DSLOptimizerInterpreter(optimizer)
+  with DrillInterpreter with ListComprehensionInterpreter with ComprehensionPrinters

@@ -48,13 +48,13 @@ trait Queries extends Symbols with ToTypedTreeOps with TypedSymbols {
 
     def toTuple[F <: HList]: Rep[Tup[F]] = {
       new Rep[Tup[F]] {
-        override val tree: Expression = TupleConstructor(symsVector) //TODO type
+        override val tree: Atom = TupleConstructor(symsVector) //TODO type
       }
     }
 
     def toTupleWithNames[F <: HList](names: Vector[String], tupTyp: TType): Rep[Tup[F]] = {
       new Rep[Tup[F]] {
-        override val tree: TTree = TupleConstructor(symsVector, names)(tupTyp)
+        override val tree: Atom = TupleConstructor(symsVector, names)(tupTyp)
       }
     }
 
@@ -204,7 +204,7 @@ trait Queries extends Symbols with ToTypedTreeOps with TypedSymbols {
 
   object SingleRow {
     def apply[T <: HList](t: Rep[Tup[T]]): Rep[TypedTable[Tup[T]]] = new Rep[TypedTable[Tup[T]]] {
-      override val tree: Expression = Pure(t.tree)(new UntypedTableType)
+      override val tree: Atom = Pure(t.tree)(new UntypedTableType)
     }
   }
 

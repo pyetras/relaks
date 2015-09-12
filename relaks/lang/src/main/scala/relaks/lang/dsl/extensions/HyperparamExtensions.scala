@@ -23,11 +23,9 @@ import relaks.lang.ast.ScalaType
  */
 trait HyperparamExtensions extends ListExtensions with Symbols with HyperparamGenerators with TableOps {
 
-  def once[T](superPos: Rep[T]): Rep[T] = {
-    new Rep[T] {
-      override val tree: Expression = Once(superPos.tree)(superPos.getTpe)
-    }
-  }
+//  def once[H <: HList](superPos: Rep[Tup[H]]): Rep[Tup[H]] = {
+//    optimize(superPos).limit(1)
+//  }
 
   def optimize[H <: HList, Out](varTup: Rep[Tup[H]])
                                (implicit mkCmp: BuildComprehension[Rep[UnfinishedGenTable[Tup[H]]], Out]) = {

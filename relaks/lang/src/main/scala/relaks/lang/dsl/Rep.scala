@@ -8,7 +8,7 @@ import relaks.lang.ast._
 
 //for instance Rep[Int], Rep[List[Int]]
 trait Rep[+T] {
-  val tree: Expression
+  val tree: Atom
   def getTpe = tree.tpe
   override def toString = s"Rep($tree)"
 }
